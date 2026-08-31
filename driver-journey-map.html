@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Driver Journey Map — Fulfilling a FuelNow Delivery</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --petrol-deep:   #F97316;
+      --petrol-mid:    #EA580C;
+      --petrol-light:  #FFEDD5;
+      --diesel-blue:   #2563EB;
+      --diesel-green:  #22C55E;
+      --ignition-amber:#FACC15;
+      --warm-ash:      #F8FAFC;
+      --charcoal-ink:  #111827;
+      --signal-red:    #EF4444;
+      --ink-light:     #4B5563;
+      --ink-faint:     #9CA3AF;
+      --divider:       #E2E8F0;
+      --white:         #FFFFFF;
+    }
+
+    html { background: var(--warm-ash); }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--warm-ash);
+      color: var(--charcoal-ink);
+      min-width: 2200px;
+      padding: 48px 56px 72px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ─── Header ─────────────────────────────────────────────── */
+    .page-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 44px;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+    }
+
+    .brand-mark {
+      width: 56px; height: 56px;
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 0 0 6px rgba(249,115,22,0.15);
+      flex-shrink: 0;
+    }
+
+    .brand-mark img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .page-title {
+      font-size: 28px;
+      font-weight: 800;
+      color: var(--charcoal-ink);
+      letter-spacing: -0.5px;
+      line-height: 1.15;
+    }
+
+    .page-subtitle {
+      font-size: 14px;
+      color: var(--ink-light);
+      margin-top: 5px;
+      font-weight: 500;
+    }
+
+    /* ─── Actor strip ─────────────────────────────────────────── */
+    .actor-strip {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      background: var(--white);
+      border: 1px solid var(--divider);
+      border-radius: 14px;
+      padding: 16px 28px;
+      margin-bottom: 32px;
+      box-shadow: 0 1px 4px rgba(17,24,39,0.05);
+    }
+
+    .actor-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--ink-faint);
+      min-width: 80px;
+    }
+
+    .actor-pill {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--warm-ash);
+      border-radius: 99px;
+      padding: 7px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--charcoal-ink);
+      border: 1.5px solid var(--divider);
+    }
+
+    /* ─── Main Journey Table ──────────────────────────────────── */
+    .journey-table {
+      width: 100%;
+      border-radius: 20px;
+      overflow: visible;
+      background: var(--white);
+      box-shadow: 0 4px 24px rgba(17,24,39,0.09);
+      border: 1px solid var(--divider);
+    }
+
+    .stages-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+    }
+
+    /* ─── Stage Header Bands ─────────────────────────────────── */
+    .stage-col {
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    .stage-col:not(:last-child) {
+      border-right: 1px solid rgba(255,255,255,0.2);
+    }
+
+    .stage-band {
+      padding: 22px 26px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      position: relative;
+    }
+
+    .stage-num {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      opacity: 0.72;
+    }
+
+    .stage-name {
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: -0.3px;
+      line-height: 1.2;
+    }
+
+    .stage-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 10px;
+      border-radius: 99px;
+      font-size: 11px;
+      font-weight: 700;
+      background: rgba(255,255,255,0.2);
+      letter-spacing: 0.03em;
+      margin-top: 2px;
+      width: fit-content;
+    }
+
+    /* Stage colour themes */
+    .stage-1 .stage-band { background: linear-gradient(135deg, #1F2937 0%, #111827 100%); color: white; }
+    .stage-2 .stage-band { background: linear-gradient(135deg, #F97316 0%, #EA580C 100%); color: white; }
+    .stage-3 .stage-band { background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%); color: white; }
+    .stage-4 .stage-band { background: linear-gradient(135deg, #374151 0%, #1F2937 100%); color: white; }
+    .stage-5 .stage-band { background: linear-gradient(135deg, #22C55E 0%, #16A34A 100%); color: white; }
+
+    .secondary-badge {
+      position: absolute;
+      top: 20px;
+      right: 22px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(255,255,255,0.15);
+      border: 1.5px solid rgba(255,255,255,0.3);
+      border-radius: 99px;
+      padding: 4px 12px 4px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      color: rgba(255,255,255,0.9);
+      backdrop-filter: blur(4px);
+    }
+
+    /* ─── Section rows ───────────────────────────────────────── */
+    .section-row {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      border-top: 1px solid var(--divider);
+    }
+
+    .section-cell {
+      padding: 24px 26px;
+      min-height: 180px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .section-cell:not(:last-child) {
+      border-right: 1px solid var(--divider);
+    }
+
+    .section-label {
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--ink-faint);
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .section-label-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* ─── Steps ──────────────────────────────────────────────── */
+    .steps-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      list-style: none;
+    }
+
+    .step-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--charcoal-ink);
+      line-height: 1.45;
+    }
+
+    .step-num {
+      width: 20px; height: 20px;
+      border-radius: 50%;
+      background: var(--petrol-light);
+      color: var(--petrol-mid);
+      font-size: 10px;
+      font-weight: 800;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .stage-3 .step-num { background: #DBEAFE; color: var(--diesel-blue); }
+    .stage-5 .step-num { background: #DCFCE7; color: #16A34A; }
+
+    /* ─── Thoughts ───────────────────────────────────────────── */
+    .thoughts-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .thought-bubble {
+      background: var(--warm-ash);
+      border-left: 3px solid var(--ignition-amber);
+      border-radius: 0 10px 10px 0;
+      padding: 10px 14px;
+      font-size: 13px;
+      font-style: italic;
+      color: var(--charcoal-ink);
+      line-height: 1.5;
+      position: relative;
+    }
+
+    .thought-bubble::before {
+      content: '"';
+      font-size: 26px;
+      color: var(--ignition-amber);
+      position: absolute;
+      top: -4px;
+      left: 10px;
+      line-height: 1;
+      font-style: normal;
+    }
+
+    .thought-bubble p {
+      padding-left: 14px;
+    }
+
+    /* ─── Touchpoints ────────────────────────────────────────── */
+    .touchpoints-row {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .touchpoint-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--ink-light);
+    }
+
+    .tp-icon {
+      width: 34px; height: 34px;
+      border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 800; color: var(--ink-light);
+      flex-shrink: 0;
+      border: 1.5px solid var(--divider);
+      background: #F3F4F6;
+      letter-spacing: 0.01em;
+    }
+
+    /* ─── Emotion Curve ──────────────────────────────────────── */
+    .emotion-section {
+      border-top: 1px solid var(--divider);
+      padding: 0;
+    }
+
+    .emotion-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 18px 28px 0;
+      font-size: 14px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--ink-faint);
+    }
+
+    .emotion-chart-wrapper {
+      padding: 8px 0 28px;
+      position: relative;
+    }
+
+    /* ─── Legend ─────────────────────────────────────────────── */
+    .emotion-legend {
+      display: flex;
+      gap: 24px;
+      align-items: center;
+      padding: 0 28px 20px;
+      flex-wrap: wrap;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--ink-light);
+    }
+
+    .legend-dot {
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      border: 2px solid var(--white);
+      box-shadow: 0 0 0 2px rgba(0,0,0,0.1);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ─── Page Header ─────────────────────────────────────────── -->
+  <div class="page-header">
+    <div class="header-left">
+      <div class="brand-mark"><img src="fuelnow-logo.jpg" alt="FuelNow Logo" /></div>
+      <div>
+        <div class="page-title">Driver Journey: Fulfilling a FuelNow Delivery</div>
+        <div class="page-subtitle">Driver experience map · South African operations</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── Actor Strip ─────────────────────────────────────────── -->
+  <div class="actor-strip">
+    <span class="actor-label">Actors</span>
+    <div class="actor-pill">Delivery Driver (primary)</div>
+    <div class="actor-pill">Customer (enters at Stage 3)</div>
+    <div class="actor-pill">Admin / Operations (enters at Stage 5 — SOS path)</div>
+  </div>
+
+  <!-- ─── Main Journey Map ─────────────────────────────────────── -->
+  <div class="journey-table">
+
+    <!-- ── Stage Header Bands ────────────────────────────────── -->
+    <div class="stages-grid">
+
+      <!-- Stage 1 -->
+      <div class="stage-col stage-1">
+        <div class="stage-band">
+          <span class="stage-num">Stage 01</span>
+          <span class="stage-name">Start of Shift</span>
+          <span class="stage-tag">Preparation</span>
+        </div>
+      </div>
+
+      <!-- Stage 2 -->
+      <div class="stage-col stage-2">
+        <div class="stage-band">
+          <span class="stage-num">Stage 02</span>
+          <span class="stage-name">Accepting a Job</span>
+          <span class="stage-tag">Decision</span>
+        </div>
+      </div>
+
+      <!-- Stage 3 -->
+      <div class="stage-col stage-3">
+        <div class="stage-band" style="position:relative;">
+          <span class="stage-num">Stage 03</span>
+          <span class="stage-name">Fulfilling the Delivery</span>
+          <span class="stage-tag">Fulfilment</span>
+          <div class="secondary-badge">Customer involved</div>
+        </div>
+      </div>
+
+      <!-- Stage 4 -->
+      <div class="stage-col stage-4">
+        <div class="stage-band" style="position:relative;">
+          <span class="stage-num">Stage 04</span>
+          <span class="stage-name">Completing the Delivery</span>
+          <span class="stage-tag">Verification</span>
+          <div class="secondary-badge">Customer involved</div>
+        </div>
+      </div>
+
+      <!-- Stage 5 -->
+      <div class="stage-col stage-5">
+        <div class="stage-band" style="position:relative;">
+          <span class="stage-num">Stage 05</span>
+          <span class="stage-name">Wrap-Up</span>
+          <span class="stage-tag">Completion</span>
+          <div class="secondary-badge">Admin — SOS path</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ── STEPS ROW ─────────────────────────────────────────── -->
+    <div class="section-row">
+      <!-- Stage 1 -->
+      <div class="section-cell stage-1">
+        <div class="section-label"><span class="section-label-dot" style="background:var(--petrol-deep)"></span>Driver Steps</div>
+        <ul class="steps-list">
+          <li class="step-item"><span class="step-num">1</span><span>Opens FuelNow Driver app and logs in with ID and PIN</span></li>
+          <li class="step-item"><span class="step-num">2</span><span>Sets status to "Available" to begin receiving orders</span></li>
+          <li class="step-item"><span class="step-num">3</span><span>Reviews available orders on map and list view</span></li>
+          <li class="step-item"><span class="step-num">4</span><span>Checks today's fuel load and tank capacity on truck FN-TRK-004</span></li>
+        </ul>
+      </div>
+      <!-- Stage 2 -->
+      <div class="section-cell stage-2">
+        <div class="section-label"><span class="section-label-dot" style="background:var(--petrol-deep)"></span>Driver Steps</div>
+        <ul class="steps-list">
+          <li class="step-item"><span class="step-num">1</span><span>Opens order card — views fuel type, volume (e.g. 40 L Petrol 95), distance (6.2 km) and customer name</span></li>
+          <li class="step-item"><span class="step-num">2</span><span>Calculates whether the job is worthwhile given current route</span></li>
+          <li class="step-item"><span class="step-num">3</span><span>Taps Accept — or skips to view the next available job</span></li>
+        </ul>
+      </div>
+      <!-- Stage 3 -->
+      <div class="section-cell stage-3">
+        <div class="section-label"><span class="section-label-dot" style="background:var(--diesel-blue)"></span>Driver Steps</div>
+        <ul class="steps-list">
+          <li class="step-item"><span class="step-num">1</span><span>Follows turn-by-turn navigation to customer address in Morningside, Durban</span></li>
+          <li class="step-item"><span class="step-num">2</span><span>Updates job status to "En Route" via the app</span></li>
+          <li class="step-item"><span class="step-num">3</span><span>Updates status to "Arrived" on reaching the location</span></li>
+          <li class="step-item"><span class="step-num">4</span><span>Updates status to "Dispensing" once pumping begins</span></li>
+        </ul>
+      </div>
+      <!-- Stage 4 -->
+      <div class="section-cell stage-4">
+        <div class="section-label"><span class="section-label-dot" style="background:var(--petrol-deep)"></span>Driver Steps</div>
+        <ul class="steps-list">
+          <li class="step-item"><span class="step-num">1</span><span>Captures a proof-of-delivery photo via the app camera</span></li>
+          <li class="step-item"><span class="step-num">2</span><span>Prompts customer to share their 4-digit verification PIN</span></li>
+          <li class="step-item"><span class="step-num">3</span><span>Enters customer PIN to confirm and close the order</span></li>
+          <li class="step-item"><span class="step-num">4</span><span>Receives "Order Complete" confirmation — job logs to earnings</span></li>
+        </ul>
+      </div>
+      <!-- Stage 5 -->
+      <div class="section-cell stage-5">
+        <div class="section-label"><span class="section-label-dot" style="background:var(--diesel-green)"></span>Driver Steps</div>
+        <ul class="steps-list">
+          <li class="step-item"><span class="step-num">1</span><span>Views today's earnings summary and completed deliveries (e.g. R1 240 across 5 jobs)</span></li>
+          <li class="step-item"><span class="step-num">2</span><span>Moves to next available order, OR marks status as "Offline" to end shift</span></li>
+          <li class="step-item"><span class="step-num">3</span><span>If a truck fault or safety concern arises: taps SOS button to alert operations</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- ── THOUGHTS ROW ──────────────────────────────────────── -->
+    <div class="section-row">
+      <!-- Stage 1 -->
+      <div class="section-cell">
+        <div class="section-label"><span class="section-label-dot" style="background:var(--ignition-amber)"></span>Driver Thoughts</div>
+        <div class="thoughts-list">
+          <div class="thought-bubble"><p>I want jobs close to my current route so I'm not wasting fuel on dead kilometres.</p></div>
+          <div class="thought-bubble"><p>Let's see what's on offer today — hopefully a solid morning run in Umhlanga.</p></div>
+        </div>
+      </div>
+      <!-- Stage 2 -->
+      <div class="section-cell">
+        <div class="section-label"><span class="section-label-dot" style="background:var(--ignition-amber)"></span>Driver Thoughts</div>
+        <div class="thoughts-list">
+          <div class="thought-bubble"><p>Is this job worth the drive? Six kilometres for 40 litres — that works for me.</p></div>
+          <div class="thought-bubble"><p>Do I have enough Petrol 95 loaded to cover this order plus the next one?</p></div>
+        </div>
+      </div>
+      <!-- Stage 3 -->
+      <div class="section-cell">
+        <div class="section-label"><span class="section-label-dot" style="background:var(--ignition-amber)"></span>Driver Thoughts</div>
+        <div class="thoughts-list">
+          <div class="thought-bubble"><p>I need to find this address without wasting time — the ETA is showing on the customer's side too.</p></div>
+          <div class="thought-bubble"><p>Traffic on the N3 is bad today. I hope the customer's ETA updates in the app automatically.</p></div>
+        </div>
+      </div>
+      <!-- Stage 4 -->
+      <div class="section-cell">
+        <div class="section-label"><span class="section-label-dot" style="background:var(--ignition-amber)"></span>Driver Thoughts</div>
+        <div class="thoughts-list">
+          <div class="thought-bubble"><p>I need that proof-of-delivery photo — in case this order is ever disputed I'm covered.</p></div>
+          <div class="thought-bubble"><p>PIN matched. Clean close — on to the next one.</p></div>
+        </div>
+      </div>
+      <!-- Stage 5 -->
+      <div class="section-cell">
+        <div class="section-label"><span class="section-label-dot" style="background:var(--ignition-amber)"></span>Driver Thoughts</div>
+        <div class="thoughts-list">
+          <div class="thought-bubble"><p>R1 240 for the morning shift — not bad. Let me see if there are more jobs near Westville.</p></div>
+          <div class="thought-bubble"><p>If something goes wrong with the truck, I need help fast — I can't be stuck on the side of the road.</p></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── TOUCHPOINTS ROW ───────────────────────────────────── -->
+    <div class="section-row">
+      <!-- Stage 1 -->
+      <div class="section-cell" style="min-height:130px;">
+        <div class="section-label"><span class="section-label-dot" style="background:var(--diesel-blue)"></span>Touchpoints</div>
+        <div class="touchpoints-row">
+          <div class="touchpoint-item"><div class="tp-icon" style="background:#DBEAFE;color:#1D4ED8;">APP</div> Driver App Login Screen</div>
+          <div class="touchpoint-item"><div class="tp-icon" style="background:#DCFCE7;color:#15803D;">MAP</div> Order Map / List View</div>
+          <div class="touchpoint-item"><div class="tp-icon" style="background:#F3F4F6;color:#374151;">STS</div> Availability Status Toggle</div>
+        </div>
+      </div>
+      <!-- Stage 2 -->
+      <div class="section-cell" style="min-height:130px;">
+        <div class="section-label"><span class="section-label-dot" style="background:var(--diesel-blue)"></span>Touchpoints</div>
+        <div class="touchpoints-row">
+          <div class="touchpoint-item"><div class="tp-icon" style="background:#FFEDD5;color:#C2410C;">ORD</div> Order Detail Card</div>
+          <div class="touchpoint-item"><div class="tp-icon" style="background:#DCFCE7;color:#15803D;">ACC</div> Accept / Skip Button</div>
+          <div class="touchpoint-item"><div class="tp-icon" style="background:#F3F4F6;color:#374151;">DST</div> Distance and Volume Summary</div>
+        </div>
+      </div>
+      <!-- Stage 3 -->
+      <div class="section-cell" style="min-height:130px;">
+        <div class="section-label"><span class="section-label-dot" style="background:var(--diesel-blue)"></span>Touchpoints</div>
+        <div class="touchpoints-row">
+          <div class="touchpoint-item"><div class="tp-icon" style="background:#DCFCE7;color:#15803D;">NAV</div> Turn-by-Turn Navigation</div>
+          <div class="touchpoint-item"><div class="tp-icon" style="background:#DBEAFE;color:#1D4ED8;">UPD</div> Status Update Controls</div>
+          <div class="touchpoint-item"><div class="tp-icon" style="background:#FEF9C3;color:#854D0E;">ETA</div> Live ETA Display</div>
+        </div>
+      </div>
+      <!-- Stage 4 -->
+      <div class="section-cell" style="min-height:130px;">
+        <div class="section-label"><span class="section-label-dot" style="background:var(--diesel-blue)"></span>Touchpoints</div>
+        <div class="touchpoints-row">
+          <div class="touchpoint-item"><div class="tp-icon" style="background:#F3F4F6;color:#374151;">CAM</div> In-App Camera (Proof of Delivery)</div>
+          <div class="touchpoint-item"><div class="tp-icon" style="background:#DBEAFE;color:#1D4ED8;">PIN</div> 4-Digit Customer PIN Entry</div>
+          <div class="touchpoint-item"><div class="tp-icon" style="background:#DCFCE7;color:#15803D;">CNF</div> Order Completion Screen</div>
+        </div>
+      </div>
+      <!-- Stage 5 -->
+      <div class="section-cell" style="min-height:130px;">
+        <div class="section-label"><span class="section-label-dot" style="background:var(--diesel-blue)"></span>Touchpoints</div>
+        <div class="touchpoints-row">
+          <div class="touchpoint-item"><div class="tp-icon" style="background:#FFEDD5;color:#C2410C;">ERN</div> Earnings Summary Dial</div>
+          <div class="touchpoint-item"><div class="tp-icon" style="background:#FEF3C7;color:#B45309;">JOB</div> Next Job Queue</div>
+          <div class="touchpoint-item"><div class="tp-icon" style="background:#FEE2E2;color:#B91C1C;">SOS</div> SOS Alert Button</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── EMOTION CURVE ROW ──────────────────────────────────── -->
+    <div class="emotion-section">
+      <div class="emotion-header">
+        <span style="width:10px; height:10px; border-radius:50%; background:var(--diesel-green); display:inline-block;"></span>
+        Emotion Curve
+      </div>
+
+      <!-- Legend -->
+      <div class="emotion-legend">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--diesel-green);"></div> Positive / Satisfied / Rewarded</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--ignition-amber);"></div> Neutral / Focused / Cautious</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--signal-red);"></div> Tense / Stressed</div>
+        <div class="legend-item" style="margin-left: 24px; padding-left: 24px; border-left: 1.5px solid var(--divider);">
+          <div style="width:28px; height:2px; background:var(--signal-red); border-radius:2px; display:inline-block;"></div>
+          &nbsp; SOS alternate path
+        </div>
+      </div>
+
+      <div class="emotion-chart-wrapper">
+        <svg viewBox="0 0 2200 340" width="100%" height="340" xmlns="http://www.w3.org/2000/svg" style="display:block; overflow:visible;">
+
+          <!-- Grid lines (horizontal) -->
+          <line x1="60" y1="55"  x2="2150" y2="55"  stroke="#E2E8F0" stroke-width="1" stroke-dasharray="6 4"/>
+          <line x1="60" y1="130" x2="2150" y2="130" stroke="#E2E8F0" stroke-width="1" stroke-dasharray="6 4"/>
+          <line x1="60" y1="205" x2="2150" y2="205" stroke="#E2E8F0" stroke-width="1" stroke-dasharray="6 4"/>
+
+          <!-- Y-axis labels -->
+          <text x="52" y="59"  text-anchor="end" font-size="10" fill="#9CA3AF" font-family="Inter,sans-serif" font-weight="600">Positive</text>
+          <text x="52" y="134" text-anchor="end" font-size="10" fill="#9CA3AF" font-family="Inter,sans-serif" font-weight="600">Neutral</text>
+          <text x="52" y="209" text-anchor="end" font-size="10" fill="#9CA3AF" font-family="Inter,sans-serif" font-weight="600">Tense</text>
+
+          <!-- Vertical stage separators -->
+          <line x1="440"  y1="35" x2="440"  y2="270" stroke="#E2E8F0" stroke-width="1.5"/>
+          <line x1="840"  y1="35" x2="840"  y2="270" stroke="#E2E8F0" stroke-width="1.5"/>
+          <line x1="1240" y1="35" x2="1240" y2="270" stroke="#E2E8F0" stroke-width="1.5"/>
+          <line x1="1660" y1="35" x2="1660" y2="270" stroke="#E2E8F0" stroke-width="1.5"/>
+
+          <!-- Stage labels along X -->
+          <text x="230"  y="282" text-anchor="middle" font-size="11" fill="#9CA3AF" font-family="Inter,sans-serif" font-weight="600">Stage 1 · Start of Shift</text>
+          <text x="640"  y="282" text-anchor="middle" font-size="11" fill="#9CA3AF" font-family="Inter,sans-serif" font-weight="600">Stage 2 · Accepting a Job</text>
+          <text x="1040" y="282" text-anchor="middle" font-size="11" fill="#9CA3AF" font-family="Inter,sans-serif" font-weight="600">Stage 3 · Fulfilment</text>
+          <text x="1450" y="282" text-anchor="middle" font-size="11" fill="#9CA3AF" font-family="Inter,sans-serif" font-weight="600">Stage 4 · Completion</text>
+          <text x="1860" y="282" text-anchor="middle" font-size="11" fill="#9CA3AF" font-family="Inter,sans-serif" font-weight="600">Stage 5 · Wrap-Up</text>
+
+          <!--
+            Points:
+            S1  — Neutral → Engaged  : amber   x=230,  y=130
+            S2  — Focused            : amber   x=640,  y=100
+            S3a — Tense (traffic)    : red     x=960,  y=205
+            S3b — Relieved (arrival) : amber   x=1190, y=115
+            S4  — Satisfied          : green   x=1450, y=65
+            S5  — Rewarded           : green   x=1860, y=55
+            SOS branch: from S5 → red at x=1990,y=215 → green at x=2100,y=110
+          -->
+
+          <!-- Main emotion path -->
+          <path
+            d="M230,130 C380,110 510,85 640,100 C750,112 870,185 960,205 C1060,205 1120,120 1190,115 C1310,108 1380,68 1450,65 C1580,60 1720,55 1860,55"
+            fill="none"
+            stroke="url(#driverGradient)"
+            stroke-width="3"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+
+          <!-- Area fill under main curve -->
+          <path
+            d="M230,130 C380,110 510,85 640,100 C750,112 870,185 960,205 C1060,205 1120,120 1190,115 C1310,108 1380,68 1450,65 C1580,60 1720,55 1860,55 L1860,270 L230,270 Z"
+            fill="url(#driverAreaGradient)"
+            opacity="0.07"
+          />
+
+          <!-- SOS branch — dashed red path branching off S5 then resolving -->
+          <path
+            d="M1860,55 C1900,55 1930,130 1990,215"
+            fill="none"
+            stroke="#EF4444"
+            stroke-width="2.5"
+            stroke-dasharray="8 5"
+            stroke-linecap="round"
+          />
+          <path
+            d="M1990,215 C2040,215 2070,140 2100,110"
+            fill="none"
+            stroke="#22C55E"
+            stroke-width="2.5"
+            stroke-dasharray="8 5"
+            stroke-linecap="round"
+          />
+
+          <!-- Gradients -->
+          <defs>
+            <linearGradient id="driverGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%"   stop-color="#FACC15"/>
+              <stop offset="28%"  stop-color="#FACC15"/>
+              <stop offset="43%"  stop-color="#EF4444"/>
+              <stop offset="56%"  stop-color="#FACC15"/>
+              <stop offset="72%"  stop-color="#22C55E"/>
+              <stop offset="100%" stop-color="#22C55E"/>
+            </linearGradient>
+            <linearGradient id="driverAreaGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%"   stop-color="#FACC15"/>
+              <stop offset="43%"  stop-color="#EF4444"/>
+              <stop offset="72%"  stop-color="#22C55E"/>
+              <stop offset="100%" stop-color="#22C55E"/>
+            </linearGradient>
+            <filter id="shadow">
+              <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="rgba(0,0,0,0.18)"/>
+            </filter>
+          </defs>
+
+          <!-- ── POINT S1 — Neutral → Engaged (Amber) ── -->
+          <circle cx="230" cy="130" r="8" fill="#FACC15" stroke="white" stroke-width="3" filter="url(#shadow)"/>
+          <rect x="110" y="82" width="240" height="38" rx="7" fill="#1F2937"/>
+          <text x="230" y="99" text-anchor="middle" font-size="11" fill="white" font-family="Inter,sans-serif" font-weight="700">Neutral → Engaged</text>
+          <text x="230" y="113" text-anchor="middle" font-size="9.5" fill="#D1D5DB" font-family="Inter,sans-serif">Reviewing jobs, sizing up the day ahead</text>
+          <line x1="230" y1="121" x2="230" y2="130" stroke="#FACC15" stroke-width="1.5" stroke-dasharray="3 2"/>
+
+          <!-- ── POINT S2 — Focused (Amber) ── -->
+          <circle cx="640" cy="100" r="8" fill="#FACC15" stroke="white" stroke-width="3" filter="url(#shadow)"/>
+          <rect x="520" y="52" width="240" height="38" rx="7" fill="#1F2937"/>
+          <text x="640" y="69" text-anchor="middle" font-size="11" fill="white" font-family="Inter,sans-serif" font-weight="700">Focused</text>
+          <text x="640" y="83" text-anchor="middle" font-size="9.5" fill="#D1D5DB" font-family="Inter,sans-serif">Evaluating job value before committing</text>
+          <line x1="640" y1="91" x2="640" y2="100" stroke="#FACC15" stroke-width="1.5" stroke-dasharray="3 2"/>
+
+          <!-- ── POINT S3a — Tense (Red) ── -->
+          <circle cx="960" cy="205" r="8" fill="#EF4444" stroke="white" stroke-width="3" filter="url(#shadow)"/>
+          <rect x="840" y="220" width="240" height="38" rx="7" fill="#1F2937"/>
+          <text x="960" y="237" text-anchor="middle" font-size="11" fill="white" font-family="Inter,sans-serif" font-weight="700">Tense — En Route</text>
+          <text x="960" y="251" text-anchor="middle" font-size="9.5" fill="#D1D5DB" font-family="Inter,sans-serif">N3 traffic; ETA pressure building</text>
+          <line x1="960" y1="205" x2="960" y2="218" stroke="#EF4444" stroke-width="1.5" stroke-dasharray="3 2"/>
+
+          <!-- ── POINT S3b — Relieved (Amber) ── -->
+          <circle cx="1190" cy="115" r="8" fill="#FACC15" stroke="white" stroke-width="3" filter="url(#shadow)"/>
+          <rect x="1070" y="67" width="240" height="38" rx="7" fill="#1F2937"/>
+          <text x="1190" y="84" text-anchor="middle" font-size="11" fill="white" font-family="Inter,sans-serif" font-weight="700">Relieved — Arrived</text>
+          <text x="1190" y="98" text-anchor="middle" font-size="9.5" fill="#D1D5DB" font-family="Inter,sans-serif">Found address; dispensing in progress</text>
+          <line x1="1190" y1="106" x2="1190" y2="115" stroke="#FACC15" stroke-width="1.5" stroke-dasharray="3 2"/>
+
+          <!-- ── POINT S4 — Satisfied (Green) ── -->
+          <circle cx="1450" cy="65" r="8" fill="#22C55E" stroke="white" stroke-width="3" filter="url(#shadow)"/>
+          <rect x="1330" y="17" width="240" height="38" rx="7" fill="#1F2937"/>
+          <text x="1450" y="34" text-anchor="middle" font-size="11" fill="white" font-family="Inter,sans-serif" font-weight="700">Satisfied</text>
+          <text x="1450" y="48" text-anchor="middle" font-size="9.5" fill="#D1D5DB" font-family="Inter,sans-serif">PIN accepted; clean close on the order</text>
+          <line x1="1450" y1="56" x2="1450" y2="65" stroke="#22C55E" stroke-width="1.5" stroke-dasharray="3 2"/>
+
+          <!-- ── POINT S5 — Rewarded (Green) ── -->
+          <circle cx="1860" cy="55" r="8" fill="#22C55E" stroke="white" stroke-width="3" filter="url(#shadow)"/>
+          <rect x="1740" y="7" width="240" height="38" rx="7" fill="#1F2937"/>
+          <text x="1860" y="24" text-anchor="middle" font-size="11" fill="white" font-family="Inter,sans-serif" font-weight="700">Rewarded</text>
+          <text x="1860" y="38" text-anchor="middle" font-size="9.5" fill="#D1D5DB" font-family="Inter,sans-serif">R1 240 earned; solid shift completed</text>
+          <line x1="1860" y1="46" x2="1860" y2="55" stroke="#22C55E" stroke-width="1.5" stroke-dasharray="3 2"/>
+
+          <!-- ── SOS BRANCH — Stressed (Red) ── -->
+          <circle cx="1990" cy="215" r="7" fill="#EF4444" stroke="white" stroke-width="2.5"/>
+          <rect x="1900" y="228" width="180" height="36" rx="7" fill="#7F1D1D"/>
+          <text x="1990" y="245" text-anchor="middle" font-size="10.5" fill="white" font-family="Inter,sans-serif" font-weight="700">Stressed — SOS Raised</text>
+          <text x="1990" y="258" text-anchor="middle" font-size="9" fill="#FECACA" font-family="Inter,sans-serif">Truck fault; awaiting dispatch</text>
+
+          <!-- ── SOS BRANCH — Resolved (Green) ── -->
+          <circle cx="2100" cy="110" r="7" fill="#22C55E" stroke="white" stroke-width="2.5"/>
+          <rect x="2010" y="115" width="170" height="36" rx="7" fill="#14532D"/>
+          <text x="2095" y="132" text-anchor="middle" font-size="10.5" fill="white" font-family="Inter,sans-serif" font-weight="700">Resolved</text>
+          <text x="2095" y="145" text-anchor="middle" font-size="9" fill="#BBF7D0" font-family="Inter,sans-serif">Admin dispatched; issue closed</text>
+
+          <!-- SOS branch label -->
+          <text x="1920" y="175" text-anchor="middle" font-size="9.5" fill="#EF4444" font-family="Inter,sans-serif" font-weight="700" font-style="italic">SOS path</text>
+
+        </svg>
+      </div>
+    </div>
+
+  </div>
+
+</body>
+</html>

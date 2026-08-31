@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Customer Journey Map — Ordering Fuel on FuelNow</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --petrol-deep: #F97316;
+      --petrol-mid: #EA580C;
+      --petrol-light: #FFEDD5;
+      --diesel-blue: #2563EB;
+      --diesel-green: #22C55E;
+      --ignition-amber: #FACC15;
+      --warm-ash: #F8FAFC;
+      --charcoal-ink: #111827;
+      --signal-red: #EF4444;
+      --ink-light: #4B5563;
+      --ink-faint: #9CA3AF;
+      --divider: #E2E8F0;
+      --white: #FFFFFF;
+    }
+
+    html {
+      background: var(--warm-ash);
+    }
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--warm-ash);
+      color: var(--charcoal-ink);
+      min-width: 2200px;
+      padding: 48px 56px 72px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ─── Header ─────────────────────────────────────────────── */
+    .page-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 44px;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+    }
+
+    .brand-mark {
+      width: 56px;
+      height: 56px;
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 0 0 6px rgba(249, 115, 22, 0.15);
+      flex-shrink: 0;
+    }
+
+    .brand-mark img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .page-title {
+      font-size: 28px;
+      font-weight: 800;
+      color: var(--charcoal-ink);
+      letter-spacing: -0.5px;
+      line-height: 1.15;
+    }
+
+    .page-subtitle {
+      font-size: 14px;
+      color: var(--ink-light);
+      margin-top: 5px;
+      font-weight: 500;
+    }
+
+    .meta-badges {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-top: 40px;
+    }
+
+    .meta-badge {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 6px 14px;
+      border-radius: 99px;
+      font-size: 12px;
+      font-weight: 600;
+      border: 1.5px solid var(--divider);
+      background: var(--white);
+      color: var(--ink-light);
+    }
+
+    .meta-badge .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    /* ─── Actor strip ─────────────────────────────────────────── */
+    .actor-strip {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      background: var(--white);
+      border: 1px solid var(--divider);
+      border-radius: 14px;
+      padding: 16px 28px;
+      margin-bottom: 32px;
+      box-shadow: 0 1px 4px rgba(17, 24, 39, 0.05);
+    }
+
+    .actor-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--ink-faint);
+      min-width: 80px;
+    }
+
+    .actor-pill {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--warm-ash);
+      border-radius: 99px;
+      padding: 7px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--charcoal-ink);
+      border: 1.5px solid var(--divider);
+    }
+
+    /* ─── Main Journey Table ──────────────────────────────────── */
+    .journey-table {
+      width: 100%;
+      border-radius: 20px;
+      overflow: visible;
+      background: var(--white);
+      box-shadow: 0 4px 24px rgba(17, 24, 39, 0.09);
+      border: 1px solid var(--divider);
+    }
+
+    .stages-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+    }
+
+    /* ─── Stage Header Bands ─────────────────────────────────── */
+    .stage-col {
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    .stage-col:not(:last-child) {
+      border-right: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .stage-band {
+      padding: 22px 26px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      position: relative;
+    }
+
+    .stage-num {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      opacity: 0.72;
+    }
+
+    .stage-name {
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: -0.3px;
+      line-height: 1.2;
+    }
+
+    .stage-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 10px;
+      border-radius: 99px;
+      font-size: 11px;
+      font-weight: 700;
+      background: rgba(255, 255, 255, 0.2);
+      letter-spacing: 0.03em;
+      margin-top: 2px;
+      width: fit-content;
+    }
+
+    /* Stage colour themes */
+    .stage-1 .stage-band {
+      background: linear-gradient(135deg, #1F2937 0%, #111827 100%);
+      color: white;
+    }
+
+    .stage-2 .stage-band {
+      background: linear-gradient(135deg, #F97316 0%, #EA580C 100%);
+      color: white;
+    }
+
+    .stage-3 .stage-band {
+      background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
+      color: white;
+    }
+
+    .stage-4 .stage-band {
+      background: linear-gradient(135deg, #374151 0%, #1F2937 100%);
+      color: white;
+    }
+
+    .stage-5 .stage-band {
+      background: linear-gradient(135deg, #22C55E 0%, #16A34A 100%);
+      color: white;
+    }
+
+    .driver-badge {
+      position: absolute;
+      top: 20px;
+      right: 22px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(255, 255, 255, 0.15);
+      border: 1.5px solid rgba(255, 255, 255, 0.3);
+      border-radius: 99px;
+      padding: 4px 12px 4px 8px;
+      font-size: 11px;
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(4px);
+    }
+
+    /* ─── Section rows inside each stage col ─────────────────── */
+    .section-row {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      border-top: 1px solid var(--divider);
+    }
+
+    .section-cell {
+      padding: 24px 26px;
+      min-height: 180px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .section-cell:not(:last-child) {
+      border-right: 1px solid var(--divider);
+    }
+
+    .section-label {
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--ink-faint);
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .section-label-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* ─── Steps ─────────────────────────────────────────────────*/
+    .steps-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      list-style: none;
+    }
+
+    .step-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--charcoal-ink);
+      line-height: 1.45;
+    }
+
+    .step-num {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--petrol-light);
+      color: var(--petrol-mid);
+      font-size: 10px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .stage-3 .step-num {
+      background: #DBEAFE;
+      color: var(--diesel-blue);
+    }
+
+    .stage-5 .step-num {
+      background: #DCFCE7;
+      color: #16A34A;
+    }
+
+    /* ─── Thoughts ───────────────────────────────────────────── */
+    .thoughts-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .thought-bubble {
+      background: var(--warm-ash);
+      border-left: 3px solid var(--ignition-amber);
+      border-radius: 0 10px 10px 0;
+      padding: 10px 14px;
+      font-size: 13px;
+      font-style: italic;
+      color: var(--charcoal-ink);
+      line-height: 1.5;
+      position: relative;
+    }
+
+    .thought-bubble::before {
+      content: '"';
+      font-size: 26px;
+      color: var(--ignition-amber);
+      position: absolute;
+      top: -4px;
+      left: 10px;
+      line-height: 1;
+      font-style: normal;
+    }
+
+    .thought-bubble p {
+      padding-left: 14px;
+    }
+
+    /* ─── Touchpoints ────────────────────────────────────────── */
+    .touchpoints-row {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .touchpoint-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--ink-light);
+    }
+
+    .tp-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 800;
+      color: var(--ink-light);
+      flex-shrink: 0;
+      border: 1.5px solid var(--divider);
+      background: var(--ash-dark, #F3F4F6);
+      letter-spacing: 0.01em;
+    }
+
+    /* ─── Emotion Curve ──────────────────────────────────────── */
+    .emotion-section {
+      border-top: 1px solid var(--divider);
+      padding: 0;
+    }
+
+    .emotion-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 18px 28px 0;
+      font-size: 14px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--ink-faint);
+    }
+
+    .emotion-chart-wrapper {
+      padding: 8px 0 28px;
+      position: relative;
+    }
+
+    /* ─── Legend ────────────────────────────────────────────── */
+    .emotion-legend {
+      display: flex;
+      gap: 24px;
+      align-items: center;
+      padding: 0 28px 20px;
+      flex-wrap: wrap;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--ink-light);
+    }
+
+    .legend-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      border: 2px solid var(--white);
+      box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1);
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- ─── Page Header ──────────────────────────────────────────── -->
+  <div class="page-header">
+    <div class="header-left">
+      <div class="brand-mark"><img src="fuelnow-logo.jpg" alt="FuelNow Logo" /></div>
+      <div>
+        <div class="page-title">Customer Journey: Ordering Fuel on FuelNow</div>
+        <div class="page-subtitle">User experience map</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── Actor Strip ──────────────────────────────────────────── -->
+  <div class="actor-strip">
+    <span class="actor-label">Actors</span>
+    <div class="actor-pill">Customer (primary)</div>
+    <div class="actor-pill">Delivery Driver (enters at Stage 4)</div>
+  </div>
+
+  <!-- ─── Main Journey Map ─────────────────────────────────────── -->
+  <div class="journey-table">
+
+    <!-- ── Stage Header Bands ─────────────────────────────────── -->
+    <div class="stages-grid">
+
+      <!-- Stage 1 -->
+      <div class="stage-col stage-1">
+        <div class="stage-band">
+          <span class="stage-num">Stage 01</span>
+          <span class="stage-name">Discovery &amp; Access</span>
+          <span class="stage-tag">Acquisition</span>
+        </div>
+      </div>
+
+      <!-- Stage 2 -->
+      <div class="stage-col stage-2">
+        <div class="stage-band">
+          <span class="stage-num">Stage 02</span>
+          <span class="stage-name">Ordering</span>
+          <span class="stage-tag">Engagement</span>
+        </div>
+      </div>
+
+      <!-- Stage 3 -->
+      <div class="stage-col stage-3">
+        <div class="stage-band">
+          <span class="stage-num">Stage 03</span>
+          <span class="stage-name">Payment &amp; Confirmation</span>
+          <span class="stage-tag">Conversion</span>
+        </div>
+      </div>
+
+      <!-- Stage 4 -->
+      <div class="stage-col stage-4">
+        <div class="stage-band" style="position:relative;">
+          <span class="stage-num">Stage 04</span>
+          <span class="stage-name">Delivery &amp; Tracking</span>
+          <span class="stage-tag">Fulfilment</span>
+          <div class="driver-badge">Driver involved</div>
+        </div>
+      </div>
+
+      <!-- Stage 5 -->
+      <div class="stage-col stage-5">
+        <div class="stage-band">
+          <span class="stage-num">Stage 05</span>
+          <span class="stage-name">Completion &amp; Loyalty</span>
+          <span class="stage-tag">Retention</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ── STEPS ROW ─────────────────────────────────────────── -->
+    <div class="section-row">
+      <!-- Stage 1 steps -->
+      <div class="section-cell stage-1">
+        <div class="section-label"><span class="section-label-dot" style="background:var(--petrol-deep)"></span>Customer
+          Steps</div>
+        <ul class="steps-list">
+          <li class="step-item"><span class="step-num">1</span><span>Downloads FuelNow from the App Store or Google
+              Play</span></li>
+          <li class="step-item"><span class="step-num">2</span><span>Signs up with name, email &amp; SA mobile
+              number</span></li>
+          <li class="step-item"><span class="step-num">3</span><span>Verifies identity via 6-digit OTP (SMS)</span></li>
+          <li class="step-item"><span class="step-num">4</span><span>Logs into account and lands on Home screen</span>
+          </li>
+        </ul>
+      </div>
+      <!-- Stage 2 steps -->
+      <div class="section-cell stage-2">
+        <div class="section-label"><span class="section-label-dot" style="background:var(--petrol-deep)"></span>Customer
+          Steps</div>
+        <ul class="steps-list">
+          <li class="step-item"><span class="step-num">1</span><span>Checks today's live pump price (e.g. 95 unleaded:
+              R24.67/L)</span></li>
+          <li class="step-item"><span class="step-num">2</span><span>Selects fuel type (Petrol 95, 93, Diesel 50ppm,
+              500ppm)</span></li>
+          <li class="step-item"><span class="step-num">3</span><span>Enters Rand amount (e.g. R500) or litre volume
+              (e.g. 30 L)</span></li>
+          <li class="step-item"><span class="step-num">4</span><span>Pins delivery location via GPS or picks a saved
+              address</span></li>
+          <li class="step-item"><span class="step-num">5</span><span>Taps "Order Now" or schedules a future delivery
+              slot</span></li>
+        </ul>
+      </div>
+      <!-- Stage 3 steps -->
+      <div class="section-cell stage-3">
+        <div class="section-label"><span class="section-label-dot" style="background:var(--diesel-blue)"></span>Customer
+          Steps</div>
+        <ul class="steps-list">
+          <li class="step-item"><span class="step-num">1</span><span>Selects a saved card or adds a new Visa /
+              Mastercard</span></li>
+          <li class="step-item"><span class="step-num">2</span><span>Reviews the cost breakdown: fuel + R25 delivery fee
+              + VAT</span></li>
+          <li class="step-item"><span class="step-num">3</span><span>Taps "Confirm Order" — payment processed via
+              Payfast</span></li>
+          <li class="step-item"><span class="step-num">4</span><span>Receives order confirmation screen (Order
+              #ORD-8822)</span></li>
+        </ul>
+      </div>
+      <!-- Stage 4 steps -->
+      <div class="section-cell stage-4">
+        <div class="section-label"><span class="section-label-dot" style="background:var(--petrol-deep)"></span>Customer
+          Steps</div>
+        <ul class="steps-list">
+          <li class="step-item"><span class="step-num">1</span><span>Waits on "Finding Driver" screen — ETA appears
+              within 90 sec</span></li>
+          <li class="step-item"><span class="step-num">2</span><span>Receives push notification: "France Sizwe is on the
+              way"</span></li>
+          <li class="step-item"><span class="step-num">3</span><span>Tracks driver live on map with real-time ETA (e.g.
+              18 min)</span></li>
+          <li class="step-item"><span class="step-num">4</span><span>Driver arrives — customer shares 4-digit delivery
+              PIN to verify</span></li>
+          <li class="step-item"><span class="step-num">5</span><span>Fuel is dispensed; customer sees "Delivered!"
+              confirmation</span></li>
+        </ul>
+      </div>
+      <!-- Stage 5 steps -->
+      <div class="section-cell stage-5">
+        <div class="section-label"><span class="section-label-dot"
+            style="background:var(--diesel-green)"></span>Customer Steps</div>
+        <ul class="steps-list">
+          <li class="step-item"><span class="step-num">1</span><span>Rates the driver and experience (1–5 stars)</span>
+          </li>
+          <li class="step-item"><span class="step-num">2</span><span>Leaves an optional comment for moderation</span>
+          </li>
+          <li class="step-item"><span class="step-num">3</span><span>Views the full digital receipt (PDF-ready,
+              emailed)</span></li>
+          <li class="step-item"><span class="step-num">4</span><span>Checks loyalty progress — earns 50 pts toward free
+              delivery</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- ── THOUGHTS ROW ────────────────────────────────────────── -->
+    <div class="section-row">
+      <!-- Stage 1 -->
+      <div class="section-cell">
+        <div class="section-label"><span class="section-label-dot"
+            style="background:var(--ignition-amber)"></span>Customer Thoughts</div>
+        <div class="thoughts-list">
+          <div class="thought-bubble">
+            <p>I don't want to queue at the garage after work — there has to be a better way.</p>
+          </div>
+          <div class="thought-bubble">
+            <p>I hope this app is actually secure. I'm not giving my details to just anyone.</p>
+          </div>
+        </div>
+      </div>
+      <!-- Stage 2 -->
+      <div class="section-cell">
+        <div class="section-label"><span class="section-label-dot"
+            style="background:var(--ignition-amber)"></span>Customer Thoughts</div>
+        <div class="thoughts-list">
+          <div class="thought-bubble">
+            <p>As long as the price matches the pump, I'm happy. R24.67/L looks about right.</p>
+          </div>
+          <div class="thought-bubble">
+            <p>I like that I don't have to retype my address every time — my home is already saved.</p>
+          </div>
+        </div>
+      </div>
+      <!-- Stage 3 -->
+      <div class="section-cell">
+        <div class="section-label"><span class="section-label-dot"
+            style="background:var(--ignition-amber)"></span>Customer Thoughts</div>
+        <div class="thoughts-list">
+          <div class="thought-bubble">
+            <p>I like that I don't hand my card to a stranger — it's all in-app.</p>
+          </div>
+          <div class="thought-bubble">
+            <p>Show me exactly what I'm paying before I commit. No hidden delivery surprises.</p>
+          </div>
+        </div>
+      </div>
+      <!-- Stage 4 -->
+      <div class="section-cell">
+        <div class="section-label"><span class="section-label-dot"
+            style="background:var(--ignition-amber)"></span>Customer Thoughts</div>
+        <div class="thoughts-list">
+          <div class="thought-bubble">
+            <p>Is the driver actually close, or is this just an estimate? The map doesn't seem to be moving...</p>
+          </div>
+          <div class="thought-bubble">
+            <p>I like that I need to give a PIN — it feels safer and confirms it's really me.</p>
+          </div>
+        </div>
+      </div>
+      <!-- Stage 5 -->
+      <div class="section-cell">
+        <div class="section-label"><span class="section-label-dot"
+            style="background:var(--ignition-amber)"></span>Customer Thoughts</div>
+        <div class="thoughts-list">
+          <div class="thought-bubble">
+            <p>That was genuinely easier than driving to the garage. I didn't have to leave home.</p>
+          </div>
+          <div class="thought-bubble">
+            <p>A free delivery eventually — that's worth it. I'll use this regularly.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── TOUCHPOINTS ROW ─────────────────────────────────────── -->
+    <div class="section-row">
+      <!-- Stage 1 -->
+      <div class="section-cell" style="min-height:130px;">
+        <div class="section-label"><span class="section-label-dot"
+            style="background:var(--diesel-blue)"></span>Touchpoints</div>
+        <div class="touchpoints-row">
+          <div class="touchpoint-item">
+            <div class="tp-icon" style="background:#DBEAFE;color:#1D4ED8;">APP</div> FuelNow App Icon (App Store)
+          </div>
+          <div class="touchpoint-item">
+            <div class="tp-icon" style="background:#FEF9C3;color:#854D0E;">SMS</div> OTP / SMS Verification
+          </div>
+          <div class="touchpoint-item">
+            <div class="tp-icon" style="background:#F3F4F6;color:#374151;">LOG</div> Account Login Screen
+          </div>
+        </div>
+      </div>
+      <!-- Stage 2 -->
+      <div class="section-cell" style="min-height:130px;">
+        <div class="section-label"><span class="section-label-dot"
+            style="background:var(--diesel-blue)"></span>Touchpoints</div>
+        <div class="touchpoints-row">
+          <div class="touchpoint-item">
+            <div class="tp-icon" style="background:#FFEDD5;color:#C2410C;">PRC</div> Live Price Ticker (Home)
+          </div>
+          <div class="touchpoint-item">
+            <div class="tp-icon" style="background:#DCFCE7;color:#15803D;">GPS</div> GPS Map / Location Picker
+          </div>
+          <div class="touchpoint-item">
+            <div class="tp-icon" style="background:#F3F4F6;color:#374151;">ADR</div> Saved Addresses Selector
+          </div>
+        </div>
+      </div>
+      <!-- Stage 3 -->
+      <div class="section-cell" style="min-height:130px;">
+        <div class="section-label"><span class="section-label-dot"
+            style="background:var(--diesel-blue)"></span>Touchpoints</div>
+        <div class="touchpoints-row">
+          <div class="touchpoint-item">
+            <div class="tp-icon" style="background:#DBEAFE;color:#1D4ED8;">PAY</div> Card / Payment Screen
+          </div>
+          <div class="touchpoint-item">
+            <div class="tp-icon" style="background:#F3F4F6;color:#374151;">SEC</div> Payfast Gateway
+          </div>
+          <div class="touchpoint-item">
+            <div class="tp-icon" style="background:#DCFCE7;color:#15803D;">ORD</div> Order Confirmation Screen
+          </div>
+        </div>
+      </div>
+      <!-- Stage 4 -->
+      <div class="section-cell" style="min-height:130px;">
+        <div class="section-label"><span class="section-label-dot"
+            style="background:var(--diesel-blue)"></span>Touchpoints</div>
+        <div class="touchpoints-row">
+          <div class="touchpoint-item">
+            <div class="tp-icon" style="background:#DCFCE7;color:#15803D;">MAP</div> Live Tracking Map
+          </div>
+          <div class="touchpoint-item">
+            <div class="tp-icon" style="background:#FEF9C3;color:#854D0E;">NTF</div> Push Notification (Driver Assigned)
+          </div>
+          <div class="touchpoint-item">
+            <div class="tp-icon" style="background:#DBEAFE;color:#1D4ED8;">PIN</div> 4-Digit PIN Pad
+          </div>
+        </div>
+      </div>
+      <!-- Stage 5 -->
+      <div class="section-cell" style="min-height:130px;">
+        <div class="section-label"><span class="section-label-dot"
+            style="background:var(--diesel-blue)"></span>Touchpoints</div>
+        <div class="touchpoints-row">
+          <div class="touchpoint-item">
+            <div class="tp-icon" style="background:#FEF9C3;color:#854D0E;">RTG</div> Driver Star Rating
+          </div>
+          <div class="touchpoint-item">
+            <div class="tp-icon" style="background:#F3F4F6;color:#374151;">RCT</div> Digital Receipt (PDF)
+          </div>
+          <div class="touchpoint-item">
+            <div class="tp-icon" style="background:#FFEDD5;color:#C2410C;">LYL</div> Loyalty / Rewards Gauge
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── EMOTION CURVE ROW ──────────────────────────────────── -->
+    <div class="emotion-section">
+      <div class="emotion-header">
+        <span
+          style="width:10px; height:10px; border-radius:50%; background:var(--diesel-green); display:inline-block;"></span>
+        Emotion Curve
+      </div>
+
+      <!-- Emotion Legend -->
+      <div class="emotion-legend">
+        <div class="legend-item">
+          <div class="legend-dot" style="background:var(--diesel-green);"></div> Positive / Satisfied
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background:var(--ignition-amber);"></div> Neutral / Cautious / Curious
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background:var(--signal-red);"></div> Anxious / Stressed
+        </div>
+      </div>
+
+      <div class="emotion-chart-wrapper">
+        <svg viewBox="0 0 2100 280" width="100%" height="280" xmlns="http://www.w3.org/2000/svg"
+          style="display:block; overflow:visible;">
+
+          <!-- Grid lines (horizontal) -->
+          <line x1="60" y1="50" x2="2050" y2="50" stroke="#E2E8F0" stroke-width="1" stroke-dasharray="6 4" />
+          <line x1="60" y1="120" x2="2050" y2="120" stroke="#E2E8F0" stroke-width="1" stroke-dasharray="6 4" />
+          <line x1="60" y1="190" x2="2050" y2="190" stroke="#E2E8F0" stroke-width="1" stroke-dasharray="6 4" />
+
+          <!-- Y-axis labels -->
+          <text x="48" y="54" text-anchor="end" font-size="10" fill="#9CA3AF" font-family="Inter,sans-serif"
+            font-weight="600">Happy</text>
+          <text x="48" y="124" text-anchor="end" font-size="10" fill="#9CA3AF" font-family="Inter,sans-serif"
+            font-weight="600">Neutral</text>
+          <text x="48" y="194" text-anchor="end" font-size="10" fill="#9CA3AF" font-family="Inter,sans-serif"
+            font-weight="600">Anxious</text>
+
+          <!-- Vertical stage separators -->
+          <line x1="440" y1="30" x2="440" y2="250" stroke="#E2E8F0" stroke-width="1.5" />
+          <line x1="840" y1="30" x2="840" y2="250" stroke="#E2E8F0" stroke-width="1.5" />
+          <line x1="1240" y1="30" x2="1240" y2="250" stroke="#E2E8F0" stroke-width="1.5" />
+          <line x1="1660" y1="30" x2="1660" y2="250" stroke="#E2E8F0" stroke-width="1.5" />
+
+          <!-- Stage labels along X -->
+          <text x="230" y="262" text-anchor="middle" font-size="11" fill="#9CA3AF" font-family="Inter,sans-serif"
+            font-weight="600">Stage 1 · Discovery</text>
+          <text x="640" y="262" text-anchor="middle" font-size="11" fill="#9CA3AF" font-family="Inter,sans-serif"
+            font-weight="600">Stage 2 · Ordering</text>
+          <text x="1040" y="262" text-anchor="middle" font-size="11" fill="#9CA3AF" font-family="Inter,sans-serif"
+            font-weight="600">Stage 3 · Payment</text>
+          <text x="1450" y="262" text-anchor="middle" font-size="11" fill="#9CA3AF" font-family="Inter,sans-serif"
+            font-weight="600">Stage 4 · Delivery</text>
+          <text x="1860" y="262" text-anchor="middle" font-size="11" fill="#9CA3AF" font-family="Inter,sans-serif"
+            font-weight="600">Stage 5 · Completion</text>
+
+          <!-- 
+          Points:
+          S1 — Neutral→Curious: amber  at y=135  x=230
+          S2 — Engaged/Confident: green at y=65   x=640
+          S3 — Cautious→Reassured: amber→green midpoint y=110  x=1040
+          S4a — Anxious (waiting):    red    at y=200  x=1240 (left edge of stage 4)
+          S4b — Relieved (tracking):  amber  at y=130  x=1450 (mid stage 4)
+          S4c — Satisfied (PIN):      green  at y=75   x=1660 (right edge of stage 4)
+          S5 — Satisfied→Happy: green  at y=55   x=1860
+        -->
+
+          <!-- Smooth curve using cubic bezier path -->
+          <path
+            d="M230,135 C380,100 500,70 640,65 C750,62 900,90 1040,110 C1130,125 1190,200 1240,200 C1340,200 1400,130 1450,130 C1530,130 1590,75 1660,75 C1730,75 1780,57 1860,55"
+            fill="none" stroke="url(#emotionGradient)" stroke-width="3" stroke-linecap="round"
+            stroke-linejoin="round" />
+
+          <!-- Gradient definition for line -->
+          <defs>
+            <linearGradient id="emotionGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#FACC15" />
+              <stop offset="25%" stop-color="#22C55E" />
+              <stop offset="48%" stop-color="#FACC15" />
+              <stop offset="58%" stop-color="#EF4444" />
+              <stop offset="72%" stop-color="#FACC15" />
+              <stop offset="82%" stop-color="#22C55E" />
+              <stop offset="100%" stop-color="#22C55E" />
+            </linearGradient>
+          </defs>
+
+          <!-- Area fill under the curve -->
+          <path
+            d="M230,135 C380,100 500,70 640,65 C750,62 900,90 1040,110 C1130,125 1190,200 1240,200 C1340,200 1400,130 1450,130 C1530,130 1590,75 1660,75 C1730,75 1780,57 1860,55 L1860,250 L230,250 Z"
+            fill="url(#areaGradient)" opacity="0.08" />
+
+          <defs>
+            <linearGradient id="areaGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#FACC15" />
+              <stop offset="25%" stop-color="#22C55E" />
+              <stop offset="48%" stop-color="#FACC15" />
+              <stop offset="58%" stop-color="#EF4444" />
+              <stop offset="75%" stop-color="#22C55E" />
+              <stop offset="100%" stop-color="#22C55E" />
+            </linearGradient>
+          </defs>
+
+          <!-- ── POINT S1 — Neutral → Curious (Amber) ── -->
+          <circle cx="230" cy="135" r="8" fill="#FACC15" stroke="white" stroke-width="3" filter="url(#shadow)" />
+          <rect x="130" y="90" width="200" height="36" rx="7" fill="#1F2937" />
+          <text x="230" y="106" text-anchor="middle" font-size="11" fill="white" font-family="Inter,sans-serif"
+            font-weight="700">Neutral → Curious</text>
+          <text x="230" y="120" text-anchor="middle" font-size="9.5" fill="#D1D5DB" font-family="Inter,sans-serif">"Is
+            this actually safe &amp; reliable?"</text>
+          <line x1="230" y1="127" x2="230" y2="135" stroke="#FACC15" stroke-width="1.5" stroke-dasharray="3 2" />
+
+          <!-- ── POINT S2 — Engaged / Confident (Green) ── -->
+          <circle cx="640" cy="65" r="8" fill="#22C55E" stroke="white" stroke-width="3" />
+          <rect x="540" y="20" width="200" height="36" rx="7" fill="#1F2937" />
+          <text x="640" y="36" text-anchor="middle" font-size="11" fill="white" font-family="Inter,sans-serif"
+            font-weight="700">Engaged / Confident</text>
+          <text x="640" y="50" text-anchor="middle" font-size="9.5" fill="#D1D5DB" font-family="Inter,sans-serif">Price
+            is fair; saved addresses help</text>
+          <line x1="640" y1="57" x2="640" y2="65" stroke="#22C55E" stroke-width="1.5" stroke-dasharray="3 2" />
+
+          <!-- ── POINT S3 — Cautious → Reassured (Amber) ── -->
+          <circle cx="1040" cy="110" r="8" fill="#FACC15" stroke="white" stroke-width="3" />
+          <rect x="940" y="65" width="200" height="36" rx="7" fill="#1F2937" />
+          <text x="1040" y="81" text-anchor="middle" font-size="11" fill="white" font-family="Inter,sans-serif"
+            font-weight="700">Cautious → Reassured</text>
+          <text x="1040" y="95" text-anchor="middle" font-size="9.5" fill="#D1D5DB"
+            font-family="Inter,sans-serif">Transparent pricing builds trust</text>
+          <line x1="1040" y1="102" x2="1040" y2="110" stroke="#FACC15" stroke-width="1.5" stroke-dasharray="3 2" />
+
+          <!-- ── POINT S4a — Anxious / Waiting (Red) ── -->
+          <circle cx="1270" cy="200" r="8" fill="#EF4444" stroke="white" stroke-width="3" />
+          <rect x="1180" y="215" width="178" height="36" rx="7" fill="#1F2937" />
+          <text x="1270" y="231" text-anchor="middle" font-size="11" fill="white" font-family="Inter,sans-serif"
+            font-weight="700">Anxious — Waiting</text>
+          <text x="1270" y="245" text-anchor="middle" font-size="9.5" fill="#D1D5DB"
+            font-family="Inter,sans-serif">Driver assigned yet? Uncertain wait</text>
+          <line x1="1270" y1="200" x2="1270" y2="213" stroke="#EF4444" stroke-width="1.5" stroke-dasharray="3 2" />
+
+          <!-- ── POINT S4b — Relieved / Tracking (Amber) ── -->
+          <circle cx="1450" cy="130" r="8" fill="#FACC15" stroke="white" stroke-width="3" />
+          <rect x="1360" y="85" width="178" height="36" rx="7" fill="#1F2937" />
+          <text x="1450" y="101" text-anchor="middle" font-size="11" fill="white" font-family="Inter,sans-serif"
+            font-weight="700">Relieved — Tracking</text>
+          <text x="1450" y="115" text-anchor="middle" font-size="9.5" fill="#D1D5DB" font-family="Inter,sans-serif">Live
+            map; 18 min ETA visible</text>
+          <line x1="1450" y1="122" x2="1450" y2="130" stroke="#FACC15" stroke-width="1.5" stroke-dasharray="3 2" />
+
+          <!-- ── POINT S4c — Satisfied / PIN (Green) ── -->
+          <circle cx="1650" cy="75" r="8" fill="#22C55E" stroke="white" stroke-width="3" />
+          <rect x="1560" y="30" width="178" height="36" rx="7" fill="#1F2937" />
+          <text x="1650" y="46" text-anchor="middle" font-size="11" fill="white" font-family="Inter,sans-serif"
+            font-weight="700">Satisfied — PIN Confirms</text>
+          <text x="1650" y="60" text-anchor="middle" font-size="9.5" fill="#D1D5DB"
+            font-family="Inter,sans-serif">Security PIN feels safe &amp; smart</text>
+          <line x1="1650" y1="67" x2="1650" y2="75" stroke="#22C55E" stroke-width="1.5" stroke-dasharray="3 2" />
+
+          <!-- ── POINT S5 — Satisfied → Happy (Green) ── -->
+          <circle cx="1860" cy="55" r="8" fill="#22C55E" stroke="white" stroke-width="3" />
+          <rect x="1760" y="15" width="178" height="36" rx="7" fill="#1F2937" />
+          <text x="1850" y="31" text-anchor="middle" font-size="11" fill="white" font-family="Inter,sans-serif"
+            font-weight="700">Satisfied → Happy</text>
+          <text x="1850" y="45" text-anchor="middle" font-size="9.5" fill="#D1D5DB"
+            font-family="Inter,sans-serif">Easier than driving; loyalty unlocked</text>
+          <line x1="1860" y1="47" x2="1860" y2="55" stroke="#22C55E" stroke-width="1.5" stroke-dasharray="3 2" />
+
+          <!-- Drop shadow filter -->
+          <defs>
+            <filter id="shadow">
+              <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="rgba(0,0,0,0.18)" />
+            </filter>
+          </defs>
+
+        </svg>
+      </div>
+    </div>
+
+  </div>
+
+
+
+</body>
+
+</html>

@@ -1,0 +1,85 @@
+:root {
+  /* ── Brand ─────────────────────────────────── */
+  --petrol-deep: #F97316;
+  --petrol-mid: #EA580C;
+  --petrol-light: #FFEDD5;
+  --petrol-faint: #FFF7ED;
+
+  /* ── Accents ───────────────────────────────── */
+  --diesel-blue: #2563EB;
+  --diesel-blue-tint: #DBEAFE;
+  --diesel-green: #22C55E;
+  --green-light: #DCFCE7;
+  --ignition-amber: #FACC15;
+  --amber-light: #FFF7ED;
+  --signal-red: #EF4444;
+  --red-light: #FEE2E2;
+
+  /* ── Canvas ─────────────────────────────────── */
+  --warm-ash: #F8FAFC;
+  --white: #FFFFFF;
+  --card-bg: #FFFFFF;
+
+  /* ── Typography ─────────────────────────────── */
+  --charcoal-ink: #111827;
+  --ink-light: #4B5563;
+  --ink-faint: #9CA3AF;
+
+  /* ── Borders ────────────────────────────────── */
+  --divider: #E2E8F0;
+  --ash-dark: #F3F4F6;
+
+  /* ── Sidebar ────────────────────────────────── */
+  --sidebar-bg: #111827;
+  --sidebar-text: #D1D5DB;
+  --sidebar-active: #F97316;
+  --sidebar-width: 260px;
+
+  /* ── Layout ─────────────────────────────────── */
+  --topbar-height: 64px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --shadow-sm: 0 1px 4px rgba(17,24,39,0.06);
+  --shadow-md: 0 4px 12px rgba(17,24,39,0.10);
+  --shadow-lg: 0 8px 24px rgba(17,24,39,0.14);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body, #root {
+  height: 100%;
+  font-family: 'Inter', system-ui, sans-serif;
+  background: var(--warm-ash);
+  color: var(--charcoal-ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: inherit; text-decoration: none; }
+
+button { cursor: pointer; font-family: inherit; }
+
+input, select, textarea { font-family: inherit; }
+
+/* ── Scrollbar ────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--divider); border-radius: 99px; }
+
+/* ── Animations ──────────────────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.animate-fade-in { animation: fadeIn 0.25s ease both; }
