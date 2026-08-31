@@ -220,3 +220,40 @@ All responses include a 400–1400ms artificial delay so loading states render c
 | Part 2 | 🔜 | Driver app (registration, jobs, earnings, navigation) |
 | Part 3 | 🔜 | Admin dashboard (web, analytics, fleet management) |
 | Part 4 | 🔜 | Final polish, animations, export |
+
+
+Here's how to run each app in the FuelNow workspace:
+
+🚗 Customer App (customer-app/)
+powershell
+cd "h:\WIL (FuelNow)\FuellNow-P2\customer-app"
+npm install
+npm start
+Press a for Android emulator, i for iOS simulator, w for web browser.
+🚚 Driver App (driver-app/)
+powershell
+cd "h:\WIL (FuelNow)\FuellNow-P2\driver-app"
+npm install
+npm start
+Same as above — press a, i, or w to choose platform.
+🖥️ Admin Web Console (admin/)
+powershell
+cd "h:\WIL (FuelNow)\FuellNow-P2\admin"
+npm install
+npm run dev
+Opens at http://localhost:5173 (Vite default).
+☁️ Supabase Edge Functions
+To serve Edge Functions locally, you need the Supabase CLI installed:
+
+powershell
+cd "h:\WIL (FuelNow)\FuellNow-P2"
+npx supabase functions serve
+Functions will be available at http://localhost:54321/functions/v1/<function-name>.
+
+To deploy to your live project (zahrmlcqwashdiudmfvk):
+
+powershell
+npx supabase functions deploy confirm-delivery
+npx supabase functions deploy sync-fuel-rates
+npx supabase functions deploy payfast-webhook
+Note: For the mobile apps, you'll need Expo Go installed on your physical device or an Android/iOS emulator running. Expo will display a QR code you can scan with Expo Go to run the app on your phone.

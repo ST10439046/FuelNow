@@ -27,6 +27,15 @@ export default function SOSScreen() {
     setResolving(null);
   };
 
+  const handleDispatchSupport = (alert: SOSAlert) => {
+    const dispatchTeam = window.prompt(`Dispatch emergency roadside / hazmat team to ${alert.driverName} at ${alert.location}? Enter dispatch unit notes:`, 'Southgate Durban Rapid Response Unit #4 Dispatched with mobile fuel tanker.');
+    if (dispatchTeam) {
+      alert.note = `[DISPATCHED: ${dispatchTeam}] ${alert.note}`;
+      setAlerts([...alerts]);
+      window.alert(`Emergency response dispatched to ${alert.location}. Driver ${alert.driverName} notified via SMS.`);
+    }
+  };
+
   const activeAlerts = alerts.filter(a => !a.resolved);
   const resolvedAlerts = alerts.filter(a => a.resolved);
 
@@ -62,7 +71,7 @@ export default function SOSScreen() {
                   </div>
                   <div style={{ display: 'flex', gap: 12 }}>
                     <Button variant="primary" loading={resolving === alert.id} onClick={() => handleResolve(alert.id)}>Mark as Resolved</Button>
-                    <Button variant="outline">Dispatch Support</Button>
+                    <Button variant="outline" onClick={() => handleDispatchSupport(alert)}>Dispatch Support</Button>
                   </div>
                 </div>
               ))

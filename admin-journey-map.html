@@ -1,650 +1,1210 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Admin Journey Map — Running FuelNow Operations</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <style>
-    :root {
-      --petrol-deep:   #F97316;
-      --petrol-mid:    #EA580C;
-      --petrol-light:  #FFEDD5;
-      --diesel-blue:   #2563EB;
-      --diesel-green:  #22C55E;
-      --ignition-amber:#FACC15;
-      --warm-ash:      #F8FAFC;
-      --charcoal-ink:  #111827;
-      --signal-red:    #EF4444;
-      --ink-light:     #4B5563;
-      --ink-faint:     #9CA3AF;
-      --divider:       #E2E8F0;
-      --white:         #FFFFFF;
-    }
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin Journey Map — Running FuelNow Operations</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --petrol-deep: #f97316;
+        --petrol-mid: #ea580c;
+        --petrol-light: #ffedd5;
+        --diesel-blue: #2563eb;
+        --diesel-green: #22c55e;
+        --ignition-amber: #facc15;
+        --warm-ash: #f8fafc;
+        --charcoal-ink: #111827;
+        --signal-red: #ef4444;
+        --ink-light: #4b5563;
+        --ink-faint: #9ca3af;
+        --divider: #e2e8f0;
+        --white: #ffffff;
+      }
 
-    html { background: var(--warm-ash); }
+      html {
+        background: var(--warm-ash);
+      }
 
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
 
-    body {
-      font-family: 'Inter', system-ui, sans-serif;
-      background: var(--warm-ash);
-      color: var(--charcoal-ink);
-      min-width: 2200px;
-      padding: 48px 56px 72px;
-      -webkit-font-smoothing: antialiased;
-    }
+      body {
+        font-family: "Inter", system-ui, sans-serif;
+        background: var(--warm-ash);
+        color: var(--charcoal-ink);
+        min-width: 2200px;
+        padding: 48px 56px 72px;
+        -webkit-font-smoothing: antialiased;
+      }
 
-    /* ─── Header ─────────────────────────────────────────────── */
-    .page-header {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      margin-bottom: 44px;
-    }
+      /* ─── Header ─────────────────────────────────────────────── */
+      .page-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        margin-bottom: 44px;
+      }
 
-    .header-left {
-      display: flex;
-      align-items: center;
-      gap: 18px;
-    }
+      .header-left {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+      }
 
-    .brand-mark {
-      width: 56px; height: 56px;
-      border-radius: 14px;
-      overflow: hidden;
-      box-shadow: 0 0 0 6px rgba(249,115,22,0.15);
-      flex-shrink: 0;
-    }
+      .brand-mark {
+        width: 56px;
+        height: 56px;
+        border-radius: 14px;
+        overflow: hidden;
+        box-shadow: 0 0 0 6px rgba(249, 115, 22, 0.15);
+        flex-shrink: 0;
+      }
 
-    .brand-mark img {
-      width: 100%; height: 100%;
-      object-fit: cover;
-      display: block;
-    }
+      .brand-mark img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
 
-    .page-title {
-      font-size: 28px;
-      font-weight: 800;
-      color: var(--charcoal-ink);
-      letter-spacing: -0.5px;
-      line-height: 1.15;
-    }
+      .page-title {
+        font-size: 28px;
+        font-weight: 800;
+        color: var(--charcoal-ink);
+        letter-spacing: -0.5px;
+        line-height: 1.15;
+      }
 
-    .page-subtitle {
-      font-size: 14px;
-      color: var(--ink-light);
-      margin-top: 5px;
-      font-weight: 500;
-    }
+      .page-subtitle {
+        font-size: 14px;
+        color: var(--ink-light);
+        margin-top: 5px;
+        font-weight: 500;
+      }
 
-    /* ─── Actor strip ─────────────────────────────────────────── */
-    .actor-strip {
-      display: flex;
-      align-items: center;
-      gap: 20px;
-      background: var(--white);
-      border: 1px solid var(--divider);
-      border-radius: 14px;
-      padding: 16px 28px;
-      margin-bottom: 32px;
-      box-shadow: 0 1px 4px rgba(17,24,39,0.05);
-    }
+      /* ─── Actor strip ─────────────────────────────────────────── */
+      .actor-strip {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        background: var(--white);
+        border: 1px solid var(--divider);
+        border-radius: 14px;
+        padding: 16px 28px;
+        margin-bottom: 32px;
+        box-shadow: 0 1px 4px rgba(17, 24, 39, 0.05);
+      }
 
-    .actor-label {
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--ink-faint);
-      min-width: 80px;
-    }
+      .actor-label {
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--ink-faint);
+        min-width: 80px;
+      }
 
-    .actor-pill {
-      display: flex;
-      align-items: center;
-      background: var(--warm-ash);
-      border-radius: 99px;
-      padding: 7px 16px;
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--charcoal-ink);
-      border: 1.5px solid var(--divider);
-    }
+      .actor-pill {
+        display: flex;
+        align-items: center;
+        background: var(--warm-ash);
+        border-radius: 99px;
+        padding: 7px 16px;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--charcoal-ink);
+        border: 1.5px solid var(--divider);
+      }
 
-    /* ─── Main Journey Table ──────────────────────────────────── */
-    .journey-table {
-      width: 100%;
-      border-radius: 20px;
-      overflow: visible;
-      background: var(--white);
-      box-shadow: 0 4px 24px rgba(17,24,39,0.09);
-      border: 1px solid var(--divider);
-    }
+      /* ─── Main Journey Table ──────────────────────────────────── */
+      .journey-table {
+        width: 100%;
+        border-radius: 20px;
+        overflow: visible;
+        background: var(--white);
+        box-shadow: 0 4px 24px rgba(17, 24, 39, 0.09);
+        border: 1px solid var(--divider);
+      }
 
-    .stages-grid {
-      display: grid;
-      grid-template-columns: repeat(5, 1fr);
-    }
+      .stages-grid {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+      }
 
-    /* ─── Stage Header Bands ─────────────────────────────────── */
-    .stage-col {
-      display: flex;
-      flex-direction: column;
-      position: relative;
-    }
+      /* ─── Stage Header Bands ─────────────────────────────────── */
+      .stage-col {
+        display: flex;
+        flex-direction: column;
+        position: relative;
+      }
 
-    .stage-col:not(:last-child) {
-      border-right: 1px solid rgba(255,255,255,0.2);
-    }
+      .stage-col:not(:last-child) {
+        border-right: 1px solid rgba(255, 255, 255, 0.2);
+      }
 
-    .stage-band {
-      padding: 22px 26px 20px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      position: relative;
-    }
+      .stage-band {
+        padding: 22px 26px 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        position: relative;
+      }
 
-    .stage-num {
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      opacity: 0.72;
-    }
+      .stage-num {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        opacity: 0.72;
+      }
 
-    .stage-name {
-      font-size: 18px;
-      font-weight: 800;
-      letter-spacing: -0.3px;
-      line-height: 1.2;
-    }
+      .stage-name {
+        font-size: 18px;
+        font-weight: 800;
+        letter-spacing: -0.3px;
+        line-height: 1.2;
+      }
 
-    .stage-tag {
-      display: inline-flex;
-      align-items: center;
-      padding: 3px 10px;
-      border-radius: 99px;
-      font-size: 11px;
-      font-weight: 700;
-      background: rgba(255,255,255,0.2);
-      letter-spacing: 0.03em;
-      margin-top: 2px;
-      width: fit-content;
-    }
+      .stage-tag {
+        display: inline-flex;
+        align-items: center;
+        padding: 3px 10px;
+        border-radius: 99px;
+        font-size: 11px;
+        font-weight: 700;
+        background: rgba(255, 255, 255, 0.2);
+        letter-spacing: 0.03em;
+        margin-top: 2px;
+        width: fit-content;
+      }
 
-    /* Stage colour themes */
-    .stage-1 .stage-band { background: linear-gradient(135deg, #1F2937 0%, #111827 100%); color: white; }
-    .stage-2 .stage-band { background: linear-gradient(135deg, #F97316 0%, #EA580C 100%); color: white; }
-    .stage-3 .stage-band { background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%); color: white; }
-    .stage-4 .stage-band { background: linear-gradient(135deg, #374151 0%, #1F2937 100%); color: white; }
-    .stage-5 .stage-band { background: linear-gradient(135deg, #22C55E 0%, #16A34A 100%); color: white; }
+      /* Stage colour themes */
+      .stage-1 .stage-band {
+        background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+        color: white;
+      }
 
-    .secondary-badge {
-      position: absolute;
-      top: 20px;
-      right: 22px;
-      display: flex;
-      align-items: center;
-      background: rgba(255,255,255,0.15);
-      border: 1.5px solid rgba(255,255,255,0.3);
-      border-radius: 99px;
-      padding: 4px 12px 4px 10px;
-      font-size: 11px;
-      font-weight: 600;
-      color: rgba(255,255,255,0.9);
-      backdrop-filter: blur(4px);
-    }
+      .stage-2 .stage-band {
+        background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+        color: white;
+      }
 
-    /* ─── Section rows ───────────────────────────────────────── */
-    .section-row {
-      display: grid;
-      grid-template-columns: repeat(5, 1fr);
-      border-top: 1px solid var(--divider);
-    }
+      .stage-3 .stage-band {
+        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+        color: white;
+      }
 
-    .section-cell {
-      padding: 24px 26px;
-      min-height: 180px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
+      .stage-4 .stage-band {
+        background: linear-gradient(135deg, #374151 0%, #1f2937 100%);
+        color: white;
+      }
 
-    .section-cell:not(:last-child) {
-      border-right: 1px solid var(--divider);
-    }
+      .stage-5 .stage-band {
+        background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+        color: white;
+      }
 
-    .section-label {
-      font-size: 10px;
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      color: var(--ink-faint);
-      display: flex;
-      align-items: center;
-      gap: 7px;
-    }
+      .secondary-badge {
+        position: absolute;
+        top: 20px;
+        right: 22px;
+        display: flex;
+        align-items: center;
+        background: rgba(255, 255, 255, 0.15);
+        border: 1.5px solid rgba(255, 255, 255, 0.3);
+        border-radius: 99px;
+        padding: 4px 12px 4px 10px;
+        font-size: 11px;
+        font-weight: 600;
+        color: rgba(255, 255, 255, 0.9);
+        backdrop-filter: blur(4px);
+      }
 
-    .section-label-dot {
-      width: 6px; height: 6px;
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
+      /* ─── Section rows ───────────────────────────────────────── */
+      .section-row {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        border-top: 1px solid var(--divider);
+      }
 
-    /* ─── Steps ──────────────────────────────────────────────── */
-    .steps-list {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      list-style: none;
-    }
+      .section-cell {
+        padding: 24px 26px;
+        min-height: 180px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
 
-    .step-item {
-      display: flex;
-      align-items: flex-start;
-      gap: 10px;
-      font-size: 13px;
-      font-weight: 500;
-      color: var(--charcoal-ink);
-      line-height: 1.45;
-    }
+      .section-cell:not(:last-child) {
+        border-right: 1px solid var(--divider);
+      }
 
-    .step-num {
-      width: 20px; height: 20px;
-      border-radius: 50%;
-      background: var(--petrol-light);
-      color: var(--petrol-mid);
-      font-size: 10px;
-      font-weight: 800;
-      display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0;
-      margin-top: 1px;
-    }
+      .section-label {
+        font-size: 10px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--ink-faint);
+        display: flex;
+        align-items: center;
+        gap: 7px;
+      }
 
-    .stage-3 .step-num { background: #DBEAFE; color: var(--diesel-blue); }
-    .stage-5 .step-num { background: #DCFCE7; color: #16A34A; }
+      .section-label-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        flex-shrink: 0;
+      }
 
-    /* ─── Thoughts ───────────────────────────────────────────── */
-    .thoughts-list {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
+      /* ─── Steps ──────────────────────────────────────────────── */
+      .steps-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        list-style: none;
+      }
 
-    .thought-bubble {
-      background: var(--warm-ash);
-      border-left: 3px solid var(--ignition-amber);
-      border-radius: 0 10px 10px 0;
-      padding: 10px 14px;
-      font-size: 13px;
-      font-style: italic;
-      color: var(--charcoal-ink);
-      line-height: 1.5;
-      position: relative;
-    }
+      .step-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--charcoal-ink);
+        line-height: 1.45;
+      }
 
-    .thought-bubble::before {
-      content: '"';
-      font-size: 26px;
-      color: var(--ignition-amber);
-      position: absolute;
-      top: -4px;
-      left: 10px;
-      line-height: 1;
-      font-style: normal;
-    }
+      .step-num {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: var(--petrol-light);
+        color: var(--petrol-mid);
+        font-size: 10px;
+        font-weight: 800;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        margin-top: 1px;
+      }
 
-    .thought-bubble p {
-      padding-left: 14px;
-    }
+      .stage-3 .step-num {
+        background: #dbeafe;
+        color: var(--diesel-blue);
+      }
 
-    /* ─── Touchpoints ────────────────────────────────────────── */
-    .touchpoints-row {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
+      .stage-5 .step-num {
+        background: #dcfce7;
+        color: #16a34a;
+      }
 
-    .touchpoint-item {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      font-size: 12.5px;
-      font-weight: 600;
-      color: var(--ink-light);
-    }
+      /* ─── Thoughts ───────────────────────────────────────────── */
+      .thoughts-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
 
-    .tp-icon {
-      width: 34px; height: 34px;
-      border-radius: 9px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 10px; font-weight: 800; color: var(--ink-light);
-      flex-shrink: 0;
-      border: 1.5px solid var(--divider);
-      background: #F3F4F6;
-      letter-spacing: 0.01em;
-    }
+      .thought-bubble {
+        background: var(--warm-ash);
+        border-left: 3px solid var(--ignition-amber);
+        border-radius: 0 10px 10px 0;
+        padding: 10px 14px;
+        font-size: 13px;
+        font-style: italic;
+        color: var(--charcoal-ink);
+        line-height: 1.5;
+        position: relative;
+      }
 
-    /* ─── Emotion Curve ──────────────────────────────────────── */
-    .emotion-section {
-      border-top: 1px solid var(--divider);
-      padding: 0;
-    }
+      .thought-bubble::before {
+        content: '"';
+        font-size: 26px;
+        color: var(--ignition-amber);
+        position: absolute;
+        top: -4px;
+        left: 10px;
+        line-height: 1;
+        font-style: normal;
+      }
 
-    .emotion-header {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 18px 28px 0;
-      font-size: 14px;
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      color: var(--ink-faint);
-    }
+      .thought-bubble p {
+        padding-left: 14px;
+      }
 
-    .emotion-chart-wrapper {
-      padding: 8px 0 28px;
-      position: relative;
-    }
+      /* ─── Touchpoints ────────────────────────────────────────── */
+      .touchpoints-row {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
 
-    /* ─── Legend ─────────────────────────────────────────────── */
-    .emotion-legend {
-      display: flex;
-      gap: 24px;
-      align-items: center;
-      padding: 0 28px 20px;
-      flex-wrap: wrap;
-    }
+      .touchpoint-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 12.5px;
+        font-weight: 600;
+        color: var(--ink-light);
+      }
 
-    .legend-item {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 12px;
-      font-weight: 600;
-      color: var(--ink-light);
-    }
+      .tp-icon {
+        width: 34px;
+        height: 34px;
+        border-radius: 9px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 10px;
+        font-weight: 800;
+        color: var(--ink-light);
+        flex-shrink: 0;
+        border: 1.5px solid var(--divider);
+        background: #f3f4f6;
+        letter-spacing: 0.01em;
+      }
 
-    .legend-dot {
-      width: 12px; height: 12px;
-      border-radius: 50%;
-      border: 2px solid var(--white);
-      box-shadow: 0 0 0 2px rgba(0,0,0,0.1);
-    }
-  </style>
-</head>
-<body>
+      /* ─── Emotion Curve ──────────────────────────────────────── */
+      .emotion-section {
+        border-top: 1px solid var(--divider);
+        padding: 0;
+      }
 
-  <!-- ─── Page Header ─────────────────────────────────────────── -->
-  <div class="page-header">
-    <div class="header-left">
-      <div class="brand-mark"><img src="fuelnow-logo.jpg" alt="FuelNow Logo" /></div>
-      <div>
-        <div class="page-title">Admin Journey: Running FuelNow Operations</div>
-        <div class="page-subtitle">Administrator experience map · South African operations</div>
-      </div>
-    </div>
-  </div>
+      .emotion-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 18px 28px 0;
+        font-size: 14px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--ink-faint);
+      }
 
-  <!-- ─── Actor Strip ─────────────────────────────────────────── -->
-  <div class="actor-strip">
-    <span class="actor-label">Actors</span>
-    <div class="actor-pill">Administrator / Ops Manager (primary)</div>
-    <div class="actor-pill">Delivery Driver (enters at Stages 2 and 3)</div>
-  </div>
+      .emotion-chart-wrapper {
+        padding: 8px 0 28px;
+        position: relative;
+      }
 
-  <!-- ─── Main Journey Map ─────────────────────────────────────── -->
-  <div class="journey-table">
+      /* ─── Legend ─────────────────────────────────────────────── */
+      .emotion-legend {
+        display: flex;
+        gap: 24px;
+        align-items: center;
+        padding: 0 28px 20px;
+        flex-wrap: wrap;
+      }
 
-    <!-- ── Stage Header Bands ────────────────────────────────── -->
-    <div class="stages-grid">
+      .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--ink-light);
+      }
 
-      <!-- Stage 1 -->
-      <div class="stage-col stage-1">
-        <div class="stage-band">
-          <span class="stage-num">Stage 01</span>
-          <span class="stage-name">Start of Day</span>
-          <span class="stage-tag">Awareness</span>
+      .legend-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        border: 2px solid var(--white);
+        box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1);
+      }
+    </style>
+  </head>
+
+  <body>
+    <!-- ─── Page Header ─────────────────────────────────────────── -->
+    <div class="page-header">
+      <div class="header-left">
+        <div class="brand-mark">
+          <img src="fuelnow-logo.jpg" alt="FuelNow Logo" />
         </div>
-      </div>
-
-      <!-- Stage 2 -->
-      <div class="stage-col stage-2">
-        <div class="stage-band" style="position:relative;">
-          <span class="stage-num">Stage 02</span>
-          <span class="stage-name">Operational Management</span>
-          <span class="stage-tag">Control</span>
-          <div class="secondary-badge">Driver involved</div>
-        </div>
-      </div>
-
-      <!-- Stage 3 -->
-      <div class="stage-col stage-3">
-        <div class="stage-band" style="position:relative;">
-          <span class="stage-num">Stage 03</span>
-          <span class="stage-name">Pricing &amp; Compliance</span>
-          <span class="stage-tag">Governance</span>
-          <div class="secondary-badge">Driver involved</div>
-        </div>
-      </div>
-
-      <!-- Stage 4 -->
-      <div class="stage-col stage-4">
-        <div class="stage-band">
-          <span class="stage-num">Stage 04</span>
-          <span class="stage-name">Service Quality</span>
-          <span class="stage-tag">Monitoring</span>
-        </div>
-      </div>
-
-      <!-- Stage 5 -->
-      <div class="stage-col stage-5">
-        <div class="stage-band">
-          <span class="stage-num">Stage 05</span>
-          <span class="stage-name">Reporting &amp; Close-out</span>
-          <span class="stage-tag">Completion</span>
-        </div>
-      </div>
-
-    </div>
-
-    <!-- ── STEPS ROW ─────────────────────────────────────────── -->
-    <div class="section-row">
-      <!-- Stage 1 -->
-      <div class="section-cell stage-1">
-        <div class="section-label"><span class="section-label-dot" style="background:var(--petrol-deep)"></span>Admin Steps</div>
-        <ul class="steps-list">
-          <li class="step-item"><span class="step-num">1</span><span>Logs into the FuelNow Admin web dashboard at admin.fuelnow.co.za</span></li>
-          <li class="step-item"><span class="step-num">2</span><span>Reviews the live KPI strip — today's orders, revenue, and active drivers</span></li>
-          <li class="step-item"><span class="step-num">3</span><span>Checks the demand heatmap for high-density zones in Durban Metro</span></li>
-          <li class="step-item"><span class="step-num">4</span><span>Scans for any overnight SOS alerts or unresolved flags from the previous shift</span></li>
-        </ul>
-      </div>
-      <!-- Stage 2 -->
-      <div class="section-cell stage-2">
-        <div class="section-label"><span class="section-label-dot" style="background:var(--petrol-deep)"></span>Admin Steps</div>
-        <ul class="steps-list">
-          <li class="step-item"><span class="step-num">1</span><span>Opens the Orders table and filters for active and pending deliveries</span></li>
-          <li class="step-item"><span class="step-num">2</span><span>Identifies any orders flagged as unassigned or running late</span></li>
-          <li class="step-item"><span class="step-num">3</span><span>Reviews the Drivers screen to see which drivers are available or offline</span></li>
-          <li class="step-item"><span class="step-num">4</span><span>Manually reassigns zones or contacts drivers (e.g. France Sizwe, Durban North) if needed</span></li>
-        </ul>
-      </div>
-      <!-- Stage 3 -->
-      <div class="section-cell stage-3">
-        <div class="section-label"><span class="section-label-dot" style="background:var(--diesel-blue)"></span>Admin Steps</div>
-        <ul class="steps-list">
-          <li class="step-item"><span class="step-num">1</span><span>Opens the Fuel Rates screen and verifies the API price sync ran correctly (e.g. Petrol 95 at R24.67/L)</span></li>
-          <li class="step-item"><span class="step-num">2</span><span>Overrides a rate manually if the automated feed has failed or is outdated</span></li>
-          <li class="step-item"><span class="step-num">3</span><span>Reviews driver compliance tracker for expiry flags on PrDP licences and Hazmat certificates</span></li>
-          <li class="step-item"><span class="step-num">4</span><span>Suspends or flags a driver from taking orders until documents are renewed</span></li>
-        </ul>
-      </div>
-      <!-- Stage 4 -->
-      <div class="section-cell stage-4">
-        <div class="section-label"><span class="section-label-dot" style="background:var(--petrol-deep)"></span>Admin Steps</div>
-        <ul class="steps-list">
-          <li class="step-item"><span class="step-num">1</span><span>Opens the Reviews panel and filters for flagged or low-rated deliveries (1–2 stars)</span></li>
-          <li class="step-item"><span class="step-num">2</span><span>Approves, removes, or escalates problematic reviews for follow-up</span></li>
-          <li class="step-item"><span class="step-num">3</span><span>Checks the SOS Alerts monitor for any active driver emergencies</span></li>
-          <li class="step-item"><span class="step-num">4</span><span>Dispatches support and marks resolved alerts as closed</span></li>
-        </ul>
-      </div>
-      <!-- Stage 5 -->
-      <div class="section-cell stage-5">
-        <div class="section-label"><span class="section-label-dot" style="background:var(--diesel-green)"></span>Admin Steps</div>
-        <ul class="steps-list">
-          <li class="step-item"><span class="step-num">1</span><span>Opens the Reports screen and selects today's date range</span></li>
-          <li class="step-item"><span class="step-num">2</span><span>Pulls the Complete Financial Ledger dataset (orders, revenue, VAT)</span></li>
-          <li class="step-item"><span class="step-num">3</span><span>Exports Driver Performance report to Excel for the owner's afternoon review</span></li>
-          <li class="step-item"><span class="step-num">4</span><span>Logs out and hands over to the evening shift administrator</span></li>
-        </ul>
-      </div>
-    </div>
-
-    <!-- ── THOUGHTS ROW ──────────────────────────────────────── -->
-    <div class="section-row">
-      <!-- Stage 1 -->
-      <div class="section-cell">
-        <div class="section-label"><span class="section-label-dot" style="background:var(--ignition-amber)"></span>Admin Thoughts</div>
-        <div class="thoughts-list">
-          <div class="thought-bubble"><p>I need to see at a glance whether today is running smoothly before I start handling issues.</p></div>
-          <div class="thought-bubble"><p>47 orders yesterday, R108 450 revenue — today's starting well. Let's keep it moving.</p></div>
-        </div>
-      </div>
-      <!-- Stage 2 -->
-      <div class="section-cell">
-        <div class="section-label"><span class="section-label-dot" style="background:var(--ignition-amber)"></span>Admin Thoughts</div>
-        <div class="thoughts-list">
-          <div class="thought-bubble"><p>Which drivers are free right now, and is anything running late that the customer can see?</p></div>
-          <div class="thought-bubble"><p>That order in Westville has been pending for 12 minutes — I need to reassign it now.</p></div>
-        </div>
-      </div>
-      <!-- Stage 3 -->
-      <div class="section-cell">
-        <div class="section-label"><span class="section-label-dot" style="background:var(--ignition-amber)"></span>Admin Thoughts</div>
-        <div class="thoughts-list">
-          <div class="thought-bubble"><p>Did the price feed update correctly this morning? The pump rate changed at midnight.</p></div>
-          <div class="thought-bubble"><p>I can't assign France Sizwe again until his PrDP renewal comes through — that's a compliance block.</p></div>
-        </div>
-      </div>
-      <!-- Stage 4 -->
-      <div class="section-cell">
-        <div class="section-label"><span class="section-label-dot" style="background:var(--ignition-amber)"></span>Admin Thoughts</div>
-        <div class="thoughts-list">
-          <div class="thought-bubble"><p>Are there any low-rating complaints or emergencies I need to deal with right now?</p></div>
-          <div class="thought-bubble"><p>That 1-star review looks like a genuine issue — I need to escalate it and follow up with the driver.</p></div>
-        </div>
-      </div>
-      <!-- Stage 5 -->
-      <div class="section-cell">
-        <div class="section-label"><span class="section-label-dot" style="background:var(--ignition-amber)"></span>Admin Thoughts</div>
-        <div class="thoughts-list">
-          <div class="thought-bubble"><p>I need these numbers in Excel for the owner's meeting this afternoon — clean and ready to present.</p></div>
-          <div class="thought-bubble"><p>Good day overall. Revenue is up 8.7% from yesterday. The evening handover is sorted.</p></div>
+        <div>
+          <div class="page-title">
+            Admin Journey: Running FuelNow Operations
+          </div>
+          <div class="page-subtitle">
+            Administrator experience map · South African operations
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- ── TOUCHPOINTS ROW ───────────────────────────────────── -->
-    <div class="section-row">
-      <!-- Stage 1 -->
-      <div class="section-cell" style="min-height:130px;">
-        <div class="section-label"><span class="section-label-dot" style="background:var(--diesel-blue)"></span>Touchpoints</div>
-        <div class="touchpoints-row">
-          <div class="touchpoint-item"><div class="tp-icon" style="background:#DBEAFE;color:#1D4ED8;">DSH</div> Admin Dashboard (Web)</div>
-          <div class="touchpoint-item"><div class="tp-icon" style="background:#FFEDD5;color:#C2410C;">KPI</div> KPI Strip — Orders / Revenue</div>
-          <div class="touchpoint-item"><div class="tp-icon" style="background:#DCFCE7;color:#15803D;">MAP</div> Demand Heatmap</div>
-        </div>
-      </div>
-      <!-- Stage 2 -->
-      <div class="section-cell" style="min-height:130px;">
-        <div class="section-label"><span class="section-label-dot" style="background:var(--diesel-blue)"></span>Touchpoints</div>
-        <div class="touchpoints-row">
-          <div class="touchpoint-item"><div class="tp-icon" style="background:#F3F4F6;color:#374151;">ORD</div> Orders Management Table</div>
-          <div class="touchpoint-item"><div class="tp-icon" style="background:#FFEDD5;color:#C2410C;">DRV</div> Driver Management Screen</div>
-          <div class="touchpoint-item"><div class="tp-icon" style="background:#FEF9C3;color:#854D0E;">ZNE</div> Zone Assignment Controls</div>
-        </div>
-      </div>
-      <!-- Stage 3 -->
-      <div class="section-cell" style="min-height:130px;">
-        <div class="section-label"><span class="section-label-dot" style="background:var(--diesel-blue)"></span>Touchpoints</div>
-        <div class="touchpoints-row">
-          <div class="touchpoint-item"><div class="tp-icon" style="background:#FFEDD5;color:#C2410C;">PRC</div> Fuel Rate Management Table</div>
-          <div class="touchpoint-item"><div class="tp-icon" style="background:#FEE2E2;color:#B91C1C;">CMP</div> Compliance Tracker (PrDP / Hazmat)</div>
-          <div class="touchpoint-item"><div class="tp-icon" style="background:#DBEAFE;color:#1D4ED8;">OVR</div> Manual Rate Override</div>
-        </div>
-      </div>
-      <!-- Stage 4 -->
-      <div class="section-cell" style="min-height:130px;">
-        <div class="section-label"><span class="section-label-dot" style="background:var(--diesel-blue)"></span>Touchpoints</div>
-        <div class="touchpoints-row">
-          <div class="touchpoint-item"><div class="tp-icon" style="background:#FEF9C3;color:#854D0E;">RVW</div> Reviews Moderation Panel</div>
-          <div class="touchpoint-item"><div class="tp-icon" style="background:#FEE2E2;color:#B91C1C;">SOS</div> SOS Alerts Monitor</div>
-          <div class="touchpoint-item"><div class="tp-icon" style="background:#DCFCE7;color:#15803D;">DSP</div> Dispatch Support Action</div>
-        </div>
-      </div>
-      <!-- Stage 5 -->
-      <div class="section-cell" style="min-height:130px;">
-        <div class="section-label"><span class="section-label-dot" style="background:var(--diesel-blue)"></span>Touchpoints</div>
-        <div class="touchpoints-row">
-          <div class="touchpoint-item"><div class="tp-icon" style="background:#DBEAFE;color:#1D4ED8;">RPT</div> Reports Screen (Date Filter)</div>
-          <div class="touchpoint-item"><div class="tp-icon" style="background:#DCFCE7;color:#15803D;">XLS</div> Export to Excel (.xlsx)</div>
-          <div class="touchpoint-item"><div class="tp-icon" style="background:#F3F4F6;color:#374151;">CSV</div> Download CSV Ledger</div>
-        </div>
-      </div>
+    <!-- ─── Actor Strip ─────────────────────────────────────────── -->
+    <div class="actor-strip">
+      <span class="actor-label">Actors</span>
+      <div class="actor-pill">Administrator / Ops Manager (primary)</div>
+      <div class="actor-pill">Delivery Driver (enters at Stages 2 and 3)</div>
     </div>
 
-    <!-- ── EMOTION CURVE ROW ──────────────────────────────────── -->
-    <div class="emotion-section">
-      <div class="emotion-header">
-        <span style="width:10px; height:10px; border-radius:50%; background:var(--diesel-green); display:inline-block;"></span>
-        Emotion Curve
-      </div>
+    <!-- ─── Main Journey Map ─────────────────────────────────────── -->
+    <div class="journey-table">
+      <!-- ── Stage Header Bands ────────────────────────────────── -->
+      <div class="stages-grid">
+        <!-- Stage 1 -->
+        <div class="stage-col stage-1">
+          <div class="stage-band">
+            <span class="stage-num">Stage 01</span>
+            <span class="stage-name">Start of Day</span>
+            <span class="stage-tag">Awareness</span>
+          </div>
+        </div>
 
-      <!-- Legend -->
-      <div class="emotion-legend">
-        <div class="legend-item"><div class="legend-dot" style="background:var(--diesel-green);"></div> Positive / Satisfied / In Control</div>
-        <div class="legend-item"><div class="legend-dot" style="background:var(--ignition-amber);"></div> Neutral / Alert / Focused / Cautious</div>
-        <div class="legend-item"><div class="legend-dot" style="background:var(--signal-red);"></div> Concerned / Stressed</div>
-        <div class="legend-item" style="margin-left:24px; padding-left:24px; border-left:1.5px solid var(--divider);">
-          <div style="width:28px; height:2px; background:var(--signal-red); border-radius:2px; display:inline-block;"></div>
-          &nbsp; SOS alternate path
+        <!-- Stage 2 -->
+        <div class="stage-col stage-2">
+          <div class="stage-band" style="position: relative">
+            <span class="stage-num">Stage 02</span>
+            <span class="stage-name">Operational Management</span>
+            <span class="stage-tag">Control</span>
+            <div class="secondary-badge">Driver involved</div>
+          </div>
+        </div>
+
+        <!-- Stage 3 -->
+        <div class="stage-col stage-3">
+          <div class="stage-band" style="position: relative">
+            <span class="stage-num">Stage 03</span>
+            <span class="stage-name">Pricing &amp; Compliance</span>
+            <span class="stage-tag">Governance</span>
+            <div class="secondary-badge">Driver involved</div>
+          </div>
+        </div>
+
+        <!-- Stage 4 -->
+        <div class="stage-col stage-4">
+          <div class="stage-band">
+            <span class="stage-num">Stage 04</span>
+            <span class="stage-name">Service Quality</span>
+            <span class="stage-tag">Monitoring</span>
+          </div>
+        </div>
+
+        <!-- Stage 5 -->
+        <div class="stage-col stage-5">
+          <div class="stage-band">
+            <span class="stage-num">Stage 05</span>
+            <span class="stage-name">Reporting &amp; Close-out</span>
+            <span class="stage-tag">Completion</span>
+          </div>
         </div>
       </div>
 
-      <div class="emotion-chart-wrapper">
-        <svg viewBox="0 0 2200 340" width="100%" height="340" xmlns="http://www.w3.org/2000/svg" style="display:block; overflow:visible;">
+      <!-- ── STEPS ROW ─────────────────────────────────────────── -->
+      <div class="section-row">
+        <!-- Stage 1 -->
+        <div class="section-cell stage-1">
+          <div class="section-label">
+            <span
+              class="section-label-dot"
+              style="background: var(--petrol-deep)"
+            ></span
+            >Admin Steps
+          </div>
+          <ul class="steps-list">
+            <li class="step-item">
+              <span class="step-num">1</span
+              ><span
+                >Logs into the FuelNow Admin web dashboard at
+                admin.fuelnow.co.za</span
+              >
+            </li>
+            <li class="step-item">
+              <span class="step-num">2</span
+              ><span
+                >Reviews the live KPI strip — today's orders, revenue, and
+                active drivers</span
+              >
+            </li>
+            <li class="step-item">
+              <span class="step-num">3</span
+              ><span
+                >Checks the demand heatmap for high-density zones in Durban
+                Metro</span
+              >
+            </li>
+            <li class="step-item">
+              <span class="step-num">4</span
+              ><span
+                >Scans for any overnight SOS alerts or unresolved flags from the
+                previous shift</span
+              >
+            </li>
+          </ul>
+        </div>
+        <!-- Stage 2 -->
+        <div class="section-cell stage-2">
+          <div class="section-label">
+            <span
+              class="section-label-dot"
+              style="background: var(--petrol-deep)"
+            ></span
+            >Admin Steps
+          </div>
+          <ul class="steps-list">
+            <li class="step-item">
+              <span class="step-num">1</span
+              ><span
+                >Opens the Orders table and filters for active and pending
+                deliveries</span
+              >
+            </li>
+            <li class="step-item">
+              <span class="step-num">2</span
+              ><span
+                >Identifies any orders flagged as unassigned or running
+                late</span
+              >
+            </li>
+            <li class="step-item">
+              <span class="step-num">3</span
+              ><span
+                >Reviews the Drivers screen to see which drivers are available
+                or offline</span
+              >
+            </li>
+            <li class="step-item">
+              <span class="step-num">4</span
+              ><span
+                >Manually reassigns zones or contacts drivers (e.g. France
+                Sizwe, Durban North) if needed</span
+              >
+            </li>
+          </ul>
+        </div>
+        <!-- Stage 3 -->
+        <div class="section-cell stage-3">
+          <div class="section-label">
+            <span
+              class="section-label-dot"
+              style="background: var(--diesel-blue)"
+            ></span
+            >Admin Steps
+          </div>
+          <ul class="steps-list">
+            <li class="step-item">
+              <span class="step-num">1</span
+              ><span
+                >Opens the Fuel Rates screen and verifies the API price sync ran
+                correctly (e.g. Petrol 95 at R24.67/L)</span
+              >
+            </li>
+            <li class="step-item">
+              <span class="step-num">2</span
+              ><span
+                >Overrides a rate manually if the automated feed has failed or
+                is outdated</span
+              >
+            </li>
+            <li class="step-item">
+              <span class="step-num">3</span
+              ><span
+                >Reviews driver compliance tracker for expiry flags on PrDP
+                licences and Hazmat certificates</span
+              >
+            </li>
+            <li class="step-item">
+              <span class="step-num">4</span
+              ><span
+                >Suspends or flags a driver from taking orders until documents
+                are renewed</span
+              >
+            </li>
+          </ul>
+        </div>
+        <!-- Stage 4 -->
+        <div class="section-cell stage-4">
+          <div class="section-label">
+            <span
+              class="section-label-dot"
+              style="background: var(--petrol-deep)"
+            ></span
+            >Admin Steps
+          </div>
+          <ul class="steps-list">
+            <li class="step-item">
+              <span class="step-num">1</span
+              ><span
+                >Opens the Reviews panel and filters for flagged or low-rated
+                deliveries (1–2 stars)</span
+              >
+            </li>
+            <li class="step-item">
+              <span class="step-num">2</span
+              ><span
+                >Approves, removes, or escalates problematic reviews for
+                follow-up</span
+              >
+            </li>
+            <li class="step-item">
+              <span class="step-num">3</span
+              ><span
+                >Checks the SOS Alerts monitor for any active driver
+                emergencies</span
+              >
+            </li>
+            <li class="step-item">
+              <span class="step-num">4</span
+              ><span
+                >Dispatches support and marks resolved alerts as closed</span
+              >
+            </li>
+          </ul>
+        </div>
+        <!-- Stage 5 -->
+        <div class="section-cell stage-5">
+          <div class="section-label">
+            <span
+              class="section-label-dot"
+              style="background: var(--diesel-green)"
+            ></span
+            >Admin Steps
+          </div>
+          <ul class="steps-list">
+            <li class="step-item">
+              <span class="step-num">1</span
+              ><span
+                >Opens the Reports screen and selects today's date range</span
+              >
+            </li>
+            <li class="step-item">
+              <span class="step-num">2</span
+              ><span
+                >Pulls the Complete Financial Ledger dataset (orders, revenue,
+                VAT)</span
+              >
+            </li>
+            <li class="step-item">
+              <span class="step-num">3</span
+              ><span
+                >Exports Driver Performance report to Excel for the owner's
+                afternoon review</span
+              >
+            </li>
+            <li class="step-item">
+              <span class="step-num">4</span
+              ><span
+                >Logs out and hands over to the evening shift
+                administrator</span
+              >
+            </li>
+          </ul>
+        </div>
+      </div>
 
-          <!-- Grid lines -->
-          <line x1="60" y1="55"  x2="2150" y2="55"  stroke="#E2E8F0" stroke-width="1" stroke-dasharray="6 4"/>
-          <line x1="60" y1="130" x2="2150" y2="130" stroke="#E2E8F0" stroke-width="1" stroke-dasharray="6 4"/>
-          <line x1="60" y1="205" x2="2150" y2="205" stroke="#E2E8F0" stroke-width="1" stroke-dasharray="6 4"/>
+      <!-- ── THOUGHTS ROW ──────────────────────────────────────── -->
+      <div class="section-row">
+        <!-- Stage 1 -->
+        <div class="section-cell">
+          <div class="section-label">
+            <span
+              class="section-label-dot"
+              style="background: var(--ignition-amber)"
+            ></span
+            >Admin Thoughts
+          </div>
+          <div class="thoughts-list">
+            <div class="thought-bubble">
+              <p>
+                I need to see at a glance whether today is running smoothly
+                before I start handling issues.
+              </p>
+            </div>
+            <div class="thought-bubble">
+              <p>
+                47 orders yesterday, R108 450 revenue — today's starting well.
+                Let's keep it moving.
+              </p>
+            </div>
+          </div>
+        </div>
+        <!-- Stage 2 -->
+        <div class="section-cell">
+          <div class="section-label">
+            <span
+              class="section-label-dot"
+              style="background: var(--ignition-amber)"
+            ></span
+            >Admin Thoughts
+          </div>
+          <div class="thoughts-list">
+            <div class="thought-bubble">
+              <p>
+                Which drivers are free right now, and is anything running late
+                that the customer can see?
+              </p>
+            </div>
+            <div class="thought-bubble">
+              <p>
+                That order in Westville has been pending for 12 minutes — I need
+                to reassign it now.
+              </p>
+            </div>
+          </div>
+        </div>
+        <!-- Stage 3 -->
+        <div class="section-cell">
+          <div class="section-label">
+            <span
+              class="section-label-dot"
+              style="background: var(--ignition-amber)"
+            ></span
+            >Admin Thoughts
+          </div>
+          <div class="thoughts-list">
+            <div class="thought-bubble">
+              <p>
+                Did the price feed update correctly this morning? The pump rate
+                changed at midnight.
+              </p>
+            </div>
+            <div class="thought-bubble">
+              <p>
+                I can't assign France Sizwe again until his PrDP renewal comes
+                through — that's a compliance block.
+              </p>
+            </div>
+          </div>
+        </div>
+        <!-- Stage 4 -->
+        <div class="section-cell">
+          <div class="section-label">
+            <span
+              class="section-label-dot"
+              style="background: var(--ignition-amber)"
+            ></span
+            >Admin Thoughts
+          </div>
+          <div class="thoughts-list">
+            <div class="thought-bubble">
+              <p>
+                Are there any low-rating complaints or emergencies I need to
+                deal with right now?
+              </p>
+            </div>
+            <div class="thought-bubble">
+              <p>
+                That 1-star review looks like a genuine issue — I need to
+                escalate it and follow up with the driver.
+              </p>
+            </div>
+          </div>
+        </div>
+        <!-- Stage 5 -->
+        <div class="section-cell">
+          <div class="section-label">
+            <span
+              class="section-label-dot"
+              style="background: var(--ignition-amber)"
+            ></span
+            >Admin Thoughts
+          </div>
+          <div class="thoughts-list">
+            <div class="thought-bubble">
+              <p>
+                I need these numbers in Excel for the owner's meeting this
+                afternoon — clean and ready to present.
+              </p>
+            </div>
+            <div class="thought-bubble">
+              <p>
+                Good day overall. Revenue is up 8.7% from yesterday. The evening
+                handover is sorted.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
 
-          <!-- Y-axis labels -->
-          <text x="52" y="59"  text-anchor="end" font-size="10" fill="#9CA3AF" font-family="Inter,sans-serif" font-weight="600">Positive</text>
-          <text x="52" y="134" text-anchor="end" font-size="10" fill="#9CA3AF" font-family="Inter,sans-serif" font-weight="600">Neutral</text>
-          <text x="52" y="209" text-anchor="end" font-size="10" fill="#9CA3AF" font-family="Inter,sans-serif" font-weight="600">Stressed</text>
+      <!-- ── TOUCHPOINTS ROW ───────────────────────────────────── -->
+      <div class="section-row">
+        <!-- Stage 1 -->
+        <div class="section-cell" style="min-height: 130px">
+          <div class="section-label">
+            <span
+              class="section-label-dot"
+              style="background: var(--diesel-blue)"
+            ></span
+            >Touchpoints
+          </div>
+          <div class="touchpoints-row">
+            <div class="touchpoint-item">
+              <div class="tp-icon" style="background: #dbeafe; color: #1d4ed8">
+                DSH
+              </div>
+              Admin Dashboard (Web)
+            </div>
+            <div class="touchpoint-item">
+              <div class="tp-icon" style="background: #ffedd5; color: #c2410c">
+                KPI
+              </div>
+              KPI Strip — Orders / Revenue
+            </div>
+            <div class="touchpoint-item">
+              <div class="tp-icon" style="background: #dcfce7; color: #15803d">
+                MAP
+              </div>
+              Demand Heatmap
+            </div>
+          </div>
+        </div>
+        <!-- Stage 2 -->
+        <div class="section-cell" style="min-height: 130px">
+          <div class="section-label">
+            <span
+              class="section-label-dot"
+              style="background: var(--diesel-blue)"
+            ></span
+            >Touchpoints
+          </div>
+          <div class="touchpoints-row">
+            <div class="touchpoint-item">
+              <div class="tp-icon" style="background: #f3f4f6; color: #374151">
+                ORD
+              </div>
+              Orders Management Table
+            </div>
+            <div class="touchpoint-item">
+              <div class="tp-icon" style="background: #ffedd5; color: #c2410c">
+                DRV
+              </div>
+              Driver Management Screen
+            </div>
+            <div class="touchpoint-item">
+              <div class="tp-icon" style="background: #fef9c3; color: #854d0e">
+                ZNE
+              </div>
+              Zone Assignment Controls
+            </div>
+          </div>
+        </div>
+        <!-- Stage 3 -->
+        <div class="section-cell" style="min-height: 130px">
+          <div class="section-label">
+            <span
+              class="section-label-dot"
+              style="background: var(--diesel-blue)"
+            ></span
+            >Touchpoints
+          </div>
+          <div class="touchpoints-row">
+            <div class="touchpoint-item">
+              <div class="tp-icon" style="background: #ffedd5; color: #c2410c">
+                PRC
+              </div>
+              Fuel Rate Management Table
+            </div>
+            <div class="touchpoint-item">
+              <div class="tp-icon" style="background: #fee2e2; color: #b91c1c">
+                CMP
+              </div>
+              Compliance Tracker (PrDP / Hazmat)
+            </div>
+            <div class="touchpoint-item">
+              <div class="tp-icon" style="background: #dbeafe; color: #1d4ed8">
+                OVR
+              </div>
+              Manual Rate Override
+            </div>
+          </div>
+        </div>
+        <!-- Stage 4 -->
+        <div class="section-cell" style="min-height: 130px">
+          <div class="section-label">
+            <span
+              class="section-label-dot"
+              style="background: var(--diesel-blue)"
+            ></span
+            >Touchpoints
+          </div>
+          <div class="touchpoints-row">
+            <div class="touchpoint-item">
+              <div class="tp-icon" style="background: #fef9c3; color: #854d0e">
+                RVW
+              </div>
+              Reviews Moderation Panel
+            </div>
+            <div class="touchpoint-item">
+              <div class="tp-icon" style="background: #fee2e2; color: #b91c1c">
+                SOS
+              </div>
+              SOS Alerts Monitor
+            </div>
+            <div class="touchpoint-item">
+              <div class="tp-icon" style="background: #dcfce7; color: #15803d">
+                DSP
+              </div>
+              Dispatch Support Action
+            </div>
+          </div>
+        </div>
+        <!-- Stage 5 -->
+        <div class="section-cell" style="min-height: 130px">
+          <div class="section-label">
+            <span
+              class="section-label-dot"
+              style="background: var(--diesel-blue)"
+            ></span
+            >Touchpoints
+          </div>
+          <div class="touchpoints-row">
+            <div class="touchpoint-item">
+              <div class="tp-icon" style="background: #dbeafe; color: #1d4ed8">
+                RPT
+              </div>
+              Reports Screen (Date Filter)
+            </div>
+            <div class="touchpoint-item">
+              <div class="tp-icon" style="background: #dcfce7; color: #15803d">
+                XLS
+              </div>
+              Export to Excel (.xlsx)
+            </div>
+            <div class="touchpoint-item">
+              <div class="tp-icon" style="background: #f3f4f6; color: #374151">
+                CSV
+              </div>
+              Download CSV Ledger
+            </div>
+          </div>
+        </div>
+      </div>
 
-          <!-- Stage separators -->
-          <line x1="440"  y1="35" x2="440"  y2="270" stroke="#E2E8F0" stroke-width="1.5"/>
-          <line x1="840"  y1="35" x2="840"  y2="270" stroke="#E2E8F0" stroke-width="1.5"/>
-          <line x1="1240" y1="35" x2="1240" y2="270" stroke="#E2E8F0" stroke-width="1.5"/>
-          <line x1="1660" y1="35" x2="1660" y2="270" stroke="#E2E8F0" stroke-width="1.5"/>
+      <!-- ── EMOTION CURVE ROW ──────────────────────────────────── -->
+      <div class="emotion-section">
+        <div class="emotion-header">
+          <span
+            style="
+              width: 10px;
+              height: 10px;
+              border-radius: 50%;
+              background: var(--diesel-green);
+              display: inline-block;
+            "
+          ></span>
+          Emotion Curve
+        </div>
 
-          <!-- Stage labels -->
-          <text x="230"  y="282" text-anchor="middle" font-size="11" fill="#9CA3AF" font-family="Inter,sans-serif" font-weight="600">Stage 1 · Start of Day</text>
-          <text x="640"  y="282" text-anchor="middle" font-size="11" fill="#9CA3AF" font-family="Inter,sans-serif" font-weight="600">Stage 2 · Ops Management</text>
-          <text x="1040" y="282" text-anchor="middle" font-size="11" fill="#9CA3AF" font-family="Inter,sans-serif" font-weight="600">Stage 3 · Pricing &amp; Compliance</text>
-          <text x="1450" y="282" text-anchor="middle" font-size="11" fill="#9CA3AF" font-family="Inter,sans-serif" font-weight="600">Stage 4 · Service Quality</text>
-          <text x="1860" y="282" text-anchor="middle" font-size="11" fill="#9CA3AF" font-family="Inter,sans-serif" font-weight="600">Stage 5 · Reporting</text>
+        <!-- Legend -->
+        <div class="emotion-legend">
+          <div class="legend-item">
+            <div
+              class="legend-dot"
+              style="background: var(--diesel-green)"
+            ></div>
+            Positive / Satisfied / In Control
+          </div>
+          <div class="legend-item">
+            <div
+              class="legend-dot"
+              style="background: var(--ignition-amber)"
+            ></div>
+            Neutral / Alert / Focused / Cautious
+          </div>
+          <div class="legend-item">
+            <div class="legend-dot" style="background: var(--signal-red)"></div>
+            Concerned / Stressed
+          </div>
+          <div
+            class="legend-item"
+            style="
+              margin-left: 24px;
+              padding-left: 24px;
+              border-left: 1.5px solid var(--divider);
+            "
+          >
+            <div
+              style="
+                width: 28px;
+                height: 2px;
+                background: var(--signal-red);
+                border-radius: 2px;
+                display: inline-block;
+              "
+            ></div>
+            &nbsp; SOS alternate path
+          </div>
+        </div>
 
-          <!--
+        <div class="emotion-chart-wrapper">
+          <svg
+            viewBox="0 0 2200 340"
+            width="100%"
+            height="340"
+            xmlns="http://www.w3.org/2000/svg"
+            style="display: block; overflow: visible"
+          >
+            <!-- Grid lines -->
+            <line
+              x1="60"
+              y1="55"
+              x2="2150"
+              y2="55"
+              stroke="#E2E8F0"
+              stroke-width="1"
+              stroke-dasharray="6 4"
+            />
+            <line
+              x1="60"
+              y1="130"
+              x2="2150"
+              y2="130"
+              stroke="#E2E8F0"
+              stroke-width="1"
+              stroke-dasharray="6 4"
+            />
+            <line
+              x1="60"
+              y1="205"
+              x2="2150"
+              y2="205"
+              stroke="#E2E8F0"
+              stroke-width="1"
+              stroke-dasharray="6 4"
+            />
+
+            <!-- Y-axis labels -->
+            <text
+              x="52"
+              y="59"
+              text-anchor="end"
+              font-size="10"
+              fill="#9CA3AF"
+              font-family="Inter,sans-serif"
+              font-weight="600"
+            >
+              Positive
+            </text>
+            <text
+              x="52"
+              y="134"
+              text-anchor="end"
+              font-size="10"
+              fill="#9CA3AF"
+              font-family="Inter,sans-serif"
+              font-weight="600"
+            >
+              Neutral
+            </text>
+            <text
+              x="52"
+              y="209"
+              text-anchor="end"
+              font-size="10"
+              fill="#9CA3AF"
+              font-family="Inter,sans-serif"
+              font-weight="600"
+            >
+              Stressed
+            </text>
+
+            <!-- Stage separators -->
+            <line
+              x1="440"
+              y1="35"
+              x2="440"
+              y2="270"
+              stroke="#E2E8F0"
+              stroke-width="1.5"
+            />
+            <line
+              x1="840"
+              y1="35"
+              x2="840"
+              y2="270"
+              stroke="#E2E8F0"
+              stroke-width="1.5"
+            />
+            <line
+              x1="1240"
+              y1="35"
+              x2="1240"
+              y2="270"
+              stroke="#E2E8F0"
+              stroke-width="1.5"
+            />
+            <line
+              x1="1660"
+              y1="35"
+              x2="1660"
+              y2="270"
+              stroke="#E2E8F0"
+              stroke-width="1.5"
+            />
+
+            <!-- Stage labels -->
+            <text
+              x="230"
+              y="282"
+              text-anchor="middle"
+              font-size="11"
+              fill="#9CA3AF"
+              font-family="Inter,sans-serif"
+              font-weight="600"
+            >
+              Stage 1 · Start of Day
+            </text>
+            <text
+              x="640"
+              y="282"
+              text-anchor="middle"
+              font-size="11"
+              fill="#9CA3AF"
+              font-family="Inter,sans-serif"
+              font-weight="600"
+            >
+              Stage 2 · Ops Management
+            </text>
+            <text
+              x="1040"
+              y="282"
+              text-anchor="middle"
+              font-size="11"
+              fill="#9CA3AF"
+              font-family="Inter,sans-serif"
+              font-weight="600"
+            >
+              Stage 3 · Pricing &amp; Compliance
+            </text>
+            <text
+              x="1450"
+              y="282"
+              text-anchor="middle"
+              font-size="11"
+              fill="#9CA3AF"
+              font-family="Inter,sans-serif"
+              font-weight="600"
+            >
+              Stage 4 · Service Quality
+            </text>
+            <text
+              x="1860"
+              y="282"
+              text-anchor="middle"
+              font-size="11"
+              fill="#9CA3AF"
+              font-family="Inter,sans-serif"
+              font-weight="600"
+            >
+              Stage 5 · Reporting
+            </text>
+
+            <!--
             S1  — Alert/Focused     : amber  x=230,  y=100
             S2  — In Control        : green  x=640,  y=68
             S3a — Concerned         : red    x=960,  y=200
@@ -654,125 +1214,468 @@
             S5  — Satisfied         : green  x=1860, y=65
           -->
 
-          <!-- Main emotion path -->
-          <path
-            d="M230,100 C370,85 510,68 640,68 C760,68 870,175 960,200 C1060,200 1120,82 1190,78 C1300,72 1380,108 1450,115 C1560,125 1720,68 1860,65"
-            fill="none"
-            stroke="url(#adminGradient)"
-            stroke-width="3"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
+            <!-- Main emotion path -->
+            <path
+              d="M230,100 C370,85 510,68 640,68 C760,68 870,175 960,200 C1060,200 1120,82 1190,78 C1300,72 1380,108 1450,115 C1560,125 1720,68 1860,65"
+              fill="none"
+              stroke="url(#adminGradient)"
+              stroke-width="3"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
 
-          <!-- Area fill -->
-          <path
-            d="M230,100 C370,85 510,68 640,68 C760,68 870,175 960,200 C1060,200 1120,82 1190,78 C1300,72 1380,108 1450,115 C1560,125 1720,68 1860,65 L1860,270 L230,270 Z"
-            fill="url(#adminAreaGradient)"
-            opacity="0.07"
-          />
+            <!-- Area fill -->
+            <path
+              d="M230,100 C370,85 510,68 640,68 C760,68 870,175 960,200 C1060,200 1120,82 1190,78 C1300,72 1380,108 1450,115 C1560,125 1720,68 1860,65 L1860,270 L230,270 Z"
+              fill="url(#adminAreaGradient)"
+              opacity="0.07"
+            />
 
-          <!-- SOS branch off Stage 4 (dashed) -->
-          <path
-            d="M1450,115 C1480,115 1510,165 1550,215"
-            fill="none"
-            stroke="#EF4444"
-            stroke-width="2.5"
-            stroke-dasharray="8 5"
-            stroke-linecap="round"
-          />
-          <path
-            d="M1550,215 C1580,215 1615,115 1640,90"
-            fill="none"
-            stroke="#22C55E"
-            stroke-width="2.5"
-            stroke-dasharray="8 5"
-            stroke-linecap="round"
-          />
+            <!-- SOS branch off Stage 4 (dashed) -->
+            <path
+              d="M1450,115 C1480,115 1510,165 1550,215"
+              fill="none"
+              stroke="#EF4444"
+              stroke-width="2.5"
+              stroke-dasharray="8 5"
+              stroke-linecap="round"
+            />
+            <path
+              d="M1550,215 C1580,215 1615,115 1640,90"
+              fill="none"
+              stroke="#22C55E"
+              stroke-width="2.5"
+              stroke-dasharray="8 5"
+              stroke-linecap="round"
+            />
 
-          <!-- Gradients -->
-          <defs>
-            <linearGradient id="adminGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%"   stop-color="#FACC15"/>
-              <stop offset="29%"  stop-color="#22C55E"/>
-              <stop offset="44%"  stop-color="#EF4444"/>
-              <stop offset="55%"  stop-color="#22C55E"/>
-              <stop offset="66%"  stop-color="#FACC15"/>
-              <stop offset="100%" stop-color="#22C55E"/>
-            </linearGradient>
-            <linearGradient id="adminAreaGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%"   stop-color="#FACC15"/>
-              <stop offset="29%"  stop-color="#22C55E"/>
-              <stop offset="44%"  stop-color="#EF4444"/>
-              <stop offset="66%"  stop-color="#FACC15"/>
-              <stop offset="100%" stop-color="#22C55E"/>
-            </linearGradient>
-            <filter id="shadow">
-              <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="rgba(0,0,0,0.18)"/>
-            </filter>
-          </defs>
+            <!-- Gradients -->
+            <defs>
+              <linearGradient
+                id="adminGradient"
+                x1="0%"
+                y1="0%"
+                x2="100%"
+                y2="0%"
+              >
+                <stop offset="0%" stop-color="#FACC15" />
+                <stop offset="29%" stop-color="#22C55E" />
+                <stop offset="44%" stop-color="#EF4444" />
+                <stop offset="55%" stop-color="#22C55E" />
+                <stop offset="66%" stop-color="#FACC15" />
+                <stop offset="100%" stop-color="#22C55E" />
+              </linearGradient>
+              <linearGradient
+                id="adminAreaGradient"
+                x1="0%"
+                y1="0%"
+                x2="100%"
+                y2="0%"
+              >
+                <stop offset="0%" stop-color="#FACC15" />
+                <stop offset="29%" stop-color="#22C55E" />
+                <stop offset="44%" stop-color="#EF4444" />
+                <stop offset="66%" stop-color="#FACC15" />
+                <stop offset="100%" stop-color="#22C55E" />
+              </linearGradient>
+              <filter id="shadow">
+                <feDropShadow
+                  dx="0"
+                  dy="2"
+                  stdDeviation="2"
+                  flood-color="rgba(0,0,0,0.18)"
+                />
+              </filter>
+            </defs>
 
-          <!-- ── S1 — Alert / Focused (Amber) ── -->
-          <circle cx="230" cy="100" r="8" fill="#FACC15" stroke="white" stroke-width="3" filter="url(#shadow)"/>
-          <rect x="110" y="52" width="240" height="38" rx="7" fill="#1F2937"/>
-          <text x="230" y="69"  text-anchor="middle" font-size="11" fill="white" font-family="Inter,sans-serif" font-weight="700">Alert / Focused</text>
-          <text x="230" y="83"  text-anchor="middle" font-size="9.5" fill="#D1D5DB" font-family="Inter,sans-serif">Scanning KPIs to gauge the day ahead</text>
-          <line x1="230" y1="91" x2="230" y2="100" stroke="#FACC15" stroke-width="1.5" stroke-dasharray="3 2"/>
+            <!-- ── S1 — Alert / Focused (Amber) ── -->
+            <circle
+              cx="230"
+              cy="100"
+              r="8"
+              fill="#FACC15"
+              stroke="white"
+              stroke-width="3"
+              filter="url(#shadow)"
+            />
+            <rect
+              x="110"
+              y="52"
+              width="240"
+              height="38"
+              rx="7"
+              fill="#1F2937"
+            />
+            <text
+              x="230"
+              y="69"
+              text-anchor="middle"
+              font-size="11"
+              fill="white"
+              font-family="Inter,sans-serif"
+              font-weight="700"
+            >
+              Alert / Focused
+            </text>
+            <text
+              x="230"
+              y="83"
+              text-anchor="middle"
+              font-size="9.5"
+              fill="#D1D5DB"
+              font-family="Inter,sans-serif"
+            >
+              Scanning KPIs to gauge the day ahead
+            </text>
+            <line
+              x1="230"
+              y1="91"
+              x2="230"
+              y2="100"
+              stroke="#FACC15"
+              stroke-width="1.5"
+              stroke-dasharray="3 2"
+            />
 
-          <!-- ── S2 — In Control (Green) ── -->
-          <circle cx="640" cy="68" r="8" fill="#22C55E" stroke="white" stroke-width="3" filter="url(#shadow)"/>
-          <rect x="520" y="20" width="240" height="38" rx="7" fill="#1F2937"/>
-          <text x="640" y="37" text-anchor="middle" font-size="11" fill="white" font-family="Inter,sans-serif" font-weight="700">In Control</text>
-          <text x="640" y="51" text-anchor="middle" font-size="9.5" fill="#D1D5DB" font-family="Inter,sans-serif">Orders visible; driver reassigned quickly</text>
-          <line x1="640" y1="59" x2="640" y2="68" stroke="#22C55E" stroke-width="1.5" stroke-dasharray="3 2"/>
+            <!-- ── S2 — In Control (Green) ── -->
+            <circle
+              cx="640"
+              cy="68"
+              r="8"
+              fill="#22C55E"
+              stroke="white"
+              stroke-width="3"
+              filter="url(#shadow)"
+            />
+            <rect
+              x="520"
+              y="20"
+              width="240"
+              height="38"
+              rx="7"
+              fill="#1F2937"
+            />
+            <text
+              x="640"
+              y="37"
+              text-anchor="middle"
+              font-size="11"
+              fill="white"
+              font-family="Inter,sans-serif"
+              font-weight="700"
+            >
+              In Control
+            </text>
+            <text
+              x="640"
+              y="51"
+              text-anchor="middle"
+              font-size="9.5"
+              fill="#D1D5DB"
+              font-family="Inter,sans-serif"
+            >
+              Orders visible; driver reassigned quickly
+            </text>
+            <line
+              x1="640"
+              y1="59"
+              x2="640"
+              y2="68"
+              stroke="#22C55E"
+              stroke-width="1.5"
+              stroke-dasharray="3 2"
+            />
 
-          <!-- ── S3a — Concerned (Red) ── -->
-          <circle cx="960" cy="200" r="8" fill="#EF4444" stroke="white" stroke-width="3" filter="url(#shadow)"/>
-          <rect x="840" y="215" width="240" height="38" rx="7" fill="#1F2937"/>
-          <text x="960" y="232" text-anchor="middle" font-size="11" fill="white" font-family="Inter,sans-serif" font-weight="700">Concerned — Flag Found</text>
-          <text x="960" y="246" text-anchor="middle" font-size="9.5" fill="#D1D5DB" font-family="Inter,sans-serif">Price feed stale; PrDP expired for 1 driver</text>
-          <line x1="960" y1="200" x2="960" y2="213" stroke="#EF4444" stroke-width="1.5" stroke-dasharray="3 2"/>
+            <!-- ── S3a — Concerned (Red) ── -->
+            <circle
+              cx="960"
+              cy="200"
+              r="8"
+              fill="#EF4444"
+              stroke="white"
+              stroke-width="3"
+              filter="url(#shadow)"
+            />
+            <rect
+              x="840"
+              y="215"
+              width="240"
+              height="38"
+              rx="7"
+              fill="#1F2937"
+            />
+            <text
+              x="960"
+              y="232"
+              text-anchor="middle"
+              font-size="11"
+              fill="white"
+              font-family="Inter,sans-serif"
+              font-weight="700"
+            >
+              Concerned — Flag Found
+            </text>
+            <text
+              x="960"
+              y="246"
+              text-anchor="middle"
+              font-size="9.5"
+              fill="#D1D5DB"
+              font-family="Inter,sans-serif"
+            >
+              Price feed stale; PrDP expired for 1 driver
+            </text>
+            <line
+              x1="960"
+              y1="200"
+              x2="960"
+              y2="213"
+              stroke="#EF4444"
+              stroke-width="1.5"
+              stroke-dasharray="3 2"
+            />
 
-          <!-- ── S3b — Relieved (Green) ── -->
-          <circle cx="1190" cy="78" r="8" fill="#22C55E" stroke="white" stroke-width="3" filter="url(#shadow)"/>
-          <rect x="1070" y="30" width="240" height="38" rx="7" fill="#1F2937"/>
-          <text x="1190" y="47" text-anchor="middle" font-size="11" fill="white" font-family="Inter,sans-serif" font-weight="700">Relieved — Resolved</text>
-          <text x="1190" y="61" text-anchor="middle" font-size="9.5" fill="#D1D5DB" font-family="Inter,sans-serif">Rate overridden; driver suspended pending renewal</text>
-          <line x1="1190" y1="69" x2="1190" y2="78" stroke="#22C55E" stroke-width="1.5" stroke-dasharray="3 2"/>
+            <!-- ── S3b — Relieved (Green) ── -->
+            <circle
+              cx="1190"
+              cy="78"
+              r="8"
+              fill="#22C55E"
+              stroke="white"
+              stroke-width="3"
+              filter="url(#shadow)"
+            />
+            <rect
+              x="1070"
+              y="30"
+              width="240"
+              height="38"
+              rx="7"
+              fill="#1F2937"
+            />
+            <text
+              x="1190"
+              y="47"
+              text-anchor="middle"
+              font-size="11"
+              fill="white"
+              font-family="Inter,sans-serif"
+              font-weight="700"
+            >
+              Relieved — Resolved
+            </text>
+            <text
+              x="1190"
+              y="61"
+              text-anchor="middle"
+              font-size="9.5"
+              fill="#D1D5DB"
+              font-family="Inter,sans-serif"
+            >
+              Rate overridden; driver suspended pending renewal
+            </text>
+            <line
+              x1="1190"
+              y1="69"
+              x2="1190"
+              y2="78"
+              stroke="#22C55E"
+              stroke-width="1.5"
+              stroke-dasharray="3 2"
+            />
 
-          <!-- ── S4 — Cautious (Amber) ── -->
-          <circle cx="1450" cy="115" r="8" fill="#FACC15" stroke="white" stroke-width="3" filter="url(#shadow)"/>
-          <rect x="1330" y="67" width="240" height="38" rx="7" fill="#1F2937"/>
-          <text x="1450" y="84"  text-anchor="middle" font-size="11" fill="white" font-family="Inter,sans-serif" font-weight="700">Cautious</text>
-          <text x="1450" y="98"  text-anchor="middle" font-size="9.5" fill="#D1D5DB" font-family="Inter,sans-serif">Monitoring reviews and SOS panel closely</text>
-          <line x1="1450" y1="106" x2="1450" y2="115" stroke="#FACC15" stroke-width="1.5" stroke-dasharray="3 2"/>
+            <!-- ── S4 — Cautious (Amber) ── -->
+            <circle
+              cx="1450"
+              cy="115"
+              r="8"
+              fill="#FACC15"
+              stroke="white"
+              stroke-width="3"
+              filter="url(#shadow)"
+            />
+            <rect
+              x="1330"
+              y="67"
+              width="240"
+              height="38"
+              rx="7"
+              fill="#1F2937"
+            />
+            <text
+              x="1450"
+              y="84"
+              text-anchor="middle"
+              font-size="11"
+              fill="white"
+              font-family="Inter,sans-serif"
+              font-weight="700"
+            >
+              Cautious
+            </text>
+            <text
+              x="1450"
+              y="98"
+              text-anchor="middle"
+              font-size="9.5"
+              fill="#D1D5DB"
+              font-family="Inter,sans-serif"
+            >
+              Monitoring reviews and SOS panel closely
+            </text>
+            <line
+              x1="1450"
+              y1="106"
+              x2="1450"
+              y2="115"
+              stroke="#FACC15"
+              stroke-width="1.5"
+              stroke-dasharray="3 2"
+            />
 
-          <!-- ── SOS branch — Stressed (Red) ── -->
-          <circle cx="1550" cy="215" r="7" fill="#EF4444" stroke="white" stroke-width="2.5"/>
-          <rect x="1460" y="228" width="180" height="36" rx="7" fill="#7F1D1D"/>
-          <text x="1550" y="245" text-anchor="middle" font-size="10.5" fill="white" font-family="Inter,sans-serif" font-weight="700">Stressed — SOS Received</text>
-          <text x="1550" y="258" text-anchor="middle" font-size="9" fill="#FECACA" font-family="Inter,sans-serif">Driver emergency; dispatching support</text>
+            <!-- ── SOS branch — Stressed (Red) ── -->
+            <circle
+              cx="1550"
+              cy="215"
+              r="7"
+              fill="#EF4444"
+              stroke="white"
+              stroke-width="2.5"
+            />
+            <rect
+              x="1460"
+              y="228"
+              width="180"
+              height="36"
+              rx="7"
+              fill="#7F1D1D"
+            />
+            <text
+              x="1550"
+              y="245"
+              text-anchor="middle"
+              font-size="10.5"
+              fill="white"
+              font-family="Inter,sans-serif"
+              font-weight="700"
+            >
+              Stressed — SOS Received
+            </text>
+            <text
+              x="1550"
+              y="258"
+              text-anchor="middle"
+              font-size="9"
+              fill="#FECACA"
+              font-family="Inter,sans-serif"
+            >
+              Driver emergency; dispatching support
+            </text>
 
-          <!-- ── SOS branch — Resolved (Green) ── -->
-          <circle cx="1640" cy="90" r="7" fill="#22C55E" stroke="white" stroke-width="2.5"/>
-          <rect x="1550" y="55" width="180" height="28" rx="7" fill="#14532D"/>
-          <text x="1640" y="70" text-anchor="middle" font-size="10.5" fill="white" font-family="Inter,sans-serif" font-weight="700">Resolved</text>
-          <text x="1640" y="78" text-anchor="middle" font-size="9" fill="#BBF7D0" font-family="Inter,sans-serif">Alert closed; driver safe</text>
+            <!-- ── SOS branch — Resolved (Green) ── -->
+            <circle
+              cx="1640"
+              cy="90"
+              r="7"
+              fill="#22C55E"
+              stroke="white"
+              stroke-width="2.5"
+            />
+            <rect
+              x="1550"
+              y="55"
+              width="180"
+              height="28"
+              rx="7"
+              fill="#14532D"
+            />
+            <text
+              x="1640"
+              y="70"
+              text-anchor="middle"
+              font-size="10.5"
+              fill="white"
+              font-family="Inter,sans-serif"
+              font-weight="700"
+            >
+              Resolved
+            </text>
+            <text
+              x="1640"
+              y="78"
+              text-anchor="middle"
+              font-size="9"
+              fill="#BBF7D0"
+              font-family="Inter,sans-serif"
+            >
+              Alert closed; driver safe
+            </text>
 
-          <!-- SOS label -->
-          <text x="1490" y="182" text-anchor="middle" font-size="9.5" fill="#EF4444" font-family="Inter,sans-serif" font-weight="700" font-style="italic">SOS path</text>
+            <!-- SOS label -->
+            <text
+              x="1490"
+              y="182"
+              text-anchor="middle"
+              font-size="9.5"
+              fill="#EF4444"
+              font-family="Inter,sans-serif"
+              font-weight="700"
+              font-style="italic"
+            >
+              SOS path
+            </text>
 
-          <!-- ── S5 — Satisfied (Green) ── -->
-          <circle cx="1860" cy="65" r="8" fill="#22C55E" stroke="white" stroke-width="3" filter="url(#shadow)"/>
-          <rect x="1740" y="17" width="240" height="38" rx="7" fill="#1F2937"/>
-          <text x="1860" y="34" text-anchor="middle" font-size="11" fill="white" font-family="Inter,sans-serif" font-weight="700">Satisfied</text>
-          <text x="1860" y="48" text-anchor="middle" font-size="9.5" fill="#D1D5DB" font-family="Inter,sans-serif">Report exported; clean handover done</text>
-          <line x1="1860" y1="56" x2="1860" y2="65" stroke="#22C55E" stroke-width="1.5" stroke-dasharray="3 2"/>
-
-        </svg>
+            <!-- ── S5 — Satisfied (Green) ── -->
+            <circle
+              cx="1860"
+              cy="65"
+              r="8"
+              fill="#22C55E"
+              stroke="white"
+              stroke-width="3"
+              filter="url(#shadow)"
+            />
+            <rect
+              x="1740"
+              y="17"
+              width="240"
+              height="38"
+              rx="7"
+              fill="#1F2937"
+            />
+            <text
+              x="1860"
+              y="34"
+              text-anchor="middle"
+              font-size="11"
+              fill="white"
+              font-family="Inter,sans-serif"
+              font-weight="700"
+            >
+              Satisfied
+            </text>
+            <text
+              x="1860"
+              y="48"
+              text-anchor="middle"
+              font-size="9.5"
+              fill="#D1D5DB"
+              font-family="Inter,sans-serif"
+            >
+              Report exported; clean handover done
+            </text>
+            <line
+              x1="1860"
+              y1="56"
+              x2="1860"
+              y2="65"
+              stroke="#22C55E"
+              stroke-width="1.5"
+              stroke-dasharray="3 2"
+            />
+          </svg>
+        </div>
       </div>
     </div>
-
-  </div>
-
-</body>
+  </body>
 </html>

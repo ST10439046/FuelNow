@@ -47,6 +47,29 @@ export default function OrdersScreen() {
     { key: 'placedAt', label: 'Placed Date', sortable: true, render: (v) => fmtDate(v) },
   ];
 
+  const handleExport = () => {
+    const headers = ['Order ID', 'Customer Name', 'Phone', 'Fuel Type', 'Litres', 'Total (ZAR)', 'Status', 'Driver', 'Placed At'];
+    const rows = filtered.map(o => [
+      o.id,
+      `"${o.customerName}"`,
+      `"${o.phone}"`,
+      o.fuelType,
+      o.litres,
+      o.totalZAR.toFixed(2),
+      o.status,
+      `"${o.driverName || 'Unassigned'}"`,
+      o.placedAt
+    ]);
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `fuelnow_orders_export_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div style={{ animation: 'fadeIn 0.3s ease' }}>
       <Card padding={0}>
@@ -75,7 +98,7 @@ export default function OrdersScreen() {
               <option value="cancelled">Cancelled</option>
             </select>
           </div>
-          <Button variant="outline" icon="⬇️">Export to Excel</Button>
+          <Button variant="outline" icon="⬇️" onClick={handleExport}>Export to Excel / CSV</Button>
         </div>
         
         <DataTable columns={columns} data={filtered} rowKey="id" />
