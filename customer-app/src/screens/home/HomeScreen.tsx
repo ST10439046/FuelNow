@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useCallback, useEffect, useState, useRef } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -116,19 +117,89 @@ export default function HomeScreen({ navigation }: Props) {
   loadUser();
 }, []);
 
-  useEffect(() => {
+ useFocusEffect(
+  useCallback(() => {
+    let isActive = true;
+    let hourTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const getHourKey = () => {
+      const now = new Date();
+
+      return `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}-${now.getHours()}`;
+    };
+
     const fetchRates = async () => {
       try {
+        console.log('HomeScreen: fetching fuel rates...');
+
         const data = await fuelRateRepository.getRates();
-        setRates(data);
+
+        if (isActive) {
+          setRates(data);
+        }
+
+        console.log('HomeScreen: fuel rates updated.');
+      } catch (error) {
+        console.error(
+          'HomeScreen: failed to fetch fuel rates:',
+          error
+        );
       } finally {
-        setLoadingRates(false);
+        if (isActive) {
+          setLoadingRates(false);
+        }
       }
     };
+
+    const scheduleNextHourCheck = () => {
+      const now = new Date();
+
+      const nextHour = new Date(now);
+      nextHour.setMinutes(60, 0, 0);
+
+      const millisecondsUntilNextHour =
+        nextHour.getTime() - now.getTime();
+
+      console.log(
+        `HomeScreen: next fuel-rate check in ${Math.round(
+          millisecondsUntilNextHour / 1000
+        )} seconds.`
+      );
+
+      hourTimer = setTimeout(async () => {
+        if (!isActive) {
+          return;
+        }
+
+        await fetchRates();
+
+        if (isActive) {
+          scheduleNextHourCheck();
+        }
+      }, millisecondsUntilNextHour + 1000);
+    };
+
+    const currentHour = getHourKey();
+
+    // Always load rates the first time HomeScreen becomes visible.
     fetchRates();
-    const interval = setInterval(fetchRates, 30000);
-    return () => clearInterval(interval);
-  }, []);
+
+    // Schedule the next check for the start of the next hour.
+    scheduleNextHourCheck();
+
+    return () => {
+      isActive = false;
+
+      if (hourTimer) {
+        clearTimeout(hourTimer);
+      }
+
+      console.log(
+        `HomeScreen: stopped fuel-rate checking for hour ${currentHour}.`
+      );
+    };
+  }, [])
+);
 
   // Ticker animation
   useEffect(() => {
