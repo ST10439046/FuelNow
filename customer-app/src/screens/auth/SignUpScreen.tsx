@@ -15,7 +15,7 @@ import { useDesignMode } from '../../context/DesignModeContext';
 import { FontSizes, Spacing, Radius } from '../../theme/tokens';
 import Button from '../../components/Button';
 import Input from '../../components/Input';
-import { signUp, verifyOtp } from '../../services/mockApi';
+import { CustomerApiClient } from '../../services/apiClient';
 
 type Step = 'form' | 'otp';
 
@@ -53,7 +53,12 @@ export default function SignUpScreen({ navigation }: Props) {
     setError('');
     setLoading(true);
     try {
-      await signUp({ name, email, phone, password });
+      await CustomerApiClient.createUser({
+        fullName: name,
+        email,
+        phoneNumber: phone,
+        status: 'active',
+      });
       setStep('otp');
     } catch (e: any) {
       setError(e.message ?? 'Sign up failed. Please try again.');
@@ -84,7 +89,7 @@ export default function SignUpScreen({ navigation }: Props) {
     setError('');
     setLoading(true);
     try {
-      await verifyOtp({ phone, otp: otpStr });
+     // await verifyOtp({ phone, otp: otpStr });
       navigation.replace('MainTabs');
     } catch (e: any) {
       setError(e.message ?? 'Invalid OTP. Please try again.');

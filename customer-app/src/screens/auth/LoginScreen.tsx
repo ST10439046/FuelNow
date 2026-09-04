@@ -14,7 +14,7 @@ import { useDesignMode } from '../../context/DesignModeContext';
 import { FontSizes, Spacing, Radius } from '../../theme/tokens';
 import Button from '../../components/Button';
 import Input from '../../components/Input';
-import { login } from '../../services/mockApi';
+import { CustomerApiClient } from '../../services/apiClient';
 
 interface Props {
   navigation: any;
@@ -22,23 +22,51 @@ interface Props {
 
 export default function LoginScreen({ navigation }: Props) {
   const { colors, font, isWireframe } = useDesignMode();
-  const [email, setEmail] = useState('zanele.mokoena@gmail.com');
+
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
-    if (!email || !password) {
+    // Basic validation
+    if (!email.trim() || !password) {
       setError('Please enter your email and password.');
       return;
     }
+
     setError('');
     setLoading(true);
+
     try {
-      await login({ email, password });
+      // Check the entered email and password
+      // against your Supabase sign_in_with_password function.
+      const response = await CustomerApiClient.signInWithPassword(
+        email.trim(),
+        password
+      );
+
+      // The RPC returned an error
+      if (response.error) {
+        throw response.error;
+      }
+
+      // No user was returned
+      if (!response.data) {
+        throw new Error('Invalid email or password.');
+      }
+
+      // Login successful
+      console.log('Login successful:', response.data);
+
       navigation.replace('MainTabs');
+
     } catch (e: any) {
-      setError(e.message ?? 'Login failed. Please try again.');
+      console.error('Login error:', e);
+
+      setError(
+        e?.message || 'Invalid email or password.'
+      );
     } finally {
       setLoading(false);
     }
@@ -46,7 +74,14 @@ export default function LoginScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView
-      style={[styles.container, { backgroundColor: isWireframe ? '#F0F0F0' : colors.warmAsh }]}
+      style={[
+        styles.container,
+        {
+          backgroundColor: isWireframe
+            ? '#F0F0F0'
+            : colors.warmAsh,
+        },
+      ]}
     >
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -63,18 +98,34 @@ export default function LoginScreen({ navigation }: Props) {
               <View style={styles.wireframeLogo} />
             ) : (
               <View
-                style={[styles.logoMark, { backgroundColor: colors.petrolDeep }]}
+                style={[
+                  styles.logoMark,
+                  {
+                    backgroundColor: colors.petrolDeep,
+                  },
+                ]}
               >
-                <Text style={[styles.logoText, { fontFamily: font('displayBold'), color: colors.ignitionAmber }]}>
+                <Text
+                  style={[
+                    styles.logoText,
+                    {
+                      fontFamily: font('displayBold'),
+                      color: colors.ignitionAmber,
+                    },
+                  ]}
+                >
                   F
                 </Text>
               </View>
             )}
+
             <Text
               style={[
                 styles.appName,
                 {
-                  color: isWireframe ? '#1A1A1A' : colors.petrolDeep,
+                  color: isWireframe
+                    ? '#1A1A1A'
+                    : colors.petrolDeep,
                   fontFamily: font('displayBold'),
                   fontSize: FontSizes['3xl'],
                 },
@@ -82,11 +133,14 @@ export default function LoginScreen({ navigation }: Props) {
             >
               FuelNow
             </Text>
+
             <Text
               style={[
                 styles.tagline,
                 {
-                  color: isWireframe ? '#666' : colors.inkLight,
+                  color: isWireframe
+                    ? '#666'
+                    : colors.inkLight,
                   fontFamily: font('body'),
                   fontSize: FontSizes.base,
                 },
@@ -101,8 +155,12 @@ export default function LoginScreen({ navigation }: Props) {
             style={[
               styles.card,
               {
-                backgroundColor: isWireframe ? '#FFFFFF' : colors.white,
-                borderRadius: isWireframe ? Radius.sm : Radius.xl,
+                backgroundColor: isWireframe
+                  ? '#FFFFFF'
+                  : colors.white,
+                borderRadius: isWireframe
+                  ? Radius.sm
+                  : Radius.xl,
                 borderWidth: isWireframe ? 1.5 : 0,
                 borderColor: '#CCCCCC',
               },
@@ -112,7 +170,9 @@ export default function LoginScreen({ navigation }: Props) {
               style={[
                 styles.formTitle,
                 {
-                  color: isWireframe ? '#1A1A1A' : colors.charcoalInk,
+                  color: isWireframe
+                    ? '#1A1A1A'
+                    : colors.charcoalInk,
                   fontFamily: font('display'),
                   fontSize: FontSizes.xl,
                 },
@@ -120,11 +180,14 @@ export default function LoginScreen({ navigation }: Props) {
             >
               Welcome back
             </Text>
+
             <Text
               style={[
                 styles.formSubtitle,
                 {
-                  color: isWireframe ? '#666' : colors.inkLight,
+                  color: isWireframe
+                    ? '#666'
+                    : colors.inkLight,
                   fontFamily: font('body'),
                   fontSize: FontSizes.sm,
                   marginBottom: Spacing.xl,
@@ -134,6 +197,7 @@ export default function LoginScreen({ navigation }: Props) {
               Sign in to your FuelNow account
             </Text>
 
+            {/* Email */}
             <Input
               label="Email address"
               value={email}
@@ -141,24 +205,48 @@ export default function LoginScreen({ navigation }: Props) {
               keyboardType="email-address"
               autoCapitalize="none"
               placeholder="you@example.co.za"
-              leftIcon={<Feather name="mail" size={18} color={isWireframe ? '#888' : colors.inkLight} />}
+              leftIcon={
+                <Feather
+                  name="mail"
+                  size={18}
+                  color={
+                    isWireframe
+                      ? '#888'
+                      : colors.inkLight
+                  }
+                />
+              }
             />
 
+            {/* Password */}
             <Input
               label="Password"
               value={password}
               onChangeText={setPassword}
               isPassword
               placeholder="Enter your password"
-              leftIcon={<Feather name="lock" size={18} color={isWireframe ? '#888' : colors.inkLight} />}
+              leftIcon={
+                <Feather
+                  name="lock"
+                  size={18}
+                  color={
+                    isWireframe
+                      ? '#888'
+                      : colors.inkLight
+                  }
+                />
+              }
             />
 
+            {/* Error */}
             {error ? (
               <Text
                 style={[
                   styles.error,
                   {
-                    color: isWireframe ? '#555' : colors.signalRed,
+                    color: isWireframe
+                      ? '#555'
+                      : colors.signalRed,
                     fontFamily: font('body'),
                     fontSize: FontSizes.sm,
                   },
@@ -168,15 +256,20 @@ export default function LoginScreen({ navigation }: Props) {
               </Text>
             ) : null}
 
+            {/* Forgot password */}
             <TouchableOpacity
               style={styles.forgotBtn}
-              onPress={() => navigation.navigate('ForgotPassword')}
+              onPress={() =>
+                navigation.navigate('ForgotPassword')
+              }
             >
               <Text
                 style={[
                   styles.forgotText,
                   {
-                    color: isWireframe ? '#444' : colors.petrolDeep,
+                    color: isWireframe
+                      ? '#444'
+                      : colors.petrolDeep,
                     fontFamily: font('bodyMedium'),
                     fontSize: FontSizes.sm,
                   },
@@ -186,15 +279,17 @@ export default function LoginScreen({ navigation }: Props) {
               </Text>
             </TouchableOpacity>
 
+            {/* Login */}
             <Button
               label="Sign In"
               onPress={handleLogin}
               loading={loading}
               variant="primary"
               size="lg"
-              style={{ marginTop: Spacing.md }}
+              style={{
+                marginTop: Spacing.md,
+              }}
             />
-
           </View>
 
           {/* Sign up link */}
@@ -203,7 +298,9 @@ export default function LoginScreen({ navigation }: Props) {
               style={[
                 styles.signupText,
                 {
-                  color: isWireframe ? '#555' : colors.inkLight,
+                  color: isWireframe
+                    ? '#555'
+                    : colors.inkLight,
                   fontFamily: font('body'),
                   fontSize: FontSizes.sm,
                 },
@@ -211,12 +308,19 @@ export default function LoginScreen({ navigation }: Props) {
             >
               Don't have an account?{' '}
             </Text>
-            <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>
+
+            <TouchableOpacity
+              onPress={() =>
+                navigation.navigate('SignUp')
+              }
+            >
               <Text
                 style={[
                   styles.signupLink,
                   {
-                    color: isWireframe ? '#333' : colors.petrolDeep,
+                    color: isWireframe
+                      ? '#333'
+                      : colors.petrolDeep,
                     fontFamily: font('bodySemiBold'),
                     fontSize: FontSizes.sm,
                   },
@@ -233,17 +337,22 @@ export default function LoginScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: {
+    flex: 1,
+  },
+
   scroll: {
     flexGrow: 1,
     padding: Spacing.xl,
     gap: Spacing.xl,
   },
+
   header: {
     alignItems: 'center',
     paddingTop: Spacing['2xl'],
     gap: Spacing.sm,
   },
+
   logoMark: {
     width: 64,
     height: 64,
@@ -252,7 +361,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: Spacing.sm,
   },
-  logoText: { fontSize: 32 },
+
+  logoText: {
+    fontSize: 32,
+  },
+
   wireframeLogo: {
     width: 64,
     height: 64,
@@ -261,23 +374,42 @@ const styles = StyleSheet.create({
     borderColor: '#888',
     marginBottom: Spacing.sm,
   },
-  appName: { letterSpacing: -0.5 },
+
+  appName: {
+    letterSpacing: -0.5,
+  },
+
   tagline: {},
+
   card: {
     padding: Spacing.xl,
   },
-  formTitle: { marginBottom: Spacing.xs },
+
+  formTitle: {
+    marginBottom: Spacing.xs,
+  },
+
   formSubtitle: {},
-  error: { marginBottom: Spacing.md },
-  forgotBtn: { alignSelf: 'flex-end', padding: Spacing.xs },
+
+  error: {
+    marginBottom: Spacing.md,
+  },
+
+  forgotBtn: {
+    alignSelf: 'flex-end',
+    padding: Spacing.xs,
+  },
+
   forgotText: {},
-  demoHint: { textAlign: 'center', marginTop: Spacing.md },
+
   signupRow: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     paddingBottom: Spacing.lg,
   },
+
   signupText: {},
+
   signupLink: {},
 });

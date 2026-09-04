@@ -8,24 +8,9 @@ import { useDesignMode } from '../../context/DesignModeContext';
 import { FontSizes, Spacing, Radius } from '../../theme/tokens';
 import Card from '../../components/Card';
 import Button from '../../components/Button';
-import { MOCK_USER, Address } from '../../services/mockApi';
+import { getMe, Address } from '../../services/mockApi';
 
 interface Props { navigation: any; route?: any }
-
-const NEW_ADDRESSES: Address[] = [
-  {
-    id: 'addr_003',
-    label: 'Other',
-    street: '22 Buitenkant Street',
-    suburb: 'Gardens',
-    city: 'Cape Town',
-    province: 'Western Cape',
-    postalCode: '8001',
-    coordinates: { lat: -33.9258, lng: 18.4232 },
-  },
-];
-
-const ALL_ADDRESSES = [...MOCK_USER.savedAddresses, ...NEW_ADDRESSES];
 
 // Mock map for location screen
 function LocationMap({ isWireframe, selectedAddr }: { isWireframe: boolean; selectedAddr: Address }) {
@@ -74,18 +59,29 @@ function LocationMap({ isWireframe, selectedAddr }: { isWireframe: boolean; sele
 export default function DeliveryLocationScreen({ navigation, route }: Props) {
   const { colors, font, isWireframe: isWF } = useDesignMode();
   const params = route?.params ?? {};
-  // Accept a newly-added address returned from AddAddressScreen
   const extraAddr: Address | undefined = route?.params?.newAddress;
-  const [allAddresses, setAllAddresses] = useState<Address[]>(() => {
-    if (extraAddr && !ALL_ADDRESSES.find((a) => a.id === extraAddr.id)) {
-      return [...ALL_ADDRESSES, extraAddr];
-    }
-    return ALL_ADDRESSES;
+  const [allAddresses, setAllAddresses] = useState<Address[]>([]);
+  const [selectedAddr, setSelectedAddr] = useState<Address>({
+    id: 'addr_default',
+    label: 'Home',
+    street: '18 Kenneth Kaunda Road',
+    suburb: 'Durban North',
+    city: 'Durban',
+    province: 'KwaZulu-Natal',
+    postalCode: '4051',
+    coordinates: { lat: -29.8, lng: 31.0333 },
   });
-  const [selectedAddr, setSelectedAddr] = useState<Address>(
-    extraAddr ?? MOCK_USER.savedAddresses[0]
-  );
   const [search, setSearch] = useState('');
+
+  React.useEffect(() => {
+    getMe().then((u) => {
+      if (u.savedAddresses && u.savedAddresses.length > 0) {
+        const list = extraAddr ? [...u.savedAddresses, extraAddr] : u.savedAddresses;
+        setAllAddresses(list);
+        setSelectedAddr(extraAddr ?? list[0]);
+      }
+    }).catch(() => {});
+  }, [extraAddr]);
 
   const handleContinue = () => {
     navigation.navigate('DeliveryTime', { ...params, deliveryAddressId: selectedAddr.id });

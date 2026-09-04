@@ -8,21 +8,21 @@ import { useDesignMode } from '../../context/DesignModeContext';
 import { FontSizes, Spacing, Radius } from '../../theme/tokens';
 import Card from '../../components/Card';
 import Button from '../../components/Button';
-import { getCurrentRates, FuelRate } from '../../services/mockApi';
+import { fuelRateRepository, FuelRateModel } from '../../repositories/FuelRateRepository';
 
-const FUEL_TYPES: FuelRate['type'][] = ['Petrol 93', 'Petrol 95', 'Diesel 50ppm', 'Diesel 500ppm'];
+const FUEL_TYPES: FuelRateModel['type'][] = ['Petrol 93', 'Petrol 95', 'Diesel 50ppm', 'Diesel 500ppm'];
 
 interface Props { navigation: any; route?: any }
 
 export default function FuelSelectionScreen({ navigation, route }: Props) {
   const { colors, font, isWireframe: isWF } = useDesignMode();
-  const [rates, setRates] = useState<FuelRate[]>([]);
-  const [selectedType, setSelectedType] = useState<FuelRate['type']>('Petrol 95');
+  const [rates, setRates] = useState<FuelRateModel[]>([]);
+  const [selectedType, setSelectedType] = useState<FuelRateModel['type']>('Petrol 95');
   const [inputMode, setInputMode] = useState<'rand' | 'litres'>('litres');
   const [inputValue, setInputValue] = useState('40');
 
   useEffect(() => {
-    getCurrentRates().then(setRates);
+    fuelRateRepository.getRates().then(setRates);
   }, []);
 
   const currentRate = rates.find((r) => r.type === selectedType);

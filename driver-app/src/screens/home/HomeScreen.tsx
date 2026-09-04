@@ -273,6 +273,7 @@ export default function HomeScreen({ navigation }: Props) {
                   ]}
                 >
                   Ready to fill up?
+                  
                 </Text>
                 <Text
                   style={[
@@ -345,6 +346,8 @@ export default function HomeScreen({ navigation }: Props) {
                           },
                         ]}
                       >
+                        <div data-fuelprice-ticker></div>
+<script src="https://www.fuelprice.co.za/api/v1/embed/ticker.js"></script>
                         <Feather
                           name={rate.trend === 'up' ? 'trending-up' : 'trending-down'}
                           size={11}

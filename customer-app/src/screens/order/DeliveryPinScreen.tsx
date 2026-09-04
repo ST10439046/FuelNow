@@ -5,7 +5,7 @@ import { Feather } from '@expo/vector-icons';
 import { useDesignMode } from '../../context/DesignModeContext';
 import { FontSizes, Spacing, Radius } from '../../theme/tokens';
 import Button from '../../components/Button';
-import { confirmDelivery } from '../../services/mockApi';
+import { orderRepository } from '../../repositories/OrderRepository';
 
 interface Props { navigation: any; route?: any }
 
@@ -34,7 +34,8 @@ export default function DeliveryPinScreen({ navigation, route }: Props) {
     setLoading(true);
     setError('');
     try {
-      await confirmDelivery(orderId, pinStr);
+      const res = await orderRepository.confirmDeliveryWithPin(orderId, pinStr);
+      if (!res.success) throw new Error(res.error || 'Incorrect PIN. Please try again.');
       setSuccess(true);
       setTimeout(() => navigation.navigate('RateReview', { orderId }), 1500);
     } catch (e: any) {

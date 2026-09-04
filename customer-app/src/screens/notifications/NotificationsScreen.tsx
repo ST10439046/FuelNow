@@ -4,7 +4,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useDesignMode } from '../../context/DesignModeContext';
 import { FontSizes, Spacing, Radius } from '../../theme/tokens';
-import { getNotifications } from '../../services/mockApi';
 
 interface Props { navigation?: any }
 
@@ -26,11 +25,29 @@ function timeAgo(iso: string): string {
 
 export default function NotificationsScreen({ navigation }: Props) {
   const { colors, font, isWireframe: isWF } = useDesignMode();
-  const [notifs, setNotifs] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getNotifications().then((d) => { setNotifs(d); setLoading(false); });
+    setNotifications([
+      {
+        id: 'notif_001',
+        title: 'Driver on the way! 🚛',
+        body: 'Sibusiso Dlamini is heading to 18 Kenneth Kaunda Road. ETA 23 min.',
+        type: 'order',
+        isRead: false,
+        createdAt: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+      },
+      {
+        id: 'notif_002',
+        title: 'Petrol price update',
+        body: 'Petrol 95 price updated. Save on your next fill!',
+        type: 'promo',
+        isRead: false,
+        createdAt: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+      },
+    ]);
+    setLoading(false);
   }, []);
 
   const getIconBg = (type: NotifType, isRead: boolean): string => {
@@ -62,7 +79,7 @@ export default function NotificationsScreen({ navigation }: Props) {
         <ActivityIndicator color={isWF ? '#888' : colors.petrolDeep} style={{ marginTop: 40 }} />
       ) : (
         <FlatList
-          data={notifs}
+          data={notifications}
           keyExtractor={(n) => n.id}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}

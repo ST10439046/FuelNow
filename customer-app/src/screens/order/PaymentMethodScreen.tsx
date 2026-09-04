@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -6,14 +6,26 @@ import { useDesignMode } from '../../context/DesignModeContext';
 import { FontSizes, Spacing, Radius } from '../../theme/tokens';
 import Card from '../../components/Card';
 import Button from '../../components/Button';
-import { MOCK_USER, PaymentMethod } from '../../services/mockApi';
+import { getMe, PaymentMethod } from '../../services/mockApi';
 
 interface Props { navigation: any; route?: any }
 
 export default function PaymentMethodScreen({ navigation, route }: Props) {
   const { colors, font, isWireframe: isWF } = useDesignMode();
   const params = route?.params ?? {};
-  const [selected, setSelected] = useState<string>(MOCK_USER.paymentMethods.find(p => p.isDefault)?.id ?? 'pm_001');
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
+  const [selected, setSelected] = useState<string>('pm_001');
+
+  useEffect(() => {
+    getMe().then((u) => {
+      if (u.paymentMethods && u.paymentMethods.length > 0) {
+        setPaymentMethods(u.paymentMethods);
+        const def = u.paymentMethods.find((p) => p.isDefault);
+        if (def) setSelected(def.id);
+        else setSelected(u.paymentMethods[0].id);
+      }
+    }).catch(() => {});
+  }, []);
 
   const handleContinue = () => {
     navigation.navigate('OrderReview', { ...params, paymentMethodId: selected });
@@ -49,7 +61,7 @@ export default function PaymentMethodScreen({ navigation, route }: Props) {
           Saved payment methods
         </Text>
 
-        {MOCK_USER.paymentMethods.map((pm) => {
+        {paymentMethods.map((pm) => {
           const isSelected = pm.id === selected;
           return (
             <TouchableOpacity

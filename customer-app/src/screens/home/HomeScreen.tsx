@@ -16,7 +16,8 @@ import { useDesignMode } from '../../context/DesignModeContext';
 import { FontSizes, Spacing, Radius, Shadow, Colors } from '../../theme/tokens';
 import Card from '../../components/Card';
 import Button from '../../components/Button';
-import { getCurrentRates, FuelRate, MOCK_USER } from '../../services/mockApi';
+import { userRepository } from '../../repositories/UserRepository';
+import { fuelRateRepository } from '../../repositories/FuelRateRepository';
 
 const { width: W } = Dimensions.get('window');
 
@@ -93,16 +94,20 @@ function MockMap({ isWireframe }: { isWireframe: boolean }) {
 }
 
 export default function HomeScreen({ navigation }: Props) {
-  const { colors, font, isWireframe } = useDesignMode();
-  const isWF = isWireframe;
-  const [rates, setRates] = useState<FuelRate[]>([]);
+  const { colors, font, isWireframe: isWF } = useDesignMode();
+  const [rates, setRates] = useState<any[]>([]);
   const [loadingRates, setLoadingRates] = useState(true);
+  const [user, setUser] = useState<any>(null);
   const tickerAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    userRepository.getUser().then((u) => setUser(u)).catch(() => {});
+  }, []);
 
   useEffect(() => {
     const fetchRates = async () => {
       try {
-        const data = await getCurrentRates();
+        const data = await fuelRateRepository.getRates();
         setRates(data);
       } finally {
         setLoadingRates(false);
@@ -230,14 +235,14 @@ export default function HomeScreen({ navigation }: Props) {
                   },
                 ]}
               >
-                {MOCK_USER.name.split(' ')[0]}
+                {user?.name ? user.name.split(' ')[0] : 'User'}
               </Text>
             </View>
             {!isWF && (
               <View style={[styles.loyaltyBadge, { backgroundColor: colors.amberLight }]}>
                 <Feather name="award" size={14} color={colors.ignitionAmber} />
                 <Text style={[styles.loyaltyText, { color: colors.amberDark, fontFamily: font('bodyMedium'), fontSize: FontSizes.xs }]}>
-                  340 pts
+                  {user?.loyaltyPoints ?? 0} pts
                 </Text>
               </View>
             )}

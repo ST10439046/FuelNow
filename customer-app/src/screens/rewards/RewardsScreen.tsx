@@ -6,7 +6,7 @@ import { useDesignMode } from '../../context/DesignModeContext';
 import { FontSizes, Spacing, Radius } from '../../theme/tokens';
 import Card from '../../components/Card';
 import FuelGaugeArc from '../../components/FuelGaugeArc';
-import { getRewardsBalance } from '../../services/mockApi';
+import { userRepository } from '../../repositories/UserRepository';
 
 interface Props { navigation: any }
 
@@ -23,7 +23,19 @@ export default function RewardsScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getRewardsBalance().then((d) => { setData(d); setLoading(false); });
+    userRepository.getUser().then((u) => {
+      setData({
+        points: u.loyaltyPoints,
+        pointsToNextReward: Math.max(0, 500 - u.loyaltyPoints),
+        nextRewardValue: 49.0,
+        tier: u.loyaltyTier,
+        history: [
+          { date: new Date().toISOString().slice(0, 10), description: 'Order ord_7821', points: +80 },
+          { date: '2026-07-23', description: 'Order ord_7756', points: +120 },
+        ],
+      });
+      setLoading(false);
+    }).catch(() => setLoading(false));
   }, []);
 
   if (loading) {

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -9,7 +9,9 @@ import { useDesignMode } from '../../context/DesignModeContext';
 import { FontSizes, Spacing, Radius, Shadow } from '../../theme/tokens';
 import Card from '../../components/Card';
 import FuelGaugeArc from '../../components/FuelGaugeArc';
-import { trackOrder, MOCK_DRIVER } from '../../services/mockApi';
+import { orderRepository, OrderModel } from '../../repositories/OrderRepository';
+
+const { width: W } = Dimensions.get('window');
 
 interface Props { navigation: any; route?: any }
 
@@ -19,8 +21,8 @@ function TrackingMap({ isWireframe }: { isWireframe: boolean }) {
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
-        Animated.timing(truckX, { toValue: 120, duration: 3000, useNativeDriver: true }),
-        Animated.timing(truckX, { toValue: 30, duration: 3000, useNativeDriver: true }),
+        Animated.timing(truckX, { toValue: W - 100, duration: 8000, useNativeDriver: true }),
+        Animated.timing(truckX, { toValue: 30, duration: 0, useNativeDriver: true }),
       ]),
     ).start();
   }, []);
@@ -32,31 +34,20 @@ function TrackingMap({ isWireframe }: { isWireframe: boolean }) {
       </View>
     );
   }
+
   return (
-    <View style={[styles.map, { backgroundColor: '#F0EBE3' }]}>
-      <View style={{ position: 'absolute', top: 40, left: 20, right: 20, height: 10, backgroundColor: '#E8E0D8', borderRadius: 5 }} />
-      <View style={{ position: 'absolute', top: 80, left: 20, right: 20, height: 10, backgroundColor: '#E8E0D8', borderRadius: 5 }} />
-      <View style={{ position: 'absolute', top: 20, left: '45%', bottom: 0, width: 10, backgroundColor: '#E8E0D8' }} />
+    <View style={[styles.map, { backgroundColor: '#EAF0EE' }]}>
       <View style={{ position: 'absolute', top: 10, left: 30, width: 80, height: 40, backgroundColor: '#DDDAD4', borderRadius: 6 }} />
       <View style={{ position: 'absolute', top: 10, right: 20, width: 60, height: 50, backgroundColor: '#DDDAD4', borderRadius: 6 }} />
       <View style={{ position: 'absolute', top: 60, left: 10, width: 40, height: 30, backgroundColor: '#DDDAD4', borderRadius: 4 }} />
-      {/* Dashed route line */}
       <View style={{ position: 'absolute', top: 84, left: 0, right: 0, height: 2, borderStyle: 'dashed', borderWidth: 1, borderColor: '#F2994A' }} />
-      {/* Destination pin */}
       <View style={{ position: 'absolute', top: 70, right: 30, alignItems: 'center' }}>
         <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: '#0B3D42', alignItems: 'center', justifyContent: 'center' }}>
           <Feather name="home" size={14} color="#FFFFFF" />
         </View>
       </View>
-      {/* Moving truck */}
       <Animated.View style={{ position: 'absolute', top: 72, transform: [{ translateX: truckX }] }}>
-        {isWireframe ? (
-          <View style={{ width: 24, height: 20, borderWidth: 1.5, borderColor: '#555', backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center', borderRadius: 2 }}>
-            <Feather name="truck" size={12} color="#555" />
-          </View>
-        ) : (
-          <Text style={{ fontSize: 22 }}>🚛</Text>
-        )}
+        <Text style={{ fontSize: 22 }}>🚛</Text>
       </Animated.View>
     </View>
   );
@@ -79,6 +70,24 @@ export default function LiveTrackingScreen({ navigation, route }: Props) {
   const { colors, font, isWireframe: isWF } = useDesignMode();
   const orderId = route?.params?.orderId ?? 'ord_8821';
   const [etaMinutes, setEtaMinutes] = useState(23);
+  const [order, setOrder] = useState<OrderModel | null>(null);
+
+  useEffect(() => {
+    orderRepository.getOrderById(orderId).then((o) => {
+      if (o) setOrder(o);
+    }).catch(() => {});
+  }, [orderId]);
+
+  const driver = order?.driver ?? {
+    id: 'drv_001',
+    name: 'Sibusiso Dlamini',
+    phone: '083 123 4567',
+    rating: 4.9,
+    totalDeliveries: 1240,
+    vehicleReg: 'ND 452-991',
+    vehicleModel: 'Hino 300 Tanker',
+    vehicleColor: 'White',
+  };
 
   // Countdown ETA
   useEffect(() => {
@@ -129,11 +138,11 @@ export default function LiveTrackingScreen({ navigation, route }: Props) {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.driverName, { color: isWF ? '#1A1A1A' : colors.charcoalInk, fontFamily: font('bodyMedium'), fontSize: FontSizes.base }]}>
-                  {MOCK_DRIVER.name}
+                  {driver.name}
                 </Text>
-                <StarRating rating={MOCK_DRIVER.rating} />
+                <StarRating rating={driver.rating} />
                 <Text style={[{ color: isWF ? '#666' : colors.inkLight, fontFamily: font('body'), fontSize: FontSizes.xs, marginTop: 2 }]}>
-                  {MOCK_DRIVER.rating} · {MOCK_DRIVER.totalDeliveries.toLocaleString()} deliveries
+                  {driver.rating} · {driver.totalDeliveries?.toLocaleString() || '1,000+'} deliveries
                 </Text>
               </View>
               <View style={styles.actionBtns}>
@@ -148,7 +157,7 @@ export default function LiveTrackingScreen({ navigation, route }: Props) {
             <View style={[styles.vehicleRow, { borderTopWidth: 1, borderTopColor: isWF ? '#DDDDDD' : colors.divider, paddingTop: Spacing.sm, marginTop: Spacing.sm }]}>
               <Feather name="truck" size={14} color={isWF ? '#888' : colors.inkLight} />
               <Text style={[{ color: isWF ? '#555' : colors.inkLight, fontFamily: font('body'), fontSize: FontSizes.xs }]}>
-                {MOCK_DRIVER.vehicleColor} {MOCK_DRIVER.vehicleModel} · {MOCK_DRIVER.vehicleReg}
+                {driver.vehicleColor} {driver.vehicleModel} · {driver.vehicleReg}
               </Text>
             </View>
           </Card>

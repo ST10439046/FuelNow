@@ -6,7 +6,8 @@ import { useDesignMode } from '../../context/DesignModeContext';
 import { FontSizes, Spacing, Radius } from '../../theme/tokens';
 import Card from '../../components/Card';
 import Button from '../../components/Button';
-import { rateOrder, MOCK_DRIVER } from '../../services/mockApi';
+import { orderRepository } from '../../repositories/OrderRepository';
+import { driverRepository } from '../../repositories/DriverRepository';
 
 interface Props { navigation: any; route?: any }
 
@@ -42,7 +43,7 @@ export default function RateReviewScreen({ navigation, route }: Props) {
   const handleSubmit = async () => {
     setLoading(true);
     try {
-      await rateOrder(orderId, { rating: driverRating, comment });
+      await orderRepository.rateOrder(orderId, driverRating, comment);
       setDone(true);
       setTimeout(() => navigation.navigate('DigitalReceipt', { orderId }), 1500);
     } finally {
@@ -93,7 +94,7 @@ export default function RateReviewScreen({ navigation, route }: Props) {
             </View>
             <View>
               <Text style={[{ color: isWF ? '#1A1A1A' : colors.charcoalInk, fontFamily: font('bodyMedium'), fontSize: FontSizes.base }]}>
-                {MOCK_DRIVER.name}
+                {'Sibusiso Dlamini'}
               </Text>
               <Text style={[{ color: isWF ? '#666' : colors.inkLight, fontFamily: font('body'), fontSize: FontSizes.xs }]}>
                 Your driver

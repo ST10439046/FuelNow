@@ -9,7 +9,7 @@ import { FontSizes, Spacing, Radius } from '../../theme/tokens';
 import Input from '../../components/Input';
 import Button from '../../components/Button';
 import Card from '../../components/Card';
-import { addPaymentMethod } from '../../services/mockApi';
+import { userRepository } from '../../repositories/UserRepository';
 
 interface Props {
   navigation: any;
@@ -70,10 +70,11 @@ export default function AddCardScreen({ navigation, route }: Props) {
       const brand = cardNumber.startsWith('4') ? 'visa' : 'mastercard';
       const last4 = cardNumber.replace(/\s/g, '').slice(-4);
       
-      const newMethod = await addPaymentMethod({
+      const newMethod = await userRepository.addPaymentMethod({
         type: 'card',
         brand,
         label: `${brand === 'visa' ? 'Visa' : 'Mastercard'} ••• ${last4}`,
+        last4,
         isDefault: true,
       });
 

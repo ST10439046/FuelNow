@@ -6,7 +6,7 @@ import { useDesignMode } from '../../context/DesignModeContext';
 import { FontSizes, Spacing, Radius } from '../../theme/tokens';
 import Card from '../../components/Card';
 import StatusBadge from '../../components/StatusBadge';
-import { getOrderHistory, Order } from '../../services/mockApi';
+import { orderRepository, OrderModel } from '../../repositories/OrderRepository';
 
 interface Props { navigation: any }
 
@@ -17,14 +17,14 @@ function formatDate(iso: string): string {
 
 export default function OrderHistoryScreen({ navigation }: Props) {
   const { colors, font, isWireframe: isWF } = useDesignMode();
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [orders, setOrders] = useState<OrderModel[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getOrderHistory().then((data) => { setOrders(data); setLoading(false); });
+    orderRepository.getOrders().then((data) => { setOrders(data); setLoading(false); });
   }, []);
 
-  const renderItem = ({ item }: { item: Order }) => (
+  const renderItem = ({ item }: { item: OrderModel }) => (
     <Card style={styles.orderCard}>
       <View style={styles.orderHeader}>
         <View style={{ flex: 1 }}>

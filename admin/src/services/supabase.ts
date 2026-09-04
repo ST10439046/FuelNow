@@ -1,10 +1,14 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Supabase Auto-Generated API Configuration
-export const SUPABASE_URL = 'https://zahrmlcqwashdiudmfvk.supabase.co';
-export const SUPABASE_KEY =
-  (typeof globalThis !== 'undefined' && (globalThis as any).process?.env?.SUPABASE_KEY) ||
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InphaHJtbGNxd2FzaGRpdWRtZnZrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDAwMDAwMDAsImV4cCI6MjA1NTU3NjAwMH0.mock_key_or_live_token';
+// Supabase Configuration — loaded from .env (VITE_ prefix)
+export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+export const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+if (!SUPABASE_URL || !SUPABASE_KEY) {
+  throw new Error(
+    'Missing Supabase env vars. Ensure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set in admin/.env'
+  );
+}
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 

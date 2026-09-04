@@ -1,3 +1,12 @@
+import { CustomerApiClient } from '../services/apiClient';
+import { supabase } from '../services/supabase';
+import {
+  User,
+  Customer,
+  Address,
+  RewardAccount,
+} from '../types/database';
+
 export interface AddressModel {
   id: string;
   label: 'Home' | 'Work' | 'Other' | 'Site A' | 'Depot';
@@ -6,7 +15,10 @@ export interface AddressModel {
   city: string;
   province: string;
   postalCode: string;
-  coordinates: { lat: number; lng: number };
+  coordinates?: {
+    lat: number;
+    lng: number;
+  };
 }
 
 export interface PaymentMethodModel {
@@ -33,110 +45,263 @@ export interface UserModel {
 export class UserRepository {
   private static instance: UserRepository;
 
-  private user: UserModel = {
-    id: 'usr_001',
-    name: 'Muhammed Khan',
-    email: 'muhammedkhan@impactdurban.co.za',
-    phone: '082 456 7890',
-    loyaltyPoints: 340,
-    loyaltyTier: 'Silver',
-    companyName: 'Southgate Civils',
-    savedAddresses: [
-      {
-        id: 'addr_001',
-        label: 'Home',
-        street: '18 Kenneth Kaunda Road',
-        suburb: 'Durban North',
-        city: 'Durban',
-        province: 'KwaZulu-Natal',
-        postalCode: '4051',
-        coordinates: { lat: -29.8000, lng: 31.0333 },
-      },
-      {
-        id: 'addr_002',
-        label: 'Work',
-        street: '45 Jan Hofmeyr Road',
-        suburb: 'Westville',
-        city: 'Durban',
-        province: 'KwaZulu-Natal',
-        postalCode: '3629',
-        coordinates: { lat: -29.8256, lng: 30.9312 },
-      },
-      {
-        id: 'addr_003',
-        label: 'Site A',
-        street: '12 Palm Boulevard',
-        suburb: 'Umhlanga Ridge',
-        city: 'Durban',
-        province: 'KwaZulu-Natal',
-        postalCode: '4319',
-        coordinates: { lat: -29.7265, lng: 31.0690 },
-      },
-    ],
-    paymentMethods: [
-      {
-        id: 'pm_001',
-        type: 'card',
-        label: 'FNB Corporate Cheque ••• 4821',
-        last4: '4821',
-        brand: 'visa',
-        isDefault: true,
-      },
-      {
-        id: 'pm_002',
-        type: 'card',
-        label: 'Nedbank Business ••• 9934',
-        last4: '9934',
-        brand: 'mastercard',
-        isDefault: false,
-      },
-      {
-        id: 'pm_003',
-        type: 'mobile_money',
-        label: 'SnapScan (Direct Pay)',
-        isDefault: false,
-      },
-    ],
-  };
-
   private constructor() {}
 
   public static getInstance(): UserRepository {
     if (!UserRepository.instance) {
       UserRepository.instance = new UserRepository();
     }
+
     return UserRepository.instance;
   }
 
+  /**
+   * Gets the currently authenticated user's ID.
+   */
+  private async getAuthenticatedUserId(): Promise<string> {
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
+
+    if (error) {
+      throw error;
+    }
+
+    if (!user) {
+      throw new Error('No authenticated user found.');
+    }
+
+    return user.id;
+  }
+
+  /**
+   * Gets the complete customer profile from Supabase.
+   */
   public async getUser(): Promise<UserModel> {
-    return { ...this.user };
+    const userId = await this.getAuthenticatedUserId();
+
+    // Get user record
+    const userResponse = await CustomerApiClient.getUser(userId);
+
+    if (userResponse.error || !userResponse.data) {
+      throw userResponse.error ?? new Error('Unable to retrieve user.');
+    }
+
+    const user = userResponse.data;
+
+    // Get customer record
+    const customerResponse =
+      await CustomerApiClient.getCustomer(userId);
+
+    if (customerResponse.error || !customerResponse.data) {
+      throw (
+        customerResponse.error ??
+        new Error('Unable to retrieve customer profile.')
+      );
+    }
+
+    const customer = customerResponse.data;
+
+    /*
+     * At the moment your CustomerApiClient does not have
+     * "get all addresses for customer" or
+     * "get all payment methods for customer" functions.
+     *
+     * Therefore these remain empty until those RPCs are added.
+     */
+    const savedAddresses: AddressModel[] = [];
+
+    const paymentMethods: PaymentMethodModel[] = [];
+
+    return {
+      id: user.id,
+      name: user.full_name ?? '',
+      email: user.email ?? '',
+      phone: user.phone_number ?? '',
+      loyaltyPoints: customer.fuel_points_balance ?? 0,
+      loyaltyTier: this.mapLoyaltyTier(customer.loyalty_tier),
+      companyName: '',
+      savedAddresses,
+      paymentMethods,
+    };
   }
 
+  /**
+   * Adds loyalty points to the customer's account.
+   */
   public async addPoints(points: number): Promise<number> {
-    this.user.loyaltyPoints += points;
-    if (this.user.loyaltyPoints >= 2500) this.user.loyaltyTier = 'Platinum';
-    else if (this.user.loyaltyPoints >= 1000) this.user.loyaltyTier = 'Gold';
-    else if (this.user.loyaltyPoints >= 500) this.user.loyaltyTier = 'Silver';
-    else this.user.loyaltyTier = 'Bronze';
-    return this.user.loyaltyPoints;
+    if (points <= 0) {
+      throw new Error('Points must be greater than zero.');
+    }
+
+    const userId = await this.getAuthenticatedUserId();
+
+    const customerResponse =
+      await CustomerApiClient.getCustomer(userId);
+
+    if (customerResponse.error || !customerResponse.data) {
+      throw (
+        customerResponse.error ??
+        new Error('Unable to retrieve customer.')
+      );
+    }
+
+    const customer = customerResponse.data;
+
+    const currentPoints =
+      customer.fuel_points_balance ?? 0;
+
+    const newPoints = currentPoints + points;
+
+    const newTier = this.calculateLoyaltyTier(newPoints);
+
+    const updateResponse =
+      await CustomerApiClient.updateCustomer({
+        customerId: userId,
+        loyaltyTier: newTier,
+        fuelPointsBalance: newPoints,
+      });
+
+    if (updateResponse.error || !updateResponse.data) {
+      throw (
+        updateResponse.error ??
+        new Error('Unable to update loyalty points.')
+      );
+    }
+
+    return newPoints;
   }
 
-  public async addAddress(address: Omit<AddressModel, 'id'>): Promise<AddressModel> {
-    const newAddr: AddressModel = {
-      ...address,
-      id: `addr_${Date.now().toString().slice(-4)}`,
-    };
-    this.user.savedAddresses.push(newAddr);
-    return newAddr;
+  /**
+   * Adds an address to the customer's Supabase account.
+   */
+  public async addAddress(
+    address: Omit<AddressModel, 'id'>
+  ): Promise<AddressModel> {
+    const userId = await this.getAuthenticatedUserId();
+
+    const response = await CustomerApiClient.createAddress({
+      customerId: userId,
+      label: address.label,
+      streetName: address.street,
+      suburb: address.suburb,
+      city: address.city,
+      province: address.province,
+      postalCode: address.postalCode,
+    });
+
+    if (response.error || !response.data) {
+      throw (
+        response.error ??
+        new Error('Unable to create address.')
+      );
+    }
+
+    return this.mapAddress(response.data);
   }
 
-  public async addPaymentMethod(pm: Omit<PaymentMethodModel, 'id'>): Promise<PaymentMethodModel> {
-    const newPm: PaymentMethodModel = {
-      ...pm,
-      id: `pm_${Date.now().toString().slice(-4)}`,
+  /**
+   * Adds a payment method.
+   *
+   * This currently requires a payment-method RPC/table because
+   * createPayment() in CustomerApiClient creates an order payment,
+   * not a saved customer payment method.
+   */
+  public async addPaymentMethod(
+    paymentMethod: Omit<PaymentMethodModel, 'id'>
+  ): Promise<PaymentMethodModel> {
+    throw new Error(
+      'Saved payment methods are not yet supported by CustomerApiClient. ' +
+      'Add CRUD RPC functions for your payment_methods table first.'
+    );
+  }
+
+  /**
+   * Converts a database Address into the format expected by the app.
+   */
+  private mapAddress(address: Address): AddressModel {
+    return {
+      id: address.address_id,
+      label: this.mapAddressLabel(address.label),
+      street: [
+        address.unit_number,
+        address.street_number,
+        address.street_name,
+      ]
+        .filter(Boolean)
+        .join(' '),
+      suburb: address.suburb ?? '',
+      city: address.city ?? '',
+      province: address.province ?? '',
+      postalCode: address.postal_code ?? '',
     };
-    this.user.paymentMethods.push(newPm);
-    return newPm;
+  }
+
+  /**
+   * Converts the database loyalty tier into the app's loyalty tier.
+   */
+  private mapLoyaltyTier(
+    tier: string | null | undefined
+  ): UserModel['loyaltyTier'] {
+    switch (tier) {
+      case 'Platinum':
+        return 'Platinum';
+
+      case 'Gold':
+        return 'Gold';
+
+      case 'Silver':
+        return 'Silver';
+
+      default:
+        return 'Bronze';
+    }
+  }
+
+  /**
+   * Calculates the loyalty tier from the number of points.
+   */
+  private calculateLoyaltyTier(
+    points: number
+  ): UserModel['loyaltyTier'] {
+    if (points >= 2500) {
+      return 'Platinum';
+    }
+
+    if (points >= 1000) {
+      return 'Gold';
+    }
+
+    if (points >= 500) {
+      return 'Silver';
+    }
+
+    return 'Bronze';
+  }
+
+  /**
+   * Makes sure address labels match the application's allowed values.
+   */
+  private mapAddressLabel(
+    label: string | null | undefined
+  ): AddressModel['label'] {
+    switch (label) {
+      case 'Home':
+        return 'Home';
+
+      case 'Work':
+        return 'Work';
+
+      case 'Site A':
+        return 'Site A';
+
+      case 'Depot':
+        return 'Depot';
+
+      default:
+        return 'Other';
+    }
   }
 }
 

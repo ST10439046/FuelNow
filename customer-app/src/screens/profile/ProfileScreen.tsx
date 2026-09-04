@@ -1,12 +1,12 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useDesignMode } from '../../context/DesignModeContext';
 import { FontSizes, Spacing, Radius } from '../../theme/tokens';
 import Card from '../../components/Card';
 import Button from '../../components/Button';
-import { MOCK_USER } from '../../services/mockApi';
+import { userRepository, UserModel } from '../../repositories/UserRepository';
 
 interface Props { navigation: any }
 
@@ -17,6 +17,15 @@ export default function ProfileScreen({ navigation }: Props) {
   const [pushEnabled, setPushEnabled] = useState(true);
   const [smsEnabled, setSmsEnabled] = useState(true);
   const [language, setLanguage] = useState('English');
+  const [user, setUser] = useState<UserModel | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    userRepository.getUser().then((data) => {
+      setUser(data);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, []);
 
   const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
     <View style={{ gap: Spacing.sm }}>
@@ -83,13 +92,13 @@ export default function ProfileScreen({ navigation }: Props) {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[{ color: isWF ? '#1A1A1A' : colors.charcoalInk, fontFamily: font('displayBold'), fontSize: FontSizes.lg }]}>
-                {MOCK_USER.name}
+                {user?.name || 'Loading...'}
               </Text>
               <Text style={[{ color: isWF ? '#555' : colors.inkLight, fontFamily: font('body'), fontSize: FontSizes.sm }]}>
-                {MOCK_USER.email}
+                {user?.email || ''}
               </Text>
               <Text style={[{ color: isWF ? '#555' : colors.inkLight, fontFamily: font('body'), fontSize: FontSizes.sm }]}>
-                {MOCK_USER.phone}
+                {user?.phone || ''}
               </Text>
             </View>
             <TouchableOpacity style={[styles.editBtn, { backgroundColor: isWF ? '#E0E0E0' : colors.petrolLight }]}>
@@ -102,12 +111,12 @@ export default function ProfileScreen({ navigation }: Props) {
         <Section title="Account">
           <Row icon="user" label="Personal Information" onPress={() => {}} />
           <Row icon="shield" label="Change Password" onPress={() => {}} />
-          <Row icon="phone" label="Phone Number" value={MOCK_USER.phone} onPress={() => {}} />
+          <Row icon="phone" label="Phone Number" value={user?.phone} onPress={() => {}} />
         </Section>
 
         {/* Saved addresses */}
         <Section title="Addresses">
-          {MOCK_USER.savedAddresses.map((addr) => (
+          {user?.savedAddresses.map((addr) => (
             <Row
               key={addr.id}
               icon={addr.label === 'Home' ? 'home' : 'briefcase'}
@@ -120,7 +129,7 @@ export default function ProfileScreen({ navigation }: Props) {
 
         {/* Payment */}
         <Section title="Payment Methods">
-          {MOCK_USER.paymentMethods.map((pm) => (
+          {user?.paymentMethods.map((pm) => (
             <Row
               key={pm.id}
               icon={pm.type === 'mobile_money' ? 'smartphone' : 'credit-card'}
