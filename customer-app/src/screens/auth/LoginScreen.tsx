@@ -15,6 +15,7 @@ import { FontSizes, Spacing, Radius } from '../../theme/tokens';
 import Button from '../../components/Button';
 import Input from '../../components/Input';
 import { CustomerApiClient } from '../../services/apiClient';
+import { userRepository } from '../../repositories/UserRepository';
 
 interface Props {
   navigation: any;
@@ -29,48 +30,74 @@ export default function LoginScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
-    // Basic validation
-    if (!email.trim() || !password) {
-      setError('Please enter your email and password.');
-      return;
+  if (!email.trim() || !password) {
+    setError('Please enter your email and password.');
+    return;
+  }
+
+  setError('');
+  setLoading(true);
+
+  try {
+    const response = await CustomerApiClient.signInWithPassword(
+      email.trim(),
+      password
+    );
+
+    console.log(
+      'LOGIN RESPONSE:',
+      JSON.stringify(response.data, null, 2)
+    );
+
+    if (response.error) {
+      throw response.error;
     }
 
-    setError('');
-    setLoading(true);
-
-    try {
-      // Check the entered email and password
-      // against your Supabase sign_in_with_password function.
-      const response = await CustomerApiClient.signInWithPassword(
-        email.trim(),
-        password
-      );
-
-      // The RPC returned an error
-      if (response.error) {
-        throw response.error;
-      }
-
-      // No user was returned
-      if (!response.data) {
-        throw new Error('Invalid email or password.');
-      }
-
-      // Login successful
-      console.log('Login successful:', response.data);
-
-      navigation.replace('MainTabs');
-
-    } catch (e: any) {
-      console.error('Login error:', e);
-
-      setError(
-        e?.message || 'Invalid email or password.'
-      );
-    } finally {
-      setLoading(false);
+    if (!response.data) {
+      throw new Error('Invalid email or password.');
     }
-  };
+
+    // The RPC returns an array containing the user
+    const user = Array.isArray(response.data)
+      ? response.data[0]
+      : response.data;
+
+    console.log(
+      'LOGIN USER:',
+      JSON.stringify(user, null, 2)
+    );
+
+    if (!user) {
+      throw new Error('Invalid email or password.');
+    }
+
+    if (!user.user_id) {
+      throw new Error(
+        'Login succeeded, but no user ID was returned.'
+      );
+    }
+
+    // Save the authenticated user's ID
+    await userRepository.setAuthenticatedUserId(
+      user.user_id
+    );
+
+    console.log(
+      'AUTHENTICATED USER ID SAVED:',
+      user.user_id
+    );
+
+    navigation.replace('MainTabs');
+  } catch (e: any) {
+    console.error('Login error:', e);
+
+    setError(
+      e?.message || 'Invalid email or password.'
+    );
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <SafeAreaView

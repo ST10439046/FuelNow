@@ -100,9 +100,21 @@ export default function HomeScreen({ navigation }: Props) {
   const [user, setUser] = useState<any>(null);
   const tickerAnim = useRef(new Animated.Value(0)).current;
 
-  useEffect(() => {
-    userRepository.getUser().then((u) => setUser(u)).catch(() => {});
-  }, []);
+ useEffect(() => {
+  const loadUser = async () => {
+    try {
+      const u = await userRepository.getUser();
+
+      console.log('HOME USER:', u);
+
+      setUser(u);
+    } catch (error) {
+      console.error('FAILED TO LOAD HOME USER:', error);
+    }
+  };
+
+  loadUser();
+}, []);
 
   useEffect(() => {
     const fetchRates = async () => {

@@ -1,9 +1,8 @@
-import { realtimeHub } from '../patterns/realtimeObserver';
-import { supabaseService } from '../services/supabase';
+import { supabase } from '../services/supabase';
 
 export interface FuelRateModel {
-  id?: string;
-  type: 'Petrol 93' | 'Petrol 95' | 'Diesel 50ppm' | 'Diesel 500ppm';
+  id: string;
+  type: string;
   pricePerLitre: number;
   change: number;
   trend: 'up' | 'down' | 'flat';
@@ -13,12 +12,6 @@ export interface FuelRateModel {
 
 export class FuelRateRepository {
   private static instance: FuelRateRepository;
-  private rates: FuelRateModel[] = [
-    { type: 'Petrol 93', pricePerLitre: 22.87, change: -8, trend: 'down', changeSource: 'SAPIA Coastal 01A' },
-    { type: 'Petrol 95', pricePerLitre: 23.45, change: -8, trend: 'down', changeSource: 'SAPIA Coastal 01A' },
-    { type: 'Diesel 50ppm', pricePerLitre: 21.63, change: +12, trend: 'up', changeSource: 'SAPIA Coastal 01A' },
-    { type: 'Diesel 500ppm', pricePerLitre: 21.38, change: +12, trend: 'up', changeSource: 'SAPIA Coastal 01A' },
-  ];
 
   private constructor() {}
 
@@ -26,75 +19,46 @@ export class FuelRateRepository {
     if (!FuelRateRepository.instance) {
       FuelRateRepository.instance = new FuelRateRepository();
     }
+
     return FuelRateRepository.instance;
   }
 
+  /**
+   * Gets the latest fuel rate for each fuel type
+   * from Supabase.
+   */
   public async getRates(): Promise<FuelRateModel[]> {
-    try {
-      const { data, error } = await supabaseService.invokeFunction('sync-fuel-rates', { action: 'fetch' });
-      if (!error && data && data.rates && data.rates.length > 0) {
-        this.rates = data.rates.map((r: any) => ({
-          id: r.id,
-          type: r.fuel_type,
-          pricePerLitre: Number(r.price_per_litre),
-          change: Number(r.change_cents),
-          trend: r.trend,
-          changeSource: r.change_source,
-          effectiveDate: r.effective_date,
-        }));
-      }
-    } catch {
-      // Graceful fallback to local cache
-    }
-    return [...this.rates];
-  }
+    const { data, error } = await supabase.rpc(
+      'get_all_fuel_rates'
+    );
 
-  public async syncRatesFromSAPIA(): Promise<FuelRateModel[]> {
-    try {
-      const { data, error } = await supabaseService.invokeFunction('sync-fuel-rates', {});
-      if (!error && data && data.rates) {
-        this.rates = data.rates.map((r: any) => ({
-          id: r.id,
-          type: r.fuel_type,
-          pricePerLitre: Number(r.price_per_litre),
-          change: Number(r.change_cents),
-          trend: r.trend,
-          changeSource: r.change_source,
-          effectiveDate: r.effective_date,
-        }));
-      }
-    } catch {
-      // Mock sync simulation
-      this.rates = this.rates.map((r) => ({
-        ...r,
-        pricePerLitre: +(r.pricePerLitre + (Math.random() - 0.5) * 0.04).toFixed(2),
-        changeSource: 'Automated API Sync',
-      }));
+    if (error) {
+      console.error(
+        'Failed to fetch fuel rates:',
+        error
+      );
+
+      throw error;
     }
 
-    // Broadcast to realtime observers
-    realtimeHub.getFuelRatesChannel().notify(this.rates);
-    return [...this.rates];
-  }
+    if (!data) {
+      return [];
+    }
 
-  public async overridePrice(fuelType: FuelRateModel['type'], newPrice: number): Promise<FuelRateModel[]> {
-    this.rates = this.rates.map((r) => {
-      if (r.type === fuelType) {
-        const change = +((newPrice - r.pricePerLitre) * 100).toFixed(0);
-        return {
-          ...r,
-          pricePerLitre: newPrice,
-          change,
-          trend: change > 0 ? 'up' : change < 0 ? 'down' : 'flat',
-          changeSource: 'Manual Admin Override',
-        };
-      }
-      return r;
-    });
+    // get_all_fuel_rates returns a JSON array
+    const rates = Array.isArray(data) ? data : [];
 
-    realtimeHub.getFuelRatesChannel().notify(this.rates);
-    return [...this.rates];
+    return rates.map((rate: any) => ({
+      id: rate.id,
+      type: rate.fuel_type_name,
+      pricePerLitre: Number(rate.price_per_litre),
+      change: 0,
+      trend: 'flat' as const,
+      changeSource: rate.source,
+      effectiveDate: undefined,
+    }));
   }
 }
 
-export const fuelRateRepository = FuelRateRepository.getInstance();
+export const fuelRateRepository =
+  FuelRateRepository.getInstance();

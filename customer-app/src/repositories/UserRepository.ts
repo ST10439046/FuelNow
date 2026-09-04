@@ -1,4 +1,5 @@
 import { CustomerApiClient } from '../services/apiClient';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../services/supabase';
 import {
   User,
@@ -6,6 +7,8 @@ import {
   Address,
   RewardAccount,
 } from '../types/database';
+
+
 
 export interface AddressModel {
   id: string;
@@ -58,22 +61,73 @@ export class UserRepository {
   /**
    * Gets the currently authenticated user's ID.
    */
-  private async getAuthenticatedUserId(): Promise<string> {
-    const {
-      data: { user },
-      error,
-    } = await supabase.auth.getUser();
+private currentUserId: string | null = null;
 
-    if (error) {
-      throw error;
-    }
-
-    if (!user) {
-      throw new Error('No authenticated user found.');
-    }
-
-    return user.id;
+private readonly USER_ID_KEY = '@fuelnow_current_user_id';
+public async setAuthenticatedUserId(
+  userId: string
+): Promise<void> {
+  if (
+    !userId ||
+    userId === 'undefined' ||
+    userId === 'null'
+  ) {
+    throw new Error(
+      'Cannot save authenticated user: invalid user ID.'
+    );
   }
+
+  this.currentUserId = userId;
+
+  await AsyncStorage.setItem(
+    this.USER_ID_KEY,
+    userId
+  );
+
+  console.log(
+    'UserRepository: authenticated user ID saved:',
+    userId
+  );
+}
+
+private async getAuthenticatedUserId(): Promise<string> {
+  // Check memory first
+  if (
+    this.currentUserId &&
+    this.currentUserId !== 'undefined' &&
+    this.currentUserId !== 'null'
+  ) {
+    return this.currentUserId;
+  }
+
+  // Restore from AsyncStorage
+  const storedUserId = await AsyncStorage.getItem(
+    this.USER_ID_KEY
+  );
+
+  if (
+    storedUserId &&
+    storedUserId !== 'undefined' &&
+    storedUserId !== 'null'
+  ) {
+    this.currentUserId = storedUserId;
+
+    console.log(
+      'UserRepository: restored user ID:',
+      storedUserId
+    );
+
+    return storedUserId;
+  }
+
+  throw new Error(
+    'No authenticated user found. Please log in again.'
+  );
+}
+  public async clearAuthenticatedUser(): Promise<void> {
+  this.currentUserId = null;
+  await AsyncStorage.removeItem(this.USER_ID_KEY);
+}
 
   /**
    * Gets the complete customer profile from Supabase.
@@ -103,19 +157,12 @@ export class UserRepository {
 
     const customer = customerResponse.data;
 
-    /*
-     * At the moment your CustomerApiClient does not have
-     * "get all addresses for customer" or
-     * "get all payment methods for customer" functions.
-     *
-     * Therefore these remain empty until those RPCs are added.
-     */
     const savedAddresses: AddressModel[] = [];
 
     const paymentMethods: PaymentMethodModel[] = [];
 
     return {
-      id: user.id,
+      id: user.user_id,
       name: user.full_name ?? '',
       email: user.email ?? '',
       phone: user.phone_number ?? '',

@@ -2,7 +2,7 @@ export type UserStatus = 'active' | 'inactive' | 'suspended';
 export type AdminRole = 'superadmin' | 'admin' | 'support';
 
 export interface User {
-  id: string;
+  user_id: string;
   full_name: string | null;
   email: string | null;
   phone_number: string | null;
