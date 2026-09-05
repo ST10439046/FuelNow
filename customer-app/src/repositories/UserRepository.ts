@@ -133,46 +133,68 @@ private async getAuthenticatedUserId(): Promise<string> {
    * Gets the complete customer profile from Supabase.
    */
   public async getUser(): Promise<UserModel> {
-    const userId = await this.getAuthenticatedUserId();
+  const userId = await this.getAuthenticatedUserId();
 
-    // Get user record
-    const userResponse = await CustomerApiClient.getUser(userId);
+  // Get user record
+  const userResponse = await CustomerApiClient.getUser(userId);
 
-    if (userResponse.error || !userResponse.data) {
-      throw userResponse.error ?? new Error('Unable to retrieve user.');
-    }
-
-    const user = userResponse.data;
-
-    // Get customer record
-    const customerResponse =
-      await CustomerApiClient.getCustomer(userId);
-
-    if (customerResponse.error || !customerResponse.data) {
-      throw (
-        customerResponse.error ??
-        new Error('Unable to retrieve customer profile.')
-      );
-    }
-
-    const customer = customerResponse.data;
-
-    const savedAddresses: AddressModel[] = [];
-
-    const paymentMethods: PaymentMethodModel[] = [];
-
-    return {
-      id: user.user_id,
-      name: user.full_name ?? '',
-      email: user.email ?? '',
-      phone: user.phone_number ?? '',
-      loyaltyPoints: customer.fuel_points_balance ?? 0,
-      loyaltyTier: this.mapLoyaltyTier(customer.loyalty_tier),
-      companyName: '',
-      savedAddresses,
-      paymentMethods,
-    };
+  if (userResponse.error || !userResponse.data) {
+    throw userResponse.error ?? new Error('Unable to retrieve user.');
   }
+
+  const user = userResponse.data;
+
+  // Get customer record
+  const customerResponse =
+    await CustomerApiClient.getCustomer(userId);
+
+  if (customerResponse.error || !customerResponse.data) {
+    throw (
+      customerResponse.error ??
+      new Error('Unable to retrieve customer profile.')
+    );
+  }
+
+  const customer = customerResponse.data;
+
+  // Get saved addresses
+  const savedAddresses = await this.getAddresses();
+
+  const paymentMethods: PaymentMethodModel[] = [];
+
+  return {
+    id: user.user_id,
+    name: user.full_name ?? '',
+    email: user.email ?? '',
+    phone: user.phone_number ?? '',
+    loyaltyPoints: customer.fuel_points_balance ?? 0,
+    loyaltyTier: this.mapLoyaltyTier(customer.loyalty_tier),
+    companyName: '',
+    savedAddresses,
+    paymentMethods,
+  };
+}
+
+
+  public async getAddresses(): Promise<AddressModel[]> {
+  const userId = await this.getAuthenticatedUserId();
+
+  const { data, error } = await supabase
+    .from('addresses')
+    .select('*')
+    .eq('customer_id', userId)
+    .order('address_id', { ascending: true });
+
+  if (error) {
+    console.error('UserRepository: failed to fetch addresses:', error);
+    throw error;
+  }
+
+  return (data ?? []).map((address: Address) =>
+    this.mapAddress(address)
+  );
+}
+
 
   /**
    * Adds loyalty points to the customer's account.
