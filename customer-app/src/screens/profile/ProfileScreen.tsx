@@ -1,169 +1,661 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, ActivityIndicator } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Feather } from '@expo/vector-icons';
-import { useDesignMode } from '../../context/DesignModeContext';
-import { FontSizes, Spacing, Radius } from '../../theme/tokens';
-import Card from '../../components/Card';
-import Button from '../../components/Button';
-import { userRepository, UserModel } from '../../repositories/UserRepository';
+import React, { useCallback, useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Switch,
+  ActivityIndicator,
+  Alert,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Feather } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
 
-interface Props { navigation: any }
+import { useDesignMode } from "../../context/DesignModeContext";
+import { FontSizes, Spacing, Radius } from "../../theme/tokens";
+import Card from "../../components/Card";
+import Button from "../../components/Button";
 
-const LANGUAGES = ['English', 'Afrikaans', 'isiZulu'];
+import { userRepository, UserModel } from "../../repositories/UserRepository";
+
+import { supabase } from "../../services/supabase";
+
+interface Props {
+  navigation: any;
+}
+
+const LANGUAGES = ["English", "Afrikaans", "isiZulu"];
 
 export default function ProfileScreen({ navigation }: Props) {
   const { colors, font, isWireframe: isWF } = useDesignMode();
+
   const [pushEnabled, setPushEnabled] = useState(true);
   const [smsEnabled, setSmsEnabled] = useState(true);
-  const [language, setLanguage] = useState('English');
+  const [language, setLanguage] = useState("English");
+
   const [user, setUser] = useState<UserModel | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    userRepository.getUser().then((data) => {
+  /*
+   * ============================================================
+   * LOAD USER
+   * ============================================================
+   */
+
+  const loadUser = useCallback(async () => {
+    try {
+      setRefreshing(true);
+
+      const data = await userRepository.getUser();
+
       setUser(data);
+    } catch (error: any) {
+      console.error("ProfileScreen: failed to load user:", error);
+
+      setUser(null);
+
+      Alert.alert(
+        "Unable to Load Profile",
+        error?.message ?? "We could not load your profile information.",
+      );
+    } finally {
       setLoading(false);
-    }).catch(() => setLoading(false));
+      setRefreshing(false);
+    }
   }, []);
 
-  const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
+  /*
+   * Reload every time ProfileScreen becomes active.
+   *
+   * This means:
+   * Add Address -> go back -> addresses reload
+   * Edit Profile -> go back -> profile reloads
+   * Add Card -> go back -> payment methods reload
+   */
+  useFocusEffect(
+    useCallback(() => {
+      loadUser();
+    }, [loadUser]),
+  );
+
+  /*
+   * ============================================================
+   * SIGN OUT
+   * ============================================================
+   */
+
+  const handleSignOut = () => {
+    Alert.alert(
+      "Sign Out",
+      "Are you sure you want to sign out of your FuelNow account?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Sign Out",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setLoading(true);
+
+              const { error } = await supabase.auth.signOut();
+
+              if (error) {
+                throw error;
+              }
+
+              await userRepository.clearAuthenticatedUser();
+
+              navigation.reset({
+                index: 0,
+                routes: [{ name: "Login" }],
+              });
+            } catch (error: any) {
+              console.error("ProfileScreen: sign out failed:", error);
+
+              setLoading(false);
+
+              Alert.alert(
+                "Sign Out Failed",
+                error?.message ??
+                  "We could not sign you out. Please try again.",
+              );
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  /*
+   * ============================================================
+   * SECTION COMPONENT
+   * ============================================================
+   */
+
+  const Section = ({
+    title,
+    children,
+  }: {
+    title: string;
+    children: React.ReactNode;
+  }) => (
     <View style={{ gap: Spacing.sm }}>
-      <Text style={[styles.sectionLabel, { color: isWF ? '#888' : colors.inkLight, fontFamily: font('body'), fontSize: FontSizes.xs }]}>
+      <Text
+        style={[
+          styles.sectionLabel,
+          {
+            color: isWF ? "#888" : colors.inkLight,
+            fontFamily: font("body"),
+            fontSize: FontSizes.xs,
+          },
+        ]}
+      >
         {title.toUpperCase()}
       </Text>
-      <Card padded={false} style={{ overflow: 'hidden' }}>
+
+      <Card
+        padded={false}
+        style={{
+          overflow: "hidden",
+        }}
+      >
         {children}
       </Card>
     </View>
   );
 
+  /*
+   * ============================================================
+   * ROW COMPONENT
+   * ============================================================
+   */
+
   const Row = ({
-    icon, label, value, onPress, danger = false, isSwitch = false, switchVal, onSwitch,
+    icon,
+    label,
+    value,
+    onPress,
+    danger = false,
+    isSwitch = false,
+    switchVal,
+    onSwitch,
   }: {
-    icon: string; label: string; value?: string; onPress?: () => void;
-    danger?: boolean; isSwitch?: boolean; switchVal?: boolean; onSwitch?: (v: boolean) => void;
+    icon: string;
+    label: string;
+    value?: string;
+    onPress?: () => void;
+    danger?: boolean;
+    isSwitch?: boolean;
+    switchVal?: boolean;
+    onSwitch?: (value: boolean) => void;
   }) => (
     <TouchableOpacity
-      style={[styles.row, { borderBottomColor: isWF ? '#EEEEEE' : colors.divider }]}
+      style={[
+        styles.row,
+        {
+          borderBottomColor: isWF ? "#EEEEEE" : colors.divider,
+        },
+      ]}
       onPress={onPress}
       disabled={isSwitch}
       activeOpacity={0.7}
     >
-      <View style={[styles.rowIcon, { backgroundColor: danger ? (isWF ? '#D0D0D0' : '#FEE2E2') : (isWF ? '#E0E0E0' : colors.petrolLight) }]}>
-        <Feather name={icon as any} size={16} color={danger ? (isWF ? '#555' : colors.signalRed) : (isWF ? '#444' : colors.petrolDeep)} />
+      <View
+        style={[
+          styles.rowIcon,
+          {
+            backgroundColor: danger
+              ? isWF
+                ? "#D0D0D0"
+                : "#FEE2E2"
+              : isWF
+                ? "#E0E0E0"
+                : colors.petrolLight,
+          },
+        ]}
+      >
+        <Feather
+          name={icon as any}
+          size={16}
+          color={
+            danger
+              ? isWF
+                ? "#555"
+                : colors.signalRed
+              : isWF
+                ? "#444"
+                : colors.petrolDeep
+          }
+        />
       </View>
-      <Text style={[styles.rowLabel, { color: danger ? (isWF ? '#555' : colors.signalRed) : (isWF ? '#1A1A1A' : colors.charcoalInk), fontFamily: font('body'), fontSize: FontSizes.base, flex: 1 }]}>
+
+      <Text
+        style={[
+          styles.rowLabel,
+          {
+            color: danger
+              ? isWF
+                ? "#555"
+                : colors.signalRed
+              : isWF
+                ? "#1A1A1A"
+                : colors.charcoalInk,
+            fontFamily: font("body"),
+            fontSize: FontSizes.base,
+            flex: 1,
+          },
+        ]}
+      >
         {label}
       </Text>
+
       {isSwitch ? (
         <Switch
           value={switchVal}
           onValueChange={onSwitch}
-          trackColor={{ true: isWF ? '#888' : '#F97316', false: isWF ? '#CCC' : colors.divider }}
+          trackColor={{
+            true: isWF ? "#888" : "#F97316",
+            false: isWF ? "#CCC" : colors.divider,
+          }}
           thumbColor="#FFFFFF"
         />
       ) : value ? (
-        <Text style={[{ color: isWF ? '#888' : colors.inkLight, fontFamily: font('body'), fontSize: FontSizes.sm }]}>{value}</Text>
+        <Text
+          style={{
+            color: isWF ? "#888" : colors.inkLight,
+            fontFamily: font("body"),
+            fontSize: FontSizes.sm,
+          }}
+        >
+          {value}
+        </Text>
       ) : (
-        <Feather name="chevron-right" size={18} color={isWF ? '#BBBBBB' : colors.inkFaint} />
+        <Feather
+          name="chevron-right"
+          size={18}
+          color={isWF ? "#BBBBBB" : colors.inkFaint}
+        />
       )}
     </TouchableOpacity>
   );
 
+  /*
+   * ============================================================
+   * LOADING
+   * ============================================================
+   */
+
+  if (loading && !user) {
+    return (
+      <SafeAreaView
+        style={[
+          styles.container,
+          {
+            backgroundColor: isWF ? "#F0F0F0" : colors.warmAsh,
+          },
+        ]}
+      >
+        <View style={styles.topBar}>
+          <Text
+            style={[
+              styles.title,
+              {
+                color: isWF ? "#1A1A1A" : colors.charcoalInk,
+                fontFamily: font("displayBold"),
+                fontSize: FontSizes.xl,
+              },
+            ]}
+          >
+            Profile
+          </Text>
+        </View>
+
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator
+            size="large"
+            color={isWF ? "#555" : colors.petrolDeep}
+          />
+
+          <Text
+            style={{
+              marginTop: Spacing.md,
+              color: isWF ? "#555" : colors.inkLight,
+              fontFamily: font("body"),
+              fontSize: FontSizes.sm,
+            }}
+          >
+            Loading your profile...
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  /*
+   * ============================================================
+   * MAIN SCREEN
+   * ============================================================
+   */
+
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: isWF ? '#F0F0F0' : colors.warmAsh }]}>
+    <SafeAreaView
+      style={[
+        styles.container,
+        {
+          backgroundColor: isWF ? "#F0F0F0" : colors.warmAsh,
+        },
+      ]}
+    >
       <View style={styles.topBar}>
-        <Text style={[styles.title, { color: isWF ? '#1A1A1A' : colors.charcoalInk, fontFamily: font('displayBold'), fontSize: FontSizes.xl }]}>
+        <Text
+          style={[
+            styles.title,
+            {
+              color: isWF ? "#1A1A1A" : colors.charcoalInk,
+              fontFamily: font("displayBold"),
+              fontSize: FontSizes.xl,
+            },
+          ]}
+        >
           Profile
         </Text>
+
+        {refreshing && (
+          <ActivityIndicator
+            size="small"
+            color={isWF ? "#555" : colors.petrolDeep}
+          />
+        )}
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        {/* Profile header */}
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* =====================================================
+            PROFILE HEADER
+        ====================================================== */}
+
         <Card style={styles.profileCard}>
           <View style={styles.avatarRow}>
-            <View style={[styles.avatar, { backgroundColor: isWF ? '#D0D0D0' : colors.petrolDeep }]}>
+            <View
+              style={[
+                styles.avatar,
+                {
+                  backgroundColor: isWF ? "#D0D0D0" : colors.petrolDeep,
+                },
+              ]}
+            >
               {isWF ? (
                 <Feather name="user" size={24} color="#555" />
               ) : (
                 <Text style={{ fontSize: 32 }}>👤</Text>
               )}
             </View>
+
             <View style={{ flex: 1 }}>
-              <Text style={[{ color: isWF ? '#1A1A1A' : colors.charcoalInk, fontFamily: font('displayBold'), fontSize: FontSizes.lg }]}>
-                {user?.name || 'Loading...'}
+              <Text
+                style={[
+                  {
+                    color: isWF ? "#1A1A1A" : colors.charcoalInk,
+                    fontFamily: font("displayBold"),
+                    fontSize: FontSizes.lg,
+                  },
+                ]}
+              >
+                {user?.name || "User"}
               </Text>
-              <Text style={[{ color: isWF ? '#555' : colors.inkLight, fontFamily: font('body'), fontSize: FontSizes.sm }]}>
-                {user?.email || ''}
+
+              <Text
+                style={[
+                  {
+                    color: isWF ? "#555" : colors.inkLight,
+                    fontFamily: font("body"),
+                    fontSize: FontSizes.sm,
+                  },
+                ]}
+              >
+                {user?.email || ""}
               </Text>
-              <Text style={[{ color: isWF ? '#555' : colors.inkLight, fontFamily: font('body'), fontSize: FontSizes.sm }]}>
-                {user?.phone || ''}
+
+              <Text
+                style={[
+                  {
+                    color: isWF ? "#555" : colors.inkLight,
+                    fontFamily: font("body"),
+                    fontSize: FontSizes.sm,
+                  },
+                ]}
+              >
+                {user?.phone || ""}
               </Text>
             </View>
-            <TouchableOpacity style={[styles.editBtn, { backgroundColor: isWF ? '#E0E0E0' : colors.petrolLight }]}>
-              <Feather name="edit-2" size={16} color={isWF ? '#444' : colors.petrolDeep} />
+
+            <TouchableOpacity
+              style={[
+                styles.editBtn,
+                {
+                  backgroundColor: isWF ? "#E0E0E0" : colors.petrolLight,
+                },
+              ]}
+              onPress={() => navigation.navigate("PersonalInformation")}
+              activeOpacity={0.7}
+            >
+              <Feather
+                name="edit-2"
+                size={16}
+                color={isWF ? "#444" : colors.petrolDeep}
+              />
             </TouchableOpacity>
           </View>
         </Card>
 
-        {/* Personal info */}
+        {/* =====================================================
+            ACCOUNT
+        ====================================================== */}
+
         <Section title="Account">
-          <Row icon="user" label="Personal Information" onPress={() => {}} />
-          <Row icon="shield" label="Change Password" onPress={() => {}} />
-          <Row icon="phone" label="Phone Number" value={user?.phone} onPress={() => {}} />
+          <Row
+            icon="user"
+            label="Personal Information"
+            onPress={() => navigation.navigate("PersonalInformation")}
+          />
+
+          <Row
+            icon="shield"
+            label="Change Password"
+            onPress={() => navigation.navigate("ChangePassword")}
+          />
+
+          <Row
+            icon="phone"
+            label="Phone Number"
+            value={user?.phone}
+            onPress={() => navigation.navigate("PersonalInformation")}
+          />
         </Section>
 
-        {/* Saved addresses */}
+        {/* =====================================================
+            ADDRESSES
+        ====================================================== */}
+
         <Section title="Addresses">
-          {user?.savedAddresses.map((addr) => (
-            <Row
-              key={addr.id}
-              icon={addr.label === 'Home' ? 'home' : 'briefcase'}
-              label={`${addr.label} — ${addr.street}`}
-              onPress={() => {}}
-            />
-          ))}
-          <Row icon="plus" label="Add new address" onPress={() => {}} />
+          {user?.savedAddresses && user.savedAddresses.length > 0 ? (
+            user.savedAddresses.map((addr) => (
+              <Row
+                key={addr.id}
+                icon={
+                  addr.label === "Home"
+                    ? "home"
+                    : addr.label === "Work"
+                      ? "briefcase"
+                      : "map-pin"
+                }
+                label={`${addr.label} - ${addr.street}`}
+                value={addr.city ? `${addr.suburb}, ${addr.city}` : undefined}
+                onPress={() =>
+                  navigation.navigate("AddAddress", {
+                    existing: addr,
+                  })
+                }
+              />
+            ))
+          ) : (
+            <View style={styles.emptyRow}>
+              <Feather
+                name="map-pin"
+                size={18}
+                color={isWF ? "#999" : colors.inkFaint}
+              />
+
+              <Text
+                style={{
+                  color: isWF ? "#777" : colors.inkLight,
+                  fontFamily: font("body"),
+                  fontSize: FontSizes.sm,
+                }}
+              >
+                No saved addresses
+              </Text>
+            </View>
+          )}
+
+          <Row
+            icon="plus"
+            label="Add new address"
+            onPress={() => navigation.navigate("AddAddress")}
+          />
         </Section>
 
-        {/* Payment */}
+        {/* =====================================================
+            PAYMENT METHODS
+        ====================================================== */}
+
         <Section title="Payment Methods">
-          {user?.paymentMethods.map((pm) => (
-            <Row
-              key={pm.id}
-              icon={pm.type === 'mobile_money' ? 'smartphone' : 'credit-card'}
-              label={pm.label}
-              value={pm.isDefault ? 'Default' : undefined}
-              onPress={() => {}}
-            />
-          ))}
-          <Row icon="plus" label="Add payment method" onPress={() => navigation.navigate('AddCard')} />
+          {user?.paymentMethods && user.paymentMethods.length > 0 ? (
+            user.paymentMethods.map((pm) => (
+              <Row
+                key={pm.id}
+                icon={pm.type === "mobile_money" ? "smartphone" : "credit-card"}
+                label={pm.label}
+                value={pm.isDefault ? "Default" : undefined}
+                onPress={() => {
+                  if (pm.type === "card") {
+                    navigation.navigate("AddCard", {
+                      existing: pm,
+                    });
+                  }
+                }}
+              />
+            ))
+          ) : (
+            <View style={styles.emptyRow}>
+              <Feather
+                name="credit-card"
+                size={18}
+                color={isWF ? "#999" : colors.inkFaint}
+              />
+
+              <Text
+                style={{
+                  color: isWF ? "#777" : colors.inkLight,
+                  fontFamily: font("body"),
+                  fontSize: FontSizes.sm,
+                }}
+              >
+                No saved payment methods
+              </Text>
+            </View>
+          )}
+
+          <Row
+            icon="plus"
+            label="Add payment method"
+            onPress={() => navigation.navigate("AddCard")}
+          />
         </Section>
 
-        {/* Notifications */}
+        {/* =====================================================
+            NOTIFICATIONS
+        ====================================================== */}
+
         <Section title="Notifications">
-          <Row icon="bell" label="Push notifications" isSwitch switchVal={pushEnabled} onSwitch={setPushEnabled} />
-          <Row icon="message-square" label="SMS updates" isSwitch switchVal={smsEnabled} onSwitch={setSmsEnabled} />
+          <Row
+            icon="bell"
+            label="Push notifications"
+            isSwitch
+            switchVal={pushEnabled}
+            onSwitch={setPushEnabled}
+          />
+
+          <Row
+            icon="message-square"
+            label="SMS updates"
+            isSwitch
+            switchVal={smsEnabled}
+            onSwitch={setSmsEnabled}
+          />
         </Section>
 
-        {/* Language */}
+        {/* =====================================================
+            LANGUAGE
+        ====================================================== */}
+
         <View style={{ gap: Spacing.sm }}>
-          <Text style={[styles.sectionLabel, { color: isWF ? '#888' : colors.inkLight, fontFamily: font('body'), fontSize: FontSizes.xs }]}>
+          <Text
+            style={[
+              styles.sectionLabel,
+              {
+                color: isWF ? "#888" : colors.inkLight,
+                fontFamily: font("body"),
+                fontSize: FontSizes.xs,
+              },
+            ]}
+          >
             LANGUAGE / TAAL / ULIMI
           </Text>
+
           <Card padded={false}>
             {LANGUAGES.map((lang) => (
               <TouchableOpacity
                 key={lang}
-                style={[styles.langRow, { borderBottomColor: isWF ? '#EEE' : colors.divider }]}
+                style={[
+                  styles.langRow,
+                  {
+                    borderBottomColor: isWF ? "#EEE" : colors.divider,
+                  },
+                ]}
                 onPress={() => setLanguage(lang)}
+                activeOpacity={0.7}
               >
-                <Text style={[{ color: isWF ? '#1A1A1A' : colors.charcoalInk, fontFamily: font('body'), fontSize: FontSizes.base, flex: 1 }]}>
+                <Text
+                  style={[
+                    {
+                      color: isWF ? "#1A1A1A" : colors.charcoalInk,
+                      fontFamily: font("body"),
+                      fontSize: FontSizes.base,
+                      flex: 1,
+                    },
+                  ]}
+                >
                   {lang}
                 </Text>
+
                 {language === lang && (
-                  <View style={[styles.checkCircle, { backgroundColor: isWF ? '#888' : colors.petrolDeep }]}>
+                  <View
+                    style={[
+                      styles.checkCircle,
+                      {
+                        backgroundColor: isWF ? "#888" : colors.petrolDeep,
+                      },
+                    ]}
+                  >
                     <Feather name="check" size={12} color="#FFFFFF" />
                   </View>
                 )}
@@ -172,26 +664,59 @@ export default function ProfileScreen({ navigation }: Props) {
           </Card>
         </View>
 
-        {/* App info */}
+        {/* =====================================================
+            APP
+        ====================================================== */}
+
         <Section title="App">
-          <Row icon="help-circle" label="Help & Support" onPress={() => {}} />
-          <Row icon="file-text" label="Terms of Service" onPress={() => {}} />
-          <Row icon="lock" label="Privacy Policy" onPress={() => {}} />
-          <Row icon="info" label="App version" value="1.0.0 (mockup)" />
+          <Row
+            icon="help-circle"
+            label="Help & Support"
+            onPress={() => navigation.navigate("HelpSupport")}
+          />
+
+          <Row
+            icon="file-text"
+            label="Terms of Use"
+            onPress={() => navigation.navigate("TermsOfUse")}
+          />
+
+          <Row
+            icon="lock"
+            label="Privacy Policy"
+            onPress={() => navigation.navigate("PrivacyPolicy")}
+          />
+
+          <Row icon="info" label="App version" value="1.0.0" />
         </Section>
 
-        {/* Logout */}
+        {/* =====================================================
+            SIGN OUT
+        ====================================================== */}
+
         <Button
           label="Sign Out"
-          onPress={() => navigation.replace('Login')}
+          onPress={handleSignOut}
           variant="danger"
           size="md"
-          style={{ marginTop: Spacing.sm }}
+          style={{
+            marginTop: Spacing.sm,
+          }}
           icon={<Feather name="log-out" size={16} color="#FFFFFF" />}
         />
 
-        <Text style={[{ textAlign: 'center', color: isWF ? '#AAAAAA' : colors.inkFaint, fontFamily: font('body'), fontSize: FontSizes.xs, marginTop: Spacing.md }]}>
-          FuelNow v1.0.0 · Design mockup only · Not for production use
+        <Text
+          style={[
+            {
+              textAlign: "center",
+              color: isWF ? "#AAAAAA" : colors.inkFaint,
+              fontFamily: font("body"),
+              fontSize: FontSizes.xs,
+              marginTop: Spacing.md,
+            },
+          ]}
+        >
+          FuelNow v1.0.0
         </Text>
       </ScrollView>
     </SafeAreaView>
@@ -199,18 +724,99 @@ export default function ProfileScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  topBar: { padding: Spacing.base, paddingTop: Spacing.md },
+  container: {
+    flex: 1,
+  },
+
+  topBar: {
+    padding: Spacing.base,
+    paddingTop: Spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+
   title: {},
-  scroll: { padding: Spacing.base, paddingBottom: Spacing['4xl'], gap: Spacing.lg },
+
+  scroll: {
+    padding: Spacing.base,
+    paddingBottom: Spacing["4xl"],
+    gap: Spacing.lg,
+  },
+
   profileCard: {},
-  avatarRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
-  avatar: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center' },
-  editBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  sectionLabel: { paddingLeft: Spacing.xs },
-  row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md, borderBottomWidth: 1 },
-  rowIcon: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+
+  avatarRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+  },
+
+  avatar: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  editBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  sectionLabel: {
+    paddingLeft: Spacing.xs,
+  },
+
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    padding: Spacing.md,
+    borderBottomWidth: 1,
+    minHeight: 62,
+  },
+
+  rowIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
   rowLabel: {},
-  langRow: { flexDirection: 'row', alignItems: 'center', padding: Spacing.md, borderBottomWidth: 1 },
-  checkCircle: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+
+  emptyRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    padding: Spacing.md,
+    minHeight: 58,
+  },
+
+  langRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.md,
+    borderBottomWidth: 1,
+  },
+
+  checkCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  loadingContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 });

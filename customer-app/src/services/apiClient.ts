@@ -230,40 +230,58 @@ export class CustomerApiClient {
   }
 
   static async updateAddress(params: {
-    addressId: string;
-    customerId?: string;
-    label?: string;
-    unitNumber?: string;
-    streetNumber?: string;
-    streetName?: string;
-    suburb?: string;
-    city?: string;
-    province?: string;
-    postalCode?: string;
-    deliveryInstructions?: string;
-    isDefault?: boolean;
-  }): Promise<ApiResponse<Address>> {
-    try {
-      const { data, error } = await supabase.rpc('update_address', {
-        p_address_id: params.addressId,
-        p_customer_id: params.customerId,
-        p_label: params.label,
-        p_unit_number: params.unitNumber,
-        p_street_number: params.streetNumber,
-        p_street_name: params.streetName,
-        p_suburb: params.suburb,
-        p_city: params.city,
-        p_province: params.province,
-        p_postal_code: params.postalCode,
-        p_delivery_instructions: params.deliveryInstructions,
-        p_is_default: params.isDefault,
-      });
-      if (error) throw error;
-      return { data, error: null };
-    } catch (err: any) {
-      return { data: null, error: err };
+  addressId: string;
+  customerId?: string;
+  label?: string;
+  unitNumber?: string;
+  streetNumber?: string;
+  streetName?: string;
+  suburb?: string;
+  city?: string;
+  province?: string;
+  postalCode?: string;
+  deliveryInstructions?: string;
+  isDefault?: boolean;
+}): Promise<ApiResponse<Address>> {
+  try {
+    const { data, error } = await supabase.rpc('update_address', {
+      p_address_id: params.addressId,
+      p_customer_id: params.customerId,
+      p_label: params.label,
+      p_unit_number: params.unitNumber,
+      p_street_number: params.streetNumber,
+      p_street_name: params.streetName,
+      p_suburb: params.suburb,
+      p_city: params.city,
+      p_province: params.province,
+      p_postal_code: params.postalCode,
+      p_delivery_instructions: params.deliveryInstructions,
+      p_is_default: params.isDefault,
+    });
+
+    if (error) {
+      console.error('CustomerApiClient.updateAddress RPC error:', error);
+      return {
+        data: null,
+        error,
+      };
     }
+
+    return {
+      data: data as Address,
+      error: null,
+    };
+  } catch (error) {
+    console.error('CustomerApiClient.updateAddress error:', error);
+
+    return {
+      data: null,
+      error: error instanceof Error
+        ? error
+        : new Error('Unable to update address.'),
+    };
   }
+}
 
   static async deleteAddress(addressId: string): Promise<ApiResponse<boolean>> {
     try {

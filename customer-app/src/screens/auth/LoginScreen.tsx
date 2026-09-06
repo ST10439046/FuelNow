@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -7,15 +7,15 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Feather } from '@expo/vector-icons';
-import { useDesignMode } from '../../context/DesignModeContext';
-import { FontSizes, Spacing, Radius } from '../../theme/tokens';
-import Button from '../../components/Button';
-import Input from '../../components/Input';
-import { CustomerApiClient } from '../../services/apiClient';
-import { userRepository } from '../../repositories/UserRepository';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Feather } from "@expo/vector-icons";
+import { useDesignMode } from "../../context/DesignModeContext";
+import { FontSizes, Spacing, Radius } from "../../theme/tokens";
+import Button from "../../components/Button";
+import Input from "../../components/Input";
+import { userRepository } from "../../repositories/UserRepository";
+import { supabase } from "../../services/supabase";
 
 interface Props {
   navigation: any;
@@ -24,94 +24,180 @@ interface Props {
 export default function LoginScreen({ navigation }: Props) {
   const { colors, font, isWireframe } = useDesignMode();
 
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
-  if (!email.trim() || !password) {
-    setError('Please enter your email and password.');
-    return;
-  }
-
-  setError('');
-  setLoading(true);
-
-  try {
-    const response = await CustomerApiClient.signInWithPassword(
-      email.trim(),
-      password
-    );
-
-    console.log(
-      'LOGIN RESPONSE:',
-      JSON.stringify(response.data, null, 2)
-    );
-
-    if (response.error) {
-      throw response.error;
+    if (!email.trim() || !password) {
+      setError("Please enter your email and password.");
+      return;
     }
 
-    if (!response.data) {
-      throw new Error('Invalid email or password.');
-    }
+    setError("");
+    setLoading(true);
 
-    // The RPC returns an array containing the user
-    const user = Array.isArray(response.data)
-      ? response.data[0]
-      : response.data;
+    try {
+      // =====================================================
+      // 1. SIGN IN USING SUPABASE AUTH
+      // =====================================================
 
-    console.log(
-      'LOGIN USER:',
-      JSON.stringify(user, null, 2)
-    );
-
-    if (!user) {
-      throw new Error('Invalid email or password.');
-    }
-
-    if (!user.user_id) {
-      throw new Error(
-        'Login succeeded, but no user ID was returned.'
+      const { data, error: authError } = await supabase.auth.signInWithPassword(
+        {
+          email: email.trim().toLowerCase(),
+          password,
+        },
       );
+
+      if (authError) {
+        throw authError;
+      }
+
+      if (!data.user) {
+        throw new Error("Login failed. No authenticated user was returned.");
+      }
+
+      if (!data.session) {
+        throw new Error("Login failed. No authentication session was created.");
+      }
+
+      // This is auth.users.id
+      const authId = data.user.id;
+
+      console.log("SUPABASE AUTH ID:", authId);
+      console.log("SUPABASE JWT RECEIVED:", !!data.session.access_token);
+
+      // =====================================================
+      // 2. FIND THE APPLICATION USER
+      // =====================================================
+      //
+      // auth.users.id != public.users.user_id
+      //
+      // Your relationship is:
+      //
+      // auth.users.id
+      //       ↓
+      // public.users.auth_id
+      //       ↓
+      // public.users.user_id
+      //
+      // =====================================================
+
+      const { data: appUser, error: userError } = await supabase
+        .from("users")
+        .select(
+          `
+          user_id,
+          auth_id,
+          full_name,
+          email,
+          phone_number,
+          
+          status
+        `,
+        )
+        .eq("auth_id", authId)
+        .single();
+
+      if (userError) {
+        console.error("APPLICATION USER LOOKUP ERROR:", userError);
+
+        // Sign out because authentication succeeded but
+        // there is no matching application user.
+        await supabase.auth.signOut();
+
+        throw new Error(
+          "Your authentication account was found, but your FuelNow user profile could not be found.",
+        );
+      }
+
+      if (!appUser) {
+        await supabase.auth.signOut();
+
+        throw new Error(
+          "Your authentication account is not linked to a FuelNow user profile.",
+        );
+      }
+
+      console.log("APPLICATION USER:", JSON.stringify(appUser, null, 2));
+
+      // =====================================================
+      // 3. CHECK APPLICATION USER STATUS
+      // =====================================================
+
+      if (appUser.status !== "active") {
+        await supabase.auth.signOut();
+
+        throw new Error(
+          "Your FuelNow account is not active. Please contact support.",
+        );
+      }
+
+      // =====================================================
+      // 4. MAKE SURE WE HAVE THE APPLICATION USER ID
+      // =====================================================
+
+      if (!appUser.user_id) {
+        await supabase.auth.signOut();
+
+        throw new Error("Login succeeded, but no FuelNow user ID was found.");
+      }
+
+      // =====================================================
+      // 5. SAVE THE APPLICATION USER ID
+      // =====================================================
+      //
+      // IMPORTANT:
+      //
+      // We intentionally save public.users.user_id here,
+      // NOT auth.users.id.
+      //
+      // Your existing FuelNow repositories use user_id /
+      // customer_id when querying application tables.
+      //
+      // =====================================================
+
+      await userRepository.setAuthenticatedUserId(appUser.user_id);
+
+      console.log("FUELNOW USER ID SAVED:", appUser.user_id);
+
+      console.log("AUTH ID:", appUser.auth_id);
+
+      // =====================================================
+      // 6. LOGIN COMPLETE
+      // =====================================================
+
+      navigation.replace("MainTabs");
+    } catch (e: any) {
+      console.error("Login error:", e);
+
+      // Convert common Supabase authentication errors
+      // into friendlier messages.
+
+      if (e?.message?.toLowerCase().includes("invalid login credentials")) {
+        setError("Invalid email or password.");
+      } else if (e?.message?.toLowerCase().includes("email not confirmed")) {
+        setError("Please confirm your email address before signing in.");
+      } else {
+        setError(e?.message || "Unable to sign in. Please try again.");
+      }
+    } finally {
+      setLoading(false);
     }
-
-    // Save the authenticated user's ID
-    await userRepository.setAuthenticatedUserId(
-      user.user_id
-    );
-
-    console.log(
-      'AUTHENTICATED USER ID SAVED:',
-      user.user_id
-    );
-
-    navigation.replace('MainTabs');
-  } catch (e: any) {
-    console.error('Login error:', e);
-
-    setError(
-      e?.message || 'Invalid email or password.'
-    );
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   return (
     <SafeAreaView
       style={[
         styles.container,
         {
-          backgroundColor: isWireframe
-            ? '#F0F0F0'
-            : colors.warmAsh,
+          backgroundColor: isWireframe ? "#F0F0F0" : colors.warmAsh,
         },
       ]}
     >
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={{ flex: 1 }}
       >
         <ScrollView
@@ -136,7 +222,7 @@ export default function LoginScreen({ navigation }: Props) {
                   style={[
                     styles.logoText,
                     {
-                      fontFamily: font('displayBold'),
+                      fontFamily: font("displayBold"),
                       color: colors.ignitionAmber,
                     },
                   ]}
@@ -150,11 +236,9 @@ export default function LoginScreen({ navigation }: Props) {
               style={[
                 styles.appName,
                 {
-                  color: isWireframe
-                    ? '#1A1A1A'
-                    : colors.petrolDeep,
-                  fontFamily: font('displayBold'),
-                  fontSize: FontSizes['3xl'],
+                  color: isWireframe ? "#1A1A1A" : colors.petrolDeep,
+                  fontFamily: font("displayBold"),
+                  fontSize: FontSizes["3xl"],
                 },
               ]}
             >
@@ -165,10 +249,8 @@ export default function LoginScreen({ navigation }: Props) {
               style={[
                 styles.tagline,
                 {
-                  color: isWireframe
-                    ? '#666'
-                    : colors.inkLight,
-                  fontFamily: font('body'),
+                  color: isWireframe ? "#666" : colors.inkLight,
+                  fontFamily: font("body"),
                   fontSize: FontSizes.base,
                 },
               ]}
@@ -182,14 +264,10 @@ export default function LoginScreen({ navigation }: Props) {
             style={[
               styles.card,
               {
-                backgroundColor: isWireframe
-                  ? '#FFFFFF'
-                  : colors.white,
-                borderRadius: isWireframe
-                  ? Radius.sm
-                  : Radius.xl,
+                backgroundColor: isWireframe ? "#FFFFFF" : colors.white,
+                borderRadius: isWireframe ? Radius.sm : Radius.xl,
                 borderWidth: isWireframe ? 1.5 : 0,
-                borderColor: '#CCCCCC',
+                borderColor: "#CCCCCC",
               },
             ]}
           >
@@ -197,10 +275,8 @@ export default function LoginScreen({ navigation }: Props) {
               style={[
                 styles.formTitle,
                 {
-                  color: isWireframe
-                    ? '#1A1A1A'
-                    : colors.charcoalInk,
-                  fontFamily: font('display'),
+                  color: isWireframe ? "#1A1A1A" : colors.charcoalInk,
+                  fontFamily: font("display"),
                   fontSize: FontSizes.xl,
                 },
               ]}
@@ -212,10 +288,8 @@ export default function LoginScreen({ navigation }: Props) {
               style={[
                 styles.formSubtitle,
                 {
-                  color: isWireframe
-                    ? '#666'
-                    : colors.inkLight,
-                  fontFamily: font('body'),
+                  color: isWireframe ? "#666" : colors.inkLight,
+                  fontFamily: font("body"),
                   fontSize: FontSizes.sm,
                   marginBottom: Spacing.xl,
                 },
@@ -231,16 +305,13 @@ export default function LoginScreen({ navigation }: Props) {
               onChangeText={setEmail}
               keyboardType="email-address"
               autoCapitalize="none"
+              autoCorrect={false}
               placeholder="you@example.co.za"
               leftIcon={
                 <Feather
                   name="mail"
                   size={18}
-                  color={
-                    isWireframe
-                      ? '#888'
-                      : colors.inkLight
-                  }
+                  color={isWireframe ? "#888" : colors.inkLight}
                 />
               }
             />
@@ -251,16 +322,14 @@ export default function LoginScreen({ navigation }: Props) {
               value={password}
               onChangeText={setPassword}
               isPassword
+              autoCapitalize="none"
+              autoCorrect={false}
               placeholder="Enter your password"
               leftIcon={
                 <Feather
                   name="lock"
                   size={18}
-                  color={
-                    isWireframe
-                      ? '#888'
-                      : colors.inkLight
-                  }
+                  color={isWireframe ? "#888" : colors.inkLight}
                 />
               }
             />
@@ -271,10 +340,8 @@ export default function LoginScreen({ navigation }: Props) {
                 style={[
                   styles.error,
                   {
-                    color: isWireframe
-                      ? '#555'
-                      : colors.signalRed,
-                    fontFamily: font('body'),
+                    color: isWireframe ? "#555" : colors.signalRed,
+                    fontFamily: font("body"),
                     fontSize: FontSizes.sm,
                   },
                 ]}
@@ -286,18 +353,14 @@ export default function LoginScreen({ navigation }: Props) {
             {/* Forgot password */}
             <TouchableOpacity
               style={styles.forgotBtn}
-              onPress={() =>
-                navigation.navigate('ForgotPassword')
-              }
+              onPress={() => navigation.navigate("ForgotPassword")}
             >
               <Text
                 style={[
                   styles.forgotText,
                   {
-                    color: isWireframe
-                      ? '#444'
-                      : colors.petrolDeep,
-                    fontFamily: font('bodyMedium'),
+                    color: isWireframe ? "#444" : colors.petrolDeep,
+                    fontFamily: font("bodyMedium"),
                     fontSize: FontSizes.sm,
                   },
                 ]}
@@ -325,30 +388,22 @@ export default function LoginScreen({ navigation }: Props) {
               style={[
                 styles.signupText,
                 {
-                  color: isWireframe
-                    ? '#555'
-                    : colors.inkLight,
-                  fontFamily: font('body'),
+                  color: isWireframe ? "#555" : colors.inkLight,
+                  fontFamily: font("body"),
                   fontSize: FontSizes.sm,
                 },
               ]}
             >
-              Don't have an account?{' '}
+              Don't have an account?{" "}
             </Text>
 
-            <TouchableOpacity
-              onPress={() =>
-                navigation.navigate('SignUp')
-              }
-            >
+            <TouchableOpacity onPress={() => navigation.navigate("SignUp")}>
               <Text
                 style={[
                   styles.signupLink,
                   {
-                    color: isWireframe
-                      ? '#333'
-                      : colors.petrolDeep,
-                    fontFamily: font('bodySemiBold'),
+                    color: isWireframe ? "#333" : colors.petrolDeep,
+                    fontFamily: font("bodySemiBold"),
                     fontSize: FontSizes.sm,
                   },
                 ]}
@@ -375,8 +430,8 @@ const styles = StyleSheet.create({
   },
 
   header: {
-    alignItems: 'center',
-    paddingTop: Spacing['2xl'],
+    alignItems: "center",
+    paddingTop: Spacing["2xl"],
     gap: Spacing.sm,
   },
 
@@ -384,8 +439,8 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: Spacing.sm,
   },
 
@@ -398,7 +453,7 @@ const styles = StyleSheet.create({
     height: 64,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: '#888',
+    borderColor: "#888",
     marginBottom: Spacing.sm,
   },
 
@@ -423,16 +478,16 @@ const styles = StyleSheet.create({
   },
 
   forgotBtn: {
-    alignSelf: 'flex-end',
+    alignSelf: "flex-end",
     padding: Spacing.xs,
   },
 
   forgotText: {},
 
   signupRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
     paddingBottom: Spacing.lg,
   },
 

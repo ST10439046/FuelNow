@@ -13,11 +13,21 @@ import {
 export interface AddressModel {
   id: string;
   label: 'Home' | 'Work' | 'Other' | 'Site A' | 'Depot';
+
+  unitNumber?: string;
+  streetNumber?: string;
+  streetName?: string;
+
   street: string;
+
   suburb: string;
   city: string;
   province: string;
   postalCode: string;
+
+  instructions?: string;
+  isDefault?: boolean;
+
   coordinates?: {
     lat: number;
     lng: number;
@@ -242,34 +252,79 @@ private async getAuthenticatedUserId(): Promise<string> {
     return newPoints;
   }
 
+
+public async updateAddress(params: {
+  addressId: string;
+  customerId?: string;
+  label?: string;
+  unitNumber?: string;
+  streetNumber?: string;
+  streetName?: string;
+  suburb?: string;
+  city?: string;
+  province?: string;
+  postalCode?: string;
+  deliveryInstructions?: string;
+  isDefault?: boolean;
+}): Promise<AddressModel> {
+  const userId = await this.getAuthenticatedUserId();
+
+  const response = await CustomerApiClient.updateAddress({
+    addressId: params.addressId,
+    customerId: params.customerId ?? userId,
+    label: params.label,
+    unitNumber: params.unitNumber,
+    streetNumber: params.streetNumber,
+    streetName: params.streetName,
+    suburb: params.suburb,
+    city: params.city,
+    province: params.province,
+    postalCode: params.postalCode,
+    deliveryInstructions: params.deliveryInstructions,
+    isDefault: params.isDefault ?? false,
+  });
+
+  if (response.error || !response.data) {
+    throw (
+      response.error ??
+      new Error('Unable to update address.')
+    );
+  }
+
+  return this.mapAddress(response.data);
+}
+
   /**
    * Adds an address to the customer's Supabase account.
    */
   public async addAddress(
-    address: Omit<AddressModel, 'id'>
-  ): Promise<AddressModel> {
-    const userId = await this.getAuthenticatedUserId();
+  address: Omit<AddressModel, 'id'>
+): Promise<AddressModel> {
+  const userId = await this.getAuthenticatedUserId();
 
-    const response = await CustomerApiClient.createAddress({
-      customerId: userId,
-      label: address.label,
-      streetName: address.street,
-      suburb: address.suburb,
-      city: address.city,
-      province: address.province,
-      postalCode: address.postalCode,
-    });
+  const response = await CustomerApiClient.createAddress({
+    customerId: userId,
+    label: address.label,
+    unitNumber: address.unitNumber,
+    streetNumber: address.streetNumber,
+    streetName: address.streetName,
+    suburb: address.suburb,
+    city: address.city,
+    province: address.province,
+    postalCode: address.postalCode,
+    deliveryInstructions: address.instructions,
+    isDefault: address.isDefault ?? false,
+  });
 
-    if (response.error || !response.data) {
-      throw (
-        response.error ??
-        new Error('Unable to create address.')
-      );
-    }
-
-    return this.mapAddress(response.data);
+  if (response.error || !response.data) {
+    throw (
+      response.error ??
+      new Error('Unable to create address.')
+    );
   }
 
+  return this.mapAddress(response.data);
+}
   /**
    * Adds a payment method.
    *
@@ -290,22 +345,32 @@ private async getAuthenticatedUserId(): Promise<string> {
    * Converts a database Address into the format expected by the app.
    */
   private mapAddress(address: Address): AddressModel {
-    return {
-      id: address.address_id,
-      label: this.mapAddressLabel(address.label),
-      street: [
-        address.unit_number,
-        address.street_number,
-        address.street_name,
-      ]
-        .filter(Boolean)
-        .join(' '),
-      suburb: address.suburb ?? '',
-      city: address.city ?? '',
-      province: address.province ?? '',
-      postalCode: address.postal_code ?? '',
-    };
-  }
+  return {
+    id: address.address_id,
+
+    label: this.mapAddressLabel(address.label),
+
+    unitNumber: address.unit_number ?? '',
+    streetNumber: address.street_number ?? '',
+    streetName: address.street_name ?? '',
+
+    street: [
+      address.unit_number,
+      address.street_number,
+      address.street_name,
+    ]
+      .filter(Boolean)
+      .join(' '),
+
+    suburb: address.suburb ?? '',
+    city: address.city ?? '',
+    province: address.province ?? '',
+    postalCode: address.postal_code ?? '',
+
+    instructions: address.delivery_instructions ?? '',
+    isDefault: address.is_default ?? false,
+  };
+}
 
   /**
    * Converts the database loyalty tier into the app's loyalty tier.
