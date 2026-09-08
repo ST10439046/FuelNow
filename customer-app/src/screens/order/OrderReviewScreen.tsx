@@ -1,51 +1,62 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform,
-} from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Feather } from '@expo/vector-icons';
-import { useDesignMode } from '../../context/DesignModeContext';
-import { FontSizes, Spacing, Radius } from '../../theme/tokens';
-import Button from '../../components/Button';
-import { orderRepository } from '../../repositories/OrderRepository';
-import { userRepository } from '../../repositories/UserRepository';
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Platform,
+} from "react-native";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
+import { Feather } from "@expo/vector-icons";
+import { useDesignMode } from "../../context/DesignModeContext";
+import { FontSizes, Spacing, Radius } from "../../theme/tokens";
+import Button from "../../components/Button";
+import { orderRepository } from "../../repositories/OrderRepository";
+import { userRepository } from "../../repositories/UserRepository";
 
-interface Props { navigation: any; route?: any }
+interface Props {
+  navigation: any;
+  route?: any;
+}
 
 export default function OrderReviewScreen({ navigation, route }: Props) {
   const { colors, font, isWireframe: isWF } = useDesignMode();
   const insets = useSafeAreaInsets();
 
   // Pull order params — fall back to sensible defaults so screen always renders
-  const fuelType = route?.params?.fuelType ?? 'Petrol 95';
+  const fuelType = route?.params?.fuelType ?? "Petrol 95";
   const litres = route?.params?.litres ?? 40;
   const pricePerLitre = route?.params?.pricePerLitre ?? 23.45;
-  const deliveryAddressId = route?.params?.deliveryAddressId ?? 'addr_001';
+  const deliveryAddressId = route?.params?.deliveryAddressId ?? "addr_001";
   const scheduledAt = route?.params?.scheduledAt ?? null;
-  const paymentMethodId = route?.params?.paymentMethodId ?? 'pm_001';
+  const paymentMethodId = route?.params?.paymentMethodId ?? "pm_001";
 
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   const [userState, setUserState] = useState(userRepository);
 
   const address = route?.params?.deliveryAddress || {
     id: deliveryAddressId,
-    label: 'Home',
-    street: '18 Kenneth Kaunda Road',
-    suburb: 'Durban North',
-    city: 'Durban',
-    province: 'KwaZulu-Natal',
-    postalCode: '4051',
-    coordinates: { lat: -29.8000, lng: 31.0333 },
+    label: "Home",
+    street: "18 Kenneth Kaunda Road",
+    suburb: "Durban North",
+    city: "Durban",
+    province: "KwaZulu-Natal",
+    postalCode: "4051",
+    coordinates: { lat: -29.8, lng: 31.0333 },
   };
 
   const pm = {
     id: paymentMethodId,
-    type: 'card' as const,
-    label: 'FNB Corporate Cheque ••• 4821',
-    last4: '4821',
-    brand: 'visa' as const,
+    type: "card" as const,
+    label: "FNB Corporate Cheque ••• 4821",
+    last4: "4821",
+    brand: "visa" as const,
     isDefault: true,
   };
 
@@ -55,7 +66,7 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
 
   const handleConfirm = async () => {
     setLoading(true);
-    setError('');
+    setError("");
     try {
       const order = await orderRepository.createOrder({
         fuelType,
@@ -65,34 +76,59 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
         scheduledAt,
         paymentMethod: pm,
       });
-      navigation.navigate('OrderPlaced', { orderId: order.id, order });
+      navigation.replace("OrderPlaced", {
+        orderCreated: true,
+        orderId: order.id,
+        order,
+      });
     } catch (e: any) {
-      setError(e.message ?? 'Failed to place order. Please try again.');
+      setError(e.message ?? "Failed to place order. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
   // ── Shared colours ─────────────────────────────────────────────────────────
-  const bg = isWF ? '#F0F0F0' : colors.warmAsh;
-  const cardBg = isWF ? '#FFFFFF' : colors.white;
-  const border = isWF ? '#DDDDDD' : colors.divider;
-  const headingColor = isWF ? '#1A1A1A' : colors.charcoalInk;
-  const subColor = isWF ? '#555555' : colors.inkLight;
+  const bg = isWF ? "#F0F0F0" : colors.warmAsh;
+  const cardBg = isWF ? "#FFFFFF" : colors.white;
+  const border = isWF ? "#DDDDDD" : colors.divider;
+  const headingColor = isWF ? "#1A1A1A" : colors.charcoalInk;
+  const subColor = isWF ? "#555555" : colors.inkLight;
 
   // ── Sub-component: label / value row ──────────────────────────────────────
   const Row = ({
-    label, value, mono = false, large = false,
-  }: { label: string; value: string; mono?: boolean; large?: boolean }) => (
+    label,
+    value,
+    mono = false,
+    large = false,
+  }: {
+    label: string;
+    value: string;
+    mono?: boolean;
+    large?: boolean;
+  }) => (
     <View style={styles.row}>
-      <Text style={{ color: subColor, fontFamily: font('body'), fontSize: FontSizes.sm, flex: 1 }}>
+      <Text
+        style={{
+          color: subColor,
+          fontFamily: font("body"),
+          fontSize: FontSizes.sm,
+          flex: 1,
+        }}
+      >
         {label}
       </Text>
-      <Text style={{
-        color: large ? (isWF ? '#1A1A1A' : colors.petrolDeep) : headingColor,
-        fontFamily: mono ? (isWF ? undefined : 'Inter_600SemiBold') : font('bodyMedium'),
-        fontSize: large ? FontSizes.lg : FontSizes.base,
-      }}>
+      <Text
+        style={{
+          color: large ? (isWF ? "#1A1A1A" : colors.petrolDeep) : headingColor,
+          fontFamily: mono
+            ? isWF
+              ? undefined
+              : "Inter_600SemiBold"
+            : font("bodyMedium"),
+          fontSize: large ? FontSizes.lg : FontSizes.base,
+        }}
+      >
         {value}
       </Text>
     </View>
@@ -100,24 +136,49 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
 
   // ── Sub-component: section card ───────────────────────────────────────────
   const Section = ({
-    icon, emoji, title, children,
-  }: { icon?: string; emoji?: string; title: string; children: React.ReactNode }) => (
-    <View style={[styles.sectionCard, { backgroundColor: cardBg, borderColor: border, borderRadius: isWF ? Radius.sm : Radius.lg }]}>
+    icon,
+    emoji,
+    title,
+    children,
+  }: {
+    icon?: string;
+    emoji?: string;
+    title: string;
+    children: React.ReactNode;
+  }) => (
+    <View
+      style={[
+        styles.sectionCard,
+        {
+          backgroundColor: cardBg,
+          borderColor: border,
+          borderRadius: isWF ? Radius.sm : Radius.lg,
+        },
+      ]}
+    >
       <View style={styles.sectionHeader}>
         {!isWF && (
-          <View style={[styles.iconCircle, { backgroundColor: colors.petrolLight }]}>
-            {emoji
-              ? <Text style={{ fontSize: 16 }}>{emoji}</Text>
-              : <Feather name={icon as any} size={16} color={colors.petrolDeep} />}
+          <View
+            style={[styles.iconCircle, { backgroundColor: colors.petrolLight }]}
+          >
+            {emoji ? (
+              <Text style={{ fontSize: 16 }}>{emoji}</Text>
+            ) : (
+              <Feather name={icon as any} size={16} color={colors.petrolDeep} />
+            )}
           </View>
         )}
-        <Text style={{ color: headingColor, fontFamily: font('display'), fontSize: FontSizes.base }}>
+        <Text
+          style={{
+            color: headingColor,
+            fontFamily: font("display"),
+            fontSize: FontSizes.base,
+          }}
+        >
           {title}
         </Text>
       </View>
-      <View style={{ gap: 6 }}>
-        {children}
-      </View>
+      <View style={{ gap: 6 }}>{children}</View>
     </View>
   );
 
@@ -125,10 +186,19 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
     <SafeAreaView style={[styles.container, { backgroundColor: bg }]}>
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backBtn}
+        >
           <Feather name="arrow-left" size={22} color={headingColor} />
         </TouchableOpacity>
-        <Text style={{ color: headingColor, fontFamily: font('display'), fontSize: FontSizes.md }}>
+        <Text
+          style={{
+            color: headingColor,
+            fontFamily: font("display"),
+            fontSize: FontSizes.md,
+          }}
+        >
           Order Review
         </Text>
         <View style={{ width: 40 }} />
@@ -144,7 +214,11 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
         <Section emoji="⛽" title="Fuel Order">
           <Row label="Fuel type" value={fuelType} />
           <Row label="Volume" value={`${litres.toFixed(1)} litres`} mono />
-          <Row label="Unit price" value={`R${pricePerLitre.toFixed(2)}/L`} mono />
+          <Row
+            label="Unit price"
+            value={`R${pricePerLitre.toFixed(2)}/L`}
+            mono
+          />
           <View style={[styles.divider, { backgroundColor: border }]} />
           <Row label="Fuel subtotal" value={`R${subtotal.toFixed(2)}`} mono />
         </Section>
@@ -153,7 +227,7 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
         <Section icon="map-pin" title="Delivery">
           <Row label="Address" value={`${address.street}`} />
           <Row label="Suburb" value={`${address.suburb}, ${address.city}`} />
-          <Row label="Timing" value={scheduledAt ?? 'As soon as possible'} />
+          <Row label="Timing" value={scheduledAt ?? "As soon as possible"} />
           <Row label="Est. arrival" value="20–35 minutes" />
         </Section>
 
@@ -164,63 +238,121 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
         </Section>
 
         {/* Cost breakdown */}
-        <View style={[
-          styles.sectionCard,
-          {
-            backgroundColor: cardBg,
-            borderColor: isWF ? '#AAAAAA' : colors.petrolDeep,
-            borderRadius: isWF ? Radius.sm : Radius.lg,
-            borderWidth: 1.5,
-          },
-        ]}>
+        <View
+          style={[
+            styles.sectionCard,
+            {
+              backgroundColor: cardBg,
+              borderColor: isWF ? "#AAAAAA" : colors.petrolDeep,
+              borderRadius: isWF ? Radius.sm : Radius.lg,
+              borderWidth: 1.5,
+            },
+          ]}
+        >
           {!isWF && (
-            <View style={[styles.accentStripe, { backgroundColor: colors.petrolDeep }]} />
+            <View
+              style={[
+                styles.accentStripe,
+                { backgroundColor: colors.petrolDeep },
+              ]}
+            />
           )}
-          <Text style={{ color: headingColor, fontFamily: font('display'), fontSize: FontSizes.base, marginBottom: Spacing.md }}>
+          <Text
+            style={{
+              color: headingColor,
+              fontFamily: font("display"),
+              fontSize: FontSizes.base,
+              marginBottom: Spacing.md,
+            }}
+          >
             Cost Breakdown
           </Text>
           <View style={{ gap: 6 }}>
-            <Row label={`Fuel (${litres}L × R${pricePerLitre.toFixed(2)})`} value={`R${subtotal.toFixed(2)}`} mono />
-            <Row label="Delivery fee" value={`R${deliveryFee.toFixed(2)}`} mono />
+            <Row
+              label={`Fuel (${litres}L × R${pricePerLitre.toFixed(2)})`}
+              value={`R${subtotal.toFixed(2)}`}
+              mono
+            />
+            <Row
+              label="Delivery fee"
+              value={`R${deliveryFee.toFixed(2)}`}
+              mono
+            />
             <Row label="Service fee" value="R0.00" mono />
             <View style={[styles.divider, { backgroundColor: border }]} />
-            <Row label="Total (incl. VAT)" value={`R${total.toFixed(2)}`} mono large />
+            <Row
+              label="Total (incl. VAT)"
+              value={`R${total.toFixed(2)}`}
+              mono
+              large
+            />
           </View>
         </View>
 
         {/* T&C */}
-        <Text style={{ color: isWF ? '#AAAAAA' : colors.inkFaint, fontFamily: font('body'), fontSize: FontSizes.xs, textAlign: 'center', lineHeight: 18 }}>
-          By confirming you agree to FuelNow&apos;s Terms of Service. Delivery fee may vary based on your exact location.
+        <Text
+          style={{
+            color: isWF ? "#AAAAAA" : colors.inkFaint,
+            fontFamily: font("body"),
+            fontSize: FontSizes.xs,
+            textAlign: "center",
+            lineHeight: 18,
+          }}
+        >
+          By confirming you agree to FuelNow&apos;s Terms of Service. Delivery
+          fee may vary based on your exact location.
         </Text>
 
         {error ? (
-          <Text style={{ color: isWF ? '#555' : colors.signalRed, fontFamily: font('body'), fontSize: FontSizes.sm, textAlign: 'center' }}>
+          <Text
+            style={{
+              color: isWF ? "#555" : colors.signalRed,
+              fontFamily: font("body"),
+              fontSize: FontSizes.sm,
+              textAlign: "center",
+            }}
+          >
             {error}
           </Text>
         ) : null}
       </ScrollView>
 
       {/* ── Sticky confirm button at bottom ───────────────────────────────── */}
-      <View style={[
-        styles.footer,
-        {
-          backgroundColor: cardBg,
-          borderTopColor: border,
-          paddingBottom: Platform.OS === 'web'
-            ? Spacing.lg
-            : Math.max(insets.bottom, Spacing.base),
-        },
-      ]}>
+      <View
+        style={[
+          styles.footer,
+          {
+            backgroundColor: cardBg,
+            borderTopColor: border,
+            paddingBottom:
+              Platform.OS === "web"
+                ? Spacing.lg
+                : Math.max(insets.bottom, Spacing.base),
+          },
+        ]}
+      >
         <View style={styles.totalPreview}>
-          <Text style={{ color: subColor, fontFamily: font('body'), fontSize: FontSizes.xs }}>
+          <Text
+            style={{
+              color: subColor,
+              fontFamily: font("body"),
+              fontSize: FontSizes.xs,
+            }}
+          >
             Total due
           </Text>
-          <Text style={{ color: headingColor, fontFamily: isWF ? undefined : 'Inter_700Bold', fontSize: FontSizes.xl }}>
+          <Text
+            style={{
+              color: headingColor,
+              fontFamily: isWF ? undefined : "Inter_700Bold",
+              fontSize: FontSizes.xl,
+            }}
+          >
             R{total.toFixed(2)}
           </Text>
         </View>
         <Button
-          label={loading ? 'Placing order...' : 'Confirm Order →'}
+          label={loading ? "Placing order..." : "Confirm Order →"}
           onPress={handleConfirm}
           loading={loading}
           variant="primary"
@@ -236,44 +368,49 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    height: Platform.OS === 'web' ? ('100vh' as any) : '100%',
-    maxHeight: Platform.OS === 'web' ? ('100vh' as any) : '100%',
-    overflow: 'hidden',
+    height: Platform.OS === "web" ? ("100vh" as any) : "100%",
+    maxHeight: Platform.OS === "web" ? ("100vh" as any) : "100%",
+    overflow: "hidden",
   },
   topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: Spacing.base,
     paddingVertical: Spacing.md,
   },
-  backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  backBtn: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   scroll: {
     paddingHorizontal: Spacing.base,
     paddingTop: Spacing.sm,
-    paddingBottom: Spacing['3xl'],
+    paddingBottom: Spacing["3xl"],
     gap: Spacing.md,
   },
   sectionCard: {
     padding: Spacing.base,
     borderWidth: 1,
     gap: Spacing.md,
-    position: 'relative',
+    position: "relative",
   },
   sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.sm,
   },
   iconCircle: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   accentStripe: {
-    position: 'absolute',
+    position: "absolute",
     left: 0,
     top: 0,
     bottom: 0,
@@ -282,17 +419,17 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: Radius.lg,
   },
   row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   divider: { height: 1, marginVertical: Spacing.xs },
   footer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.md,
     padding: Spacing.base,
     borderTopWidth: 1,
   },
-  totalPreview: { alignItems: 'flex-start' },
+  totalPreview: { alignItems: "flex-start" },
 });

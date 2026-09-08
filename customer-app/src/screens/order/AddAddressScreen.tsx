@@ -15,6 +15,7 @@ import { FontSizes, Spacing, Radius } from "../../theme/tokens";
 import Input from "../../components/Input";
 import Button from "../../components/Button";
 import Card from "../../components/Card";
+import { geocodeAddress } from "@/services/geocoding";
 
 interface Props {
   navigation: any;
@@ -110,48 +111,90 @@ export default function AddAddressScreen({ navigation, route }: Props) {
         ADDRESS_LABELS.find((l) => l.id === label)?.label ?? "Other";
 
       if (existing?.id) {
+        const fullAddress = [
+          unitNumber,
+          streetNumber,
+          streetName,
+          suburb,
+          city,
+          province,
+          postalCode,
+          "South Africa",
+        ]
+          .filter(Boolean)
+          .join(", ");
+        const geocoded = await geocodeAddress(fullAddress);
+
+        const coordinates = geocoded
+          ? {
+              lat: geocoded.latitude,
+              lng: geocoded.longitude,
+            }
+          : undefined;
         const response = await userRepository.updateAddress({
           addressId: existing.id,
+
           label: selectedLabel,
           unitNumber: unitNumber.trim() || undefined,
           streetNumber: streetNumber.trim(),
           streetName: streetName.trim(),
           suburb: suburb.trim(),
           city: city.trim(),
-          province: selectedProvince?.label ?? province,
+          province: province.trim(),
           postalCode: postalCode.trim(),
+
           deliveryInstructions: instructions.trim() || undefined,
+
+          isDefault: false,
+
+          coordinates,
         });
 
         if (!response) {
           throw new Error("Unable to update the address.");
         }
       } else {
+        const fullAddress = [
+          unitNumber,
+          streetNumber,
+          streetName,
+          suburb,
+          city,
+          province,
+          postalCode,
+          "South Africa",
+        ]
+          .filter(Boolean)
+          .join(", ");
+        const geocoded = await geocodeAddress(fullAddress);
+
+        const coordinates = geocoded
+          ? {
+              lat: geocoded.latitude,
+              lng: geocoded.longitude,
+            }
+          : undefined;
         const newAddress = await userRepository.addAddress({
           label: selectedLabel,
-
           unitNumber: unitNumber.trim() || undefined,
           streetNumber: streetNumber.trim(),
           streetName: streetName.trim(),
-
-          street: unitNumber.trim()
-            ? `${unitNumber.trim()}/${streetNumber.trim()} ${streetName.trim()}`
-            : `${streetNumber.trim()} ${streetName.trim()}`,
-
           suburb: suburb.trim(),
           city: city.trim(),
-          province: selectedProvince?.label ?? province,
+          province: province.trim(),
           postalCode: postalCode.trim(),
-
           instructions: instructions.trim() || undefined,
           isDefault: false,
+          coordinates,
+          street: [unitNumber, streetNumber, streetName]
+            .filter(Boolean)
+            .join(" "),
         });
 
         if (!newAddress) {
           throw new Error("Unable to save the address.");
         }
         onSave?.(newAddress);
-
       }
 
       navigation.goBack();
