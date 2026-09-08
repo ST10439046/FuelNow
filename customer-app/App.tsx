@@ -44,6 +44,8 @@ import NotificationsScreen from "./src/screens/notifications/NotificationsScreen
 import ProfileScreen from "./src/screens/profile/ProfileScreen";
 import TermsOfUseScreen from "./src/screens/profile/TermsOfUseScreen";
 import PrivacyPolicyScreen from "./src/screens/profile/PrivacyPolicyScreen";
+import PersonalInformationScreen from "./src/screens/profile/PersonalInformationScreen";
+import ChangePasswordScreen from "./src/screens/profile/ChangePasswordScreen";
 
 const RootStack = createStackNavigator();
 const CustomerTab = createBottomTabNavigator();
@@ -153,6 +155,21 @@ function CustomerNavigator() {
       <RootStack.Screen name="Notifications" component={NotificationsScreen} />
       <RootStack.Screen name="TermsOfUse" component={TermsOfUseScreen} />
       <RootStack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
+      {/* Security */}
+      <RootStack.Screen
+        name="PersonalInformation"
+        component={PersonalInformationScreen}
+        options={{
+          headerShown: false,
+        }}
+      />
+      <RootStack.Screen
+        name="ChangePassword"
+        component={ChangePasswordScreen}
+        options={{
+          headerShown: false,
+        }}
+      />
     </RootStack.Navigator>
   );
 }

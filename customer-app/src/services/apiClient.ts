@@ -75,29 +75,39 @@ export class CustomerApiClient {
     }
   }
 
-  static async updateUser(params: {
-    userId: string;
-    fullName?: string;
-    email?: string;
-    phoneNumber?: string;
-    passwordHash?: string;
-    status?: UserStatus;
-  }): Promise<ApiResponse<User>> {
-    try {
-      const { data, error } = await supabase.rpc('update_user', {
-        p_user_id: params.userId,
-        p_full_name: params.fullName,
-        p_email: params.email,
-        p_phone_number: params.phoneNumber,
-        p_password_hash: params.passwordHash,
-        p_status: params.status,
-      });
-      if (error) throw error;
-      return { data, error: null };
-    } catch (err: any) {
-      return { data: null, error: err };
+static async updateUser(params: {
+  userId: string;
+  fullName: string;
+  email: string;
+  phoneNumber: string;
+}): Promise<ApiResponse<User>> {
+  try {
+    const { data, error } = await supabase.rpc('update_user', {
+      p_user_id: params.userId,
+      p_full_name: params.fullName,
+      p_email: params.email,
+      p_phone_number: params.phoneNumber,
+    });
+
+    if (error) {
+      throw error;
     }
+
+    return {
+      data,
+      error: null,
+    };
+  } catch (err: any) {
+    console.error('CustomerApiClient.updateUser failed:', err);
+
+    return {
+      data: null,
+      error: err instanceof Error
+        ? err
+        : new Error(String(err)),
+    };
   }
+}
 
   static async deleteUser(userId: string): Promise<ApiResponse<boolean>> {
     try {

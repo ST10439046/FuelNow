@@ -353,6 +353,82 @@ public async addAddress(
     );
   }
 
+
+public async updateProfile(params: {
+  fullName: string;
+  email: string;
+  phoneNumber: string;
+}): Promise<UserModel> {
+  const userId = await this.getAuthenticatedUserId();
+
+  const {
+    data: {
+      user: authUser,
+    },
+    error: authUserError,
+  } = await supabase.auth.getUser();
+
+  if (authUserError) {
+    throw authUserError;
+  }
+
+  if (!authUser) {
+    throw new Error('No authenticated user found.');
+  }
+
+  const currentEmail = authUser.email ?? '';
+  const currentPhone = authUser.phone ?? '';
+
+  // ==========================================================
+  // 1. UPDATE SUPABASE AUTH
+  // ==========================================================
+
+  const authUpdates: {
+    email?: string;
+    phone?: string;
+  } = {};
+
+  if (
+    params.email.trim().toLowerCase() !==
+    currentEmail.trim().toLowerCase()
+  ) {
+    authUpdates.email = params.email.trim();
+  }
+
+  if (params.phoneNumber.trim() !== currentPhone.trim()) {
+    authUpdates.phone = params.phoneNumber.trim();
+  }
+
+  if (Object.keys(authUpdates).length > 0) {
+    const { error } = await supabase.auth.updateUser(authUpdates);
+
+    if (error) {
+      throw error;
+    }
+  }
+
+  // ==========================================================
+  // 2. UPDATE PUBLIC.USERS
+  // ==========================================================
+
+  const response = await CustomerApiClient.updateUser({
+    userId,
+    fullName: params.fullName.trim(),
+    email: params.email.trim(),
+    phoneNumber: params.phoneNumber.trim(),
+  });
+
+  if (response.error) {
+    throw response.error;
+  }
+
+  // ==========================================================
+  // 3. RETURN FRESH PROFILE
+  // ==========================================================
+
+  return await this.getUser();
+}
+
   /**
    * Converts a database Address into the format expected by the app.
    */
@@ -417,23 +493,23 @@ private mapAddress(address: Address): AddressModel {
   /**
    * Calculates the loyalty tier from the number of points.
    */
-  private calculateLoyaltyTier(
-    points: number
-  ): UserModel['loyaltyTier'] {
-    if (points >= 2500) {
-      return 'Platinum';
-    }
-
-    if (points >= 1000) {
-      return 'Gold';
-    }
-
-    if (points >= 500) {
-      return 'Silver';
-    }
-
-    return 'Bronze';
+ private calculateLoyaltyTier(
+  points: number
+): UserModel["loyaltyTier"] {
+  if (points >= 1000) {
+    return "Platinum";
   }
+
+  if (points >= 500) {
+    return "Gold";
+  }
+
+  if (points >= 200) {
+    return "Silver";
+  }
+
+  return "Bronze";
+}
 
   /**
    * Makes sure address labels match the application's allowed values.
