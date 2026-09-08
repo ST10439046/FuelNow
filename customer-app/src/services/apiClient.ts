@@ -183,33 +183,45 @@ export class CustomerApiClient {
   // ADDRESS RPCs
   // ───────────────────────────────────────────────────────────────────────────
 
-  static async getAddress(addressId: string): Promise<ApiResponse<Address>> {
-    try {
-      const { data, error } = await supabase.rpc('get_address', {
-        p_address_id: addressId,
-      });
-      if (error) throw error;
-      return { data, error: null };
-    } catch (err: any) {
-      return { data: null, error: err };
-    }
-  }
+// ───────────────────────────────────────────────────────────────────────────
+// ADDRESS RPCs
+// ───────────────────────────────────────────────────────────────────────────
 
-  static async createAddress(params: {
-    customerId: string;
-    label?: string;
-    unitNumber?: string;
-    streetNumber?: string;
-    streetName?: string;
-    suburb?: string;
-    city?: string;
-    province?: string;
-    postalCode?: string;
-    deliveryInstructions?: string;
-    isDefault?: boolean;
-  }): Promise<ApiResponse<Address>> {
-    try {
-      const { data, error } = await supabase.rpc('create_address', {
+static async getAddress(
+  addressId: string
+): Promise<ApiResponse<Address>> {
+  try {
+    const { data, error } = await supabase.rpc('get_address', {
+      p_address_id: addressId,
+    });
+
+    if (error) throw error;
+
+    return { data, error: null };
+  } catch (err: any) {
+    return { data: null, error: err };
+  }
+}
+
+static async createAddress(params: {
+  customerId: string;
+  label?: string;
+  unitNumber?: string;
+  streetNumber?: string;
+  streetName?: string;
+  suburb?: string;
+  city?: string;
+  province?: string;
+  postalCode?: string;
+  deliveryInstructions?: string;
+  isDefault?: boolean;
+  latitude?: number;
+  longitude?: number;
+}): Promise<ApiResponse<Address>> {
+  try {
+    const { data, error } = await supabase.rpc(
+      'create_address',
+      {
         p_customer_id: params.customerId,
         p_label: params.label || 'Home',
         p_unit_number: params.unitNumber || null,
@@ -219,17 +231,23 @@ export class CustomerApiClient {
         p_city: params.city || null,
         p_province: params.province || 'KwaZulu-Natal',
         p_postal_code: params.postalCode || null,
-        p_delivery_instructions: params.deliveryInstructions || null,
+        p_delivery_instructions:
+          params.deliveryInstructions || null,
         p_is_default: params.isDefault ?? false,
-      });
-      if (error) throw error;
-      return { data, error: null };
-    } catch (err: any) {
-      return { data: null, error: err };
-    }
-  }
+        p_latitude: params.latitude ?? null,
+        p_longitude: params.longitude ?? null,
+      }
+    );
 
-  static async updateAddress(params: {
+    if (error) throw error;
+
+    return { data, error: null };
+  } catch (err: any) {
+    return { data: null, error: err };
+  }
+}
+
+static async updateAddress(params: {
   addressId: string;
   customerId?: string;
   label?: string;
@@ -242,58 +260,59 @@ export class CustomerApiClient {
   postalCode?: string;
   deliveryInstructions?: string;
   isDefault?: boolean;
+  latitude?: number;
+  longitude?: number;
 }): Promise<ApiResponse<Address>> {
   try {
-    const { data, error } = await supabase.rpc('update_address', {
-      p_address_id: params.addressId,
-      p_customer_id: params.customerId,
-      p_label: params.label,
-      p_unit_number: params.unitNumber,
-      p_street_number: params.streetNumber,
-      p_street_name: params.streetName,
-      p_suburb: params.suburb,
-      p_city: params.city,
-      p_province: params.province,
-      p_postal_code: params.postalCode,
-      p_delivery_instructions: params.deliveryInstructions,
-      p_is_default: params.isDefault,
-    });
+    const { data, error } = await supabase.rpc(
+      'update_address',
+      {
+        p_address_id: params.addressId,
+        p_customer_id: params.customerId,
 
-    if (error) {
-      console.error('CustomerApiClient.updateAddress RPC error:', error);
-      return {
-        data: null,
-        error,
-      };
-    }
+        p_label: params.label,
+        p_unit_number: params.unitNumber,
+        p_street_number: params.streetNumber,
+        p_street_name: params.streetName,
+        p_suburb: params.suburb,
+        p_city: params.city,
+        p_province: params.province,
+        p_postal_code: params.postalCode,
+        p_delivery_instructions:
+          params.deliveryInstructions,
+        p_is_default: params.isDefault,
 
-    return {
-      data: data as Address,
-      error: null,
-    };
-  } catch (error) {
-    console.error('CustomerApiClient.updateAddress error:', error);
+        p_latitude: params.latitude,
+        p_longitude: params.longitude,
+      }
+    );
 
-    return {
-      data: null,
-      error: error instanceof Error
-        ? error
-        : new Error('Unable to update address.'),
-    };
+    if (error) throw error;
+
+    return { data, error: null };
+  } catch (err: any) {
+    return { data: null, error: err };
   }
 }
 
-  static async deleteAddress(addressId: string): Promise<ApiResponse<boolean>> {
-    try {
-      const { data, error } = await supabase.rpc('delete_address', {
+static async deleteAddress(
+  addressId: string
+): Promise<ApiResponse<boolean>> {
+  try {
+    const { data, error } = await supabase.rpc(
+      'delete_address',
+      {
         p_address_id: addressId,
-      });
-      if (error) throw error;
-      return { data, error: null };
-    } catch (err: any) {
-      return { data: null, error: err };
-    }
+      }
+    );
+
+    if (error) throw error;
+
+    return { data, error: null };
+  } catch (err: any) {
+    return { data: null, error: err };
   }
+}
 
   // ───────────────────────────────────────────────────────────────────────────
   // ORDER RPCs
