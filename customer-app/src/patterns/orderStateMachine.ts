@@ -10,6 +10,7 @@ export type OrderStatus =
   | 'NAVIGATING'
   | 'ARRIVED'
   | 'DISPENSING'
+  | 'DELIVERED'
   | 'COMPLETED'
   | 'CANCELLED';
 
@@ -181,7 +182,34 @@ export class DispensingState implements IOrderState {
     return { label: 'Dispensing Fuel', color: '#F97316' };
   }
 }
+// Concrete State: Delivered
+export class DeliveredState implements IOrderState {
+  getStatus(): OrderStatus {
+    return 'DELIVERED';
+  }
 
+  canTransitionTo(nextStatus: OrderStatus): OrderStateTransitionResult {
+    if (nextStatus === 'COMPLETED') {
+      return { allowed: true, nextStatus };
+    }
+
+    return {
+      allowed: false,
+      errorMessage: `Delivered order can only transition to COMPLETED.`,
+    };
+  }
+
+  getDescription() {
+    return 'Fuel has been delivered and verified.';
+  }
+
+  getDisplayBadge() {
+    return {
+      label: 'Delivered',
+      color: '#10B981',
+    };
+  }
+}
 // Concrete State: Completed
 export class CompletedState implements IOrderState {
   getStatus(): OrderStatus {
@@ -223,16 +251,17 @@ export class CancelledState implements IOrderState {
 // State Factory
 export class OrderStateMachine {
   private static stateMap: Record<OrderStatus, IOrderState> = {
-    PENDING_PAYMENT: new PendingPaymentState(),
-    PAID: new PaidState(),
-    FINDING_DRIVER: new FindingDriverState(),
-    ACCEPTED: new AcceptedState(),
-    NAVIGATING: new NavigatingState(),
-    ARRIVED: new ArrivedState(),
-    DISPENSING: new DispensingState(),
-    COMPLETED: new CompletedState(),
-    CANCELLED: new CancelledState(),
-  };
+  PENDING_PAYMENT: new PendingPaymentState(),
+  PAID: new PaidState(),
+  FINDING_DRIVER: new FindingDriverState(),
+  ACCEPTED: new AcceptedState(),
+  NAVIGATING: new NavigatingState(),
+  ARRIVED: new ArrivedState(),
+  DISPENSING: new DispensingState(),
+  DELIVERED: new DeliveredState(),
+  COMPLETED: new CompletedState(),
+  CANCELLED: new CancelledState(),
+};
 
   public static getState(status: OrderStatus): IOrderState {
     return this.stateMap[status] || new PendingPaymentState();

@@ -115,49 +115,370 @@ export class OrderRepository {
   }
 
 
-  // ==========================================================================
-  // GET ALL ORDERS
-  // ==========================================================================
+// ==========================================================================
+// MAP JOINED ORDER
+// ==========================================================================
+//
+// Maps the result of get_customer_orders().
+//
+// IMPORTANT:
+// This function performs NO Supabase requests.
+// Everything it needs has already been returned by the RPC.
+//
+// ==========================================================================
 
-  public async getOrders(): Promise<OrderModel[]> {
-    const userId =
-      await this.getCurrentUserId();
+private mapJoinedOrder(
+  row: any
+): OrderModel {
 
-    const {
-      data,
-      error,
-    } = await supabase
-      .from('orders')
-      .select('*')
-      .eq(
-        'customer_id',
-        userId
-      )
-      .order(
-        'placed_at',
-        {
-          ascending: false,
-        }
-      );
+  // ------------------------------------------------------------------------
+  // ADDRESS
+  // ------------------------------------------------------------------------
 
-    if (error) {
-      console.error(
-        'OrderRepository: failed to fetch orders:',
-        error
-      );
+  const address: AddressModel = {
 
-      throw error;
-    }
+    id:
+      row.address_id ??
+      '',
 
-    const orders =
-      await this.mapOrders(
-        data ?? []
-      );
+    label:
+      this.mapAddressLabel(
+        row.address_label
+      ),
 
-    this.orders = orders;
+    unitNumber:
+      row.unit_number ??
+      undefined,
 
-    return [...orders];
+    streetNumber:
+      row.street_number ??
+      undefined,
+
+    streetName:
+      row.street_name ??
+      undefined,
+
+    street:
+      [
+        row.unit_number,
+        row.street_number,
+        row.street_name,
+      ]
+        .filter(Boolean)
+        .join(' '),
+
+    suburb:
+      row.suburb ??
+      '',
+
+    city:
+      row.city ??
+      '',
+
+    province:
+      row.province ??
+      '',
+
+    postalCode:
+      row.postal_code ??
+      '',
+
+    coordinates:
+      row.latitude != null &&
+      row.longitude != null
+        ? {
+            lat:
+              Number(row.latitude),
+
+            lng:
+              Number(row.longitude),
+          }
+        : undefined,
+  };
+
+
+  // ------------------------------------------------------------------------
+  // PAYMENT
+  // ------------------------------------------------------------------------
+  //
+  // payments DOES NOT contain payment_method_id.
+  //
+  // So don't attempt to read it.
+  //
+
+  const paymentMethod: PaymentMethodModel = {
+
+    id:
+      row.payment_id ??
+      'unknown',
+
+    type:
+      'card',
+
+    label:
+      row.payment_status ??
+      'Payment',
+
+    isDefault:
+      false,
+  };
+
+
+  // ------------------------------------------------------------------------
+  // DRIVER
+  // ------------------------------------------------------------------------
+
+  let driver:
+    DriverModel |
+    undefined;
+
+
+  if (row.driver_id) {
+
+    driver = {
+
+      id:
+        row.driver_id,
+
+      name:
+        row.driver_name ??
+        'Driver',
+
+      phone:
+        row.driver_phone ??
+        '',
+
+      rating:
+        Number(
+          row.driver_rating ??
+          5
+        ),
+
+      totalDeliveries:
+        0,
+
+      vehicleReg:
+        '',
+
+      vehicleModel:
+        '',
+
+      vehicleColor:
+        '',
+
+      stationName:
+        '',
+
+      isOnDuty:
+        row.driver_status ===
+        'Online',
+
+      isApproved:
+        true,
+
+      coordinates: {
+        lat: 0,
+        lng: 0,
+      },
+
+      dailyTarget:
+        0,
+
+      todayEarnings:
+        0,
+
+      weekEarnings:
+        0,
+
+      monthEarnings:
+        0,
+
+      documents:
+        [],
+    };
   }
+
+
+  // ------------------------------------------------------------------------
+  // AMOUNTS
+  // ------------------------------------------------------------------------
+
+  const litres =
+    Number(
+      row.volume_litres ??
+      0
+    );
+
+
+  const fuelSubtotal =
+    Number(
+      row.fuel_subtotal ??
+      row.rand_amount ??
+      0
+    );
+
+
+  const pricePerLitre =
+    litres > 0
+      ? +(
+          fuelSubtotal /
+          litres
+        ).toFixed(2)
+      : 0;
+
+
+  const deliveryFee =
+    Number(
+      row.delivery_fee ??
+      49
+    );
+
+
+  const vatAmount =
+    Number(
+      row.vat_amount ??
+      0
+    );
+
+
+  const totalAmount =
+    Number(
+      row.total_amount ??
+      (
+        fuelSubtotal +
+        deliveryFee
+      )
+    );
+
+
+  // ------------------------------------------------------------------------
+  // RETURN
+  // ------------------------------------------------------------------------
+
+  return {
+
+    id:
+      row.order_id,
+
+    orderNumber:
+      this.createOrderNumber(
+        row.order_id
+      ),
+
+    status:
+      this.mapOrderStatus(
+        row.status
+      ),
+
+    item: {
+
+      fuelType:
+        (
+          row.fuel_type_name ??
+          'Unknown Fuel'
+        ) as FuelRateModel['type'],
+
+      litres,
+
+      pricePerLitre,
+
+      subtotal:
+        fuelSubtotal,
+    },
+
+    deliveryAddress:
+      address,
+
+    scheduledAt:
+      row.scheduled_date_time ??
+      null,
+
+    paymentMethod,
+
+    deliveryFee,
+
+    vatAmount,
+
+    totalAmount,
+
+    driver,
+
+    pin:
+      row.delivery_pin ??
+      '',
+
+    podPhotoUrl:
+      undefined,
+
+    createdAt:
+      row.placed_at,
+
+    deliveredAt:
+      row.delivered_at ??
+      undefined,
+
+    estimatedArrivalMinutes:
+      0,
+
+    distanceKm:
+      0,
+
+    rating:
+      row.review_rating ??
+      undefined,
+
+    ratingComment:
+      row.review_comment ??
+      undefined,
+  };
+}
+
+  // ==========================================================================
+// GET ALL ORDERS
+// ==========================================================================
+//
+// ONE SUPABASE REQUEST.
+//
+// The RPC returns orders together with fuel type, address, payment,
+// driver and review information.
+//
+// ==========================================================================
+
+public async getOrders(): Promise<OrderModel[]> {
+
+  const {
+    data,
+    error,
+  } = await supabase.rpc(
+    'get_customer_orders'
+  );
+
+  if (error) {
+
+    console.error(
+      'OrderRepository: failed to fetch customer orders:',
+      error
+    );
+
+    throw error;
+  }
+
+
+  const orders =
+    (data ?? []).map(
+      (row: any) =>
+        this.mapJoinedOrder(row)
+    );
+
+
+  this.orders =
+    orders;
+
+
+  return [
+    ...orders,
+  ];
+}
 
 
   // ==========================================================================
@@ -522,34 +843,15 @@ export class OrderRepository {
 
     const {
       error: paymentError,
-    } = await supabase.rpc(
-      'create_payment',
-      {
-        p_order_id:
-          orderRow.order_id,
-
-        p_payment_method_id:
-          data.paymentMethod.id,
-
-        p_fuel_subtotal:
-          fuelSubtotal,
-
-        p_delivery_fee:
-          deliveryFee,
-
-        p_service_fee:
-          serviceFee,
-
-        p_vat_amount:
-          vatAmount,
-
-        p_total_amount:
-          totalAmount,
-
-        p_status:
-          'PENDING',
-      }
-    );
+    } = await supabase.rpc('create_payment', {
+    p_order_id: orderRow.order_id,
+    p_fuel_subtotal: fuelSubtotal,
+    p_delivery_fee: deliveryFee,
+    p_service_fee: serviceFee,
+    p_vat_amount: vatAmount,
+    p_total_amount: totalAmount,
+    p_status: 'PENDING',
+  });
 
     if (paymentError) {
       console.error(
@@ -1220,41 +1522,19 @@ export class OrderRepository {
   // MAP ORDERS
   // ==========================================================================
 
+  // ==========================================================================
+  // MAP ORDERS
+  // ==========================================================================
+
   private async mapOrders(
     rows: any[]
-  ): Promise<OrderModel[]> {
+  ): Promise<OrderModel[]> {  
 
-    const mapped: OrderModel[] =
-      [];
-
-    for (
-      const row of rows
-    ) {
-
-      try {
-
-        const order =
-          await this.mapOrder(
-            row
-          );
-
-        mapped.push(
-          order
-        );
-
-      } catch (error) {
-
-        console.error(
-          'OrderRepository: failed to map order:',
-          row?.order_id,
-          error
-        );
-
-      }
-    }
-
-    return mapped;
+    return rows.map((row) =>
+      this.mapJoinedOrder(row)
+    );
   }
+
 
 
   // ==========================================================================
@@ -1757,17 +2037,17 @@ export class OrderRepository {
   ): OrderStatus {
 
     const validStatuses: OrderStatus[] = [
-      'PENDING_PAYMENT',
-      'PAID',
-      'FINDING_DRIVER',
-      'ACCEPTED',
-      'NAVIGATING',
-      'ARRIVED',
-      'DISPENSING',
-      'COMPLETED',
-      'CANCELLED',
-    ];
-
+  'PENDING_PAYMENT',
+  'PAID',
+  'FINDING_DRIVER',
+  'ACCEPTED',
+  'NAVIGATING',
+  'ARRIVED',
+  'DISPENSING',
+  'DELIVERED',
+  'COMPLETED',
+  'CANCELLED',
+];
 
     if (
       status &&

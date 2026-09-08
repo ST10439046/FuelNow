@@ -1,200 +1,593 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from "react";
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Feather } from '@expo/vector-icons';
-import { useDesignMode } from '../../context/DesignModeContext';
-import { FontSizes, Spacing, Radius } from '../../theme/tokens';
-import Card from '../../components/Card';
-import Button from '../../components/Button';
-import { getMe, Address } from '../../services/mockApi';
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  TextInput,
+  ActivityIndicator,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Feather } from "@expo/vector-icons";
 
-interface Props { navigation: any; route?: any }
+import DeliveryMap from "../../components/DeliveryMap";
 
-// Mock map for location screen
-function LocationMap({ isWireframe, selectedAddr }: { isWireframe: boolean; selectedAddr: Address }) {
-  if (isWireframe) {
-    return (
-      <View style={[styles.map, { backgroundColor: '#D8D8D8' }]}>
-        <Text style={{ color: '#888', fontSize: FontSizes.sm, textAlign: 'center', marginTop: 60 }}>[ Map — Delivery Pin ]</Text>
-      </View>
-    );
-  }
-  return (
-    <View style={[styles.map, { backgroundColor: '#F5F5F0' }]}>
-      {/* City blocks */}
-      <View style={[{ position: 'absolute', top: 15, left: 20, width: 90, height: 40, backgroundColor: '#E8E8E0', borderRadius: 4 }]} />
-      <View style={[{ position: 'absolute', top: 15, right: 30, width: 100, height: 40, backgroundColor: '#E8E8E0', borderRadius: 4 }]} />
-      <View style={[{ position: 'absolute', top: 120, left: 30, width: 110, height: 50, backgroundColor: '#E8E8E0', borderRadius: 4 }]} />
+import {
+  userRepository,
+  AddressModel,
+} from "../../repositories/UserRepository";
 
-      {/* Park green zone */}
-      <View style={[{ position: 'absolute', top: 120, right: 20, width: 80, height: 40, backgroundColor: '#E0EAE2', borderRadius: 8 }]} />
+import { useDesignMode } from "../../context/DesignModeContext";
+import {
+  FontSizes,
+  Spacing,
+  Radius,
+} from "../../theme/tokens";
 
-      {/* Grid Roads */}
-      <View style={[{ position: 'absolute', top: 75, left: 0, right: 0, height: 8, backgroundColor: '#FFFFFF' }]} />
-      <View style={[{ position: 'absolute', left: '42%', top: 0, bottom: 0, width: 8, backgroundColor: '#FFFFFF' }]} />
+import Button from "../../components/Button";
 
-      {/* Water body */}
-      <View style={[{ position: 'absolute', bottom: -15, right: -15, width: 80, height: 50, borderRadius: 40, backgroundColor: '#BACDD8' }]} />
-
-      {/* Street labels */}
-      <Text style={{ position: 'absolute', top: 64, left: 10, fontSize: 8, color: '#A0A090', fontWeight: 'bold' }}>
-        KENNETH KAUNDA RD
-      </Text>
-
-      {/* Pin */}
-      <View style={[{ position: 'absolute', top: '35%', left: '38%' }]}>
-        <View style={{ alignItems: 'center' }}>
-          <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#F97316', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 6, elevation: 6 }}>
-            <Feather name="map-pin" size={18} color="#FFFFFF" />
-          </View>
-          <View style={{ width: 0, height: 0, borderLeftWidth: 6, borderRightWidth: 6, borderTopWidth: 10, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: '#F97316' }} />
-        </View>
-      </View>
-    </View>
-  );
+interface Props {
+  navigation: any;
+  route?: any;
 }
+
+/*
+ * Default map location.
+ * Used only if an address doesn't have coordinates yet.
+ * Durban North.
+ */
 
 export default function DeliveryLocationScreen({ navigation, route }: Props) {
   const { colors, font, isWireframe: isWF } = useDesignMode();
+
   const params = route?.params ?? {};
-  const extraAddr: Address | undefined = route?.params?.newAddress;
-  const [allAddresses, setAllAddresses] = useState<Address[]>([]);
-  const [selectedAddr, setSelectedAddr] = useState<Address>({
-    id: 'addr_default',
-    label: 'Home',
-    street: '18 Kenneth Kaunda Road',
-    suburb: 'Durban North',
-    city: 'Durban',
-    province: 'KwaZulu-Natal',
-    postalCode: '4051',
-    coordinates: { lat: -29.8, lng: 31.0333 },
-  });
-  const [search, setSearch] = useState('');
 
-  React.useEffect(() => {
-    getMe().then((u) => {
-      if (u.savedAddresses && u.savedAddresses.length > 0) {
-        const list = extraAddr ? [...u.savedAddresses, extraAddr] : u.savedAddresses;
-        setAllAddresses(list);
-        setSelectedAddr(extraAddr ?? list[0]);
+  const [allAddresses, setAllAddresses] = useState<AddressModel[]>([]);
+  const [selectedAddr, setSelectedAddr] = useState<AddressModel | null>(null);
+
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  /*
+   * Load the customer's REAL saved addresses
+   * from Supabase through UserRepository.
+   */
+  useEffect(() => {
+    loadAddresses();
+  }, []);
+
+  const loadAddresses = async () => {
+    try {
+      setLoading(true);
+
+      const addresses = await userRepository.getAddresses();
+
+      setAllAddresses(addresses);
+
+      if (addresses.length > 0) {
+        /*
+         * Prefer the customer's default address.
+         * Otherwise use the first address.
+         */
+        const defaultAddress =
+          addresses.find((address) => address.isDefault) ?? addresses[0];
+
+        setSelectedAddr(defaultAddress);
       }
-    }).catch(() => {});
-  }, [extraAddr]);
-
-  const handleContinue = () => {
-    navigation.navigate('DeliveryTime', { ...params, deliveryAddressId: selectedAddr.id });
+    } catch (error) {
+      console.error("DeliveryLocation: failed to load addresses:", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleAddAddress = () => {
-    navigation.navigate('AddAddress', {
+  /*
+   * Called whenever the customer selects
+   * a different saved address.
+   */
+  const handleSelectAddress = (address: AddressModel) => {
+    setSelectedAddr(address);
+  };
+
+  /*
+   * Continue to delivery time while carrying
+   * the selected address ID forward.
+   */
+  const handleContinue = () => {
+    if (!selectedAddr) {
+      return;
+    }
+
+    navigation.navigate("DeliveryTime", {
       ...params,
-      onSave: (addr: Address) => {
-        setAllAddresses((prev) => [...prev, addr]);
-        setSelectedAddr(addr);
-      },
+
+      /*
+       * This is the real address ID from
+       * public.addresses.address_id
+       */
+      deliveryAddressId: selectedAddr.id,
+
+      /*
+       * Also pass the address itself in case
+       * the next screen needs to display it.
+       */
+      deliveryAddress: selectedAddr,
     });
   };
 
+  const handleAddAddress = () => {
+    navigation.navigate("AddAddress", {
+      ...params,
+    });
+  };
+
+  /*
+   * Filter the customer's actual addresses.
+   */
+  const filteredAddresses = allAddresses.filter((address) => {
+    const query = search.toLowerCase().trim();
+
+    if (!query) {
+      return true;
+    }
+
+    const fullAddress = [
+      address.label,
+      address.street,
+      address.suburb,
+      address.city,
+      address.province,
+      address.postalCode,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+
+    return fullAddress.includes(query);
+  });
+
+  /*
+   * Convert the selected address into a map region.
+   */
+
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: isWF ? '#F0F0F0' : colors.warmAsh }]}>
+    <SafeAreaView
+      style={[
+        styles.container,
+        {
+          backgroundColor: isWF ? "#F0F0F0" : colors.warmAsh,
+        },
+      ]}
+    >
+      {/* =====================================================
+          HEADER
+      ===================================================== */}
+
       <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Feather name="arrow-left" size={22} color={isWF ? '#333' : colors.charcoalInk} />
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backBtn}
+        >
+          <Feather
+            name="arrow-left"
+            size={22}
+            color={isWF ? "#333" : colors.charcoalInk}
+          />
         </TouchableOpacity>
-        <Text style={[styles.screenTitle, { color: isWF ? '#1A1A1A' : colors.charcoalInk, fontFamily: font('display'), fontSize: FontSizes.md }]}>
+
+        <Text
+          style={[
+            styles.screenTitle,
+            {
+              color: isWF ? "#1A1A1A" : colors.charcoalInk,
+              fontFamily: font("display"),
+              fontSize: FontSizes.md,
+            },
+          ]}
+        >
           Delivery Location
         </Text>
+
         <View style={{ width: 40 }} />
       </View>
 
-      <LocationMap isWireframe={isWF} selectedAddr={selectedAddr} />
+      {/* =====================================================
+          REAL MAP
+      ===================================================== */}
 
-      <View style={[styles.sheet, { backgroundColor: isWF ? '#F0F0F0' : colors.warmAsh }]}>
-        <ScrollView contentContainerStyle={{ paddingBottom: Spacing['3xl'] }} showsVerticalScrollIndicator={false}>
-          {/* Search */}
-          <View style={[styles.searchBar, { backgroundColor: isWF ? '#FFFFFF' : colors.white, borderColor: isWF ? '#CCC' : colors.divider, borderRadius: isWF ? Radius.sm : Radius.full }]}>
-            <Feather name="search" size={16} color={isWF ? '#888' : colors.inkLight} />
+      <View style={styles.mapContainer}>
+        <DeliveryMap coordinates={selectedAddr?.coordinates ?? null} />
+
+        {selectedAddr && (
+          <View
+            style={[
+              styles.mapAddressCard,
+              {
+                backgroundColor: isWF ? "#FFFFFF" : colors.white,
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.mapPinIcon,
+                {
+                  backgroundColor: isWF ? "#E0E0E0" : colors.petrolLight,
+                },
+              ]}
+            >
+              <Feather
+                name="map-pin"
+                size={18}
+                color={isWF ? "#555" : colors.petrolDeep}
+              />
+            </View>
+
+            <View style={{ flex: 1 }}>
+              <Text
+                style={[
+                  styles.mapAddressTitle,
+                  {
+                    color: isWF ? "#333" : colors.charcoalInk,
+                    fontFamily: font("bodyMedium"),
+                  },
+                ]}
+              >
+                {selectedAddr.label}
+              </Text>
+
+              <Text
+                style={[
+                  styles.mapAddressText,
+                  {
+                    color: isWF ? "#666" : colors.inkLight,
+                    fontFamily: font("body"),
+                  },
+                ]}
+                numberOfLines={2}
+              >
+                {selectedAddr.street}
+                {selectedAddr.suburb ? `, ${selectedAddr.suburb}` : ""}
+                {selectedAddr.city ? `, ${selectedAddr.city}` : ""}
+              </Text>
+            </View>
+          </View>
+        )}
+      </View>
+
+      {/* =====================================================
+          BOTTOM SHEET
+      ===================================================== */}
+
+      <View
+        style={[
+          styles.sheet,
+          {
+            backgroundColor: isWF ? "#F0F0F0" : colors.warmAsh,
+          },
+        ]}
+      >
+        <ScrollView
+          contentContainerStyle={{
+            paddingBottom: Spacing["3xl"],
+          }}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* =================================================
+              SEARCH
+          ================================================= */}
+
+          <View
+            style={[
+              styles.searchBar,
+              {
+                backgroundColor: isWF ? "#FFFFFF" : colors.white,
+                borderColor: isWF ? "#CCC" : colors.divider,
+                borderRadius: isWF ? Radius.sm : Radius.full,
+              },
+            ]}
+          >
+            <Feather
+              name="search"
+              size={16}
+              color={isWF ? "#888" : colors.inkLight}
+            />
+
             <TextInput
-              style={[styles.searchInput, { color: isWF ? '#1A1A1A' : colors.charcoalInk, fontFamily: font('body'), fontSize: FontSizes.sm }]}
-              placeholder="Search for an address..."
-              placeholderTextColor={isWF ? '#AAAAAA' : colors.inkFaint}
+              style={[
+                styles.searchInput,
+                {
+                  color: isWF ? "#1A1A1A" : colors.charcoalInk,
+                  fontFamily: font("body"),
+                  fontSize: FontSizes.sm,
+                },
+              ]}
+              placeholder="Search your saved addresses..."
+              placeholderTextColor={isWF ? "#AAAAAA" : colors.inkFaint}
               value={search}
               onChangeText={setSearch}
             />
           </View>
 
-          {/* GPS option */}
-          <TouchableOpacity style={[styles.gpsOption, { borderColor: isWF ? '#CCC' : colors.divider }]}>
-            <View style={[styles.gpsIcon, { backgroundColor: isWF ? '#E0E0E0' : colors.petrolLight }]}>
-              <Feather name="crosshair" size={18} color={isWF ? '#555' : colors.petrolDeep} />
+          {/* =================================================
+              CURRENT LOCATION
+          ================================================= */}
+
+          <TouchableOpacity
+            style={[
+              styles.gpsOption,
+              {
+                borderColor: isWF ? "#CCC" : colors.divider,
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.gpsIcon,
+                {
+                  backgroundColor: isWF ? "#E0E0E0" : colors.petrolLight,
+                },
+              ]}
+            >
+              <Feather
+                name="crosshair"
+                size={18}
+                color={isWF ? "#555" : colors.petrolDeep}
+              />
             </View>
+
             <View>
-              <Text style={[{ color: isWF ? '#1A1A1A' : colors.charcoalInk, fontFamily: font('bodyMedium'), fontSize: FontSizes.base }]}>
+              <Text
+                style={{
+                  color: isWF ? "#1A1A1A" : colors.charcoalInk,
+                  fontFamily: font("bodyMedium"),
+                  fontSize: FontSizes.base,
+                }}
+              >
                 Use current location
               </Text>
-              <Text style={[{ color: isWF ? '#666' : colors.inkLight, fontFamily: font('body'), fontSize: FontSizes.xs }]}>
-                Durban North, Durban — detected
+
+              <Text
+                style={{
+                  color: isWF ? "#666" : colors.inkLight,
+                  fontFamily: font("body"),
+                  fontSize: FontSizes.xs,
+                }}
+              >
+                Use your phone's GPS location
               </Text>
             </View>
           </TouchableOpacity>
 
-          {/* Saved addresses */}
-          <Text style={[styles.sectionTitle, { color: isWF ? '#333' : colors.charcoalInk, fontFamily: font('display'), fontSize: FontSizes.base, marginTop: Spacing.lg }]}>
+          {/* =================================================
+              SAVED ADDRESSES
+          ================================================= */}
+
+          <Text
+            style={[
+              styles.sectionTitle,
+              {
+                color: isWF ? "#333" : colors.charcoalInk,
+                fontFamily: font("display"),
+                fontSize: FontSizes.base,
+                marginTop: Spacing.lg,
+              },
+            ]}
+          >
             Saved Addresses
           </Text>
 
-          {allAddresses.map((addr) => {
-            const isSelected = addr.id === selectedAddr.id;
-            const labelIcon = addr.label === 'Home' ? 'home' : addr.label === 'Work' ? 'briefcase' : 'map-pin';
-            return (
-              <TouchableOpacity
-                key={addr.id}
-                style={[
-                  styles.addrCard,
-                  {
-                    backgroundColor: isSelected ? (isWF ? '#E0E0E0' : colors.petrolLight) : (isWF ? '#FFFFFF' : colors.white),
-                    borderColor: isSelected ? (isWF ? '#555' : colors.petrolDeep) : (isWF ? '#CCCCCC' : colors.divider),
-                    borderRadius: isWF ? Radius.sm : Radius.lg,
-                    borderWidth: isSelected ? 1.5 : 1,
-                  },
-                ]}
-                onPress={() => setSelectedAddr(addr)}
-                activeOpacity={0.8}
-              >
-                <View style={[styles.addrIcon, { backgroundColor: isSelected ? (isWF ? '#C0C0C0' : colors.petrolDeep) : (isWF ? '#E8E8E8' : colors.petrolLight) }]}>
-                  <Feather name={labelIcon as any} size={16} color={isSelected ? '#FFFFFF' : (isWF ? '#555' : colors.petrolDeep)} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[{ color: isWF ? '#333' : colors.charcoalInk, fontFamily: font('bodyMedium'), fontSize: FontSizes.sm }]}>
-                    {addr.label}
-                  </Text>
-                  <Text style={[{ color: isWF ? '#666' : colors.inkLight, fontFamily: font('body'), fontSize: FontSizes.xs }]}>
-                    {addr.street}, {addr.suburb}, {addr.city}
-                  </Text>
-                </View>
-                {isSelected && (
-                  <View style={[styles.checkIcon, { backgroundColor: isWF ? '#888' : colors.petrolDeep }]}>
-                    <Feather name="check" size={14} color="#FFFFFF" />
-                  </View>
-                )}
-              </TouchableOpacity>
-            );
-          })}
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator
+                size="small"
+                color={isWF ? "#555" : colors.petrolDeep}
+              />
 
-          {/* Add new */}
+              <Text
+                style={{
+                  marginTop: Spacing.sm,
+                  color: isWF ? "#666" : colors.inkLight,
+                  fontFamily: font("body"),
+                  fontSize: FontSizes.sm,
+                }}
+              >
+                Loading your addresses...
+              </Text>
+            </View>
+          ) : filteredAddresses.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Feather
+                name="map-pin"
+                size={32}
+                color={isWF ? "#888" : colors.inkLight}
+              />
+
+              <Text
+                style={{
+                  marginTop: Spacing.sm,
+                  color: isWF ? "#555" : colors.charcoalInk,
+                  fontFamily: font("bodyMedium"),
+                  fontSize: FontSizes.sm,
+                }}
+              >
+                No saved addresses found
+              </Text>
+            </View>
+          ) : (
+            filteredAddresses.map((addr) => {
+              const isSelected = addr.id === selectedAddr?.id;
+
+              const labelIcon =
+                addr.label === "Home"
+                  ? "home"
+                  : addr.label === "Work"
+                    ? "briefcase"
+                    : "map-pin";
+
+              return (
+                <TouchableOpacity
+                  key={addr.id}
+                  style={[
+                    styles.addrCard,
+                    {
+                      backgroundColor: isSelected
+                        ? isWF
+                          ? "#E0E0E0"
+                          : colors.petrolLight
+                        : isWF
+                          ? "#FFFFFF"
+                          : colors.white,
+
+                      borderColor: isSelected
+                        ? isWF
+                          ? "#555"
+                          : colors.petrolDeep
+                        : isWF
+                          ? "#CCCCCC"
+                          : colors.divider,
+
+                      borderRadius: isWF ? Radius.sm : Radius.lg,
+
+                      borderWidth: isSelected ? 1.5 : 1,
+                    },
+                  ]}
+                  onPress={() => handleSelectAddress(addr)}
+                  activeOpacity={0.8}
+                >
+                  <View
+                    style={[
+                      styles.addrIcon,
+                      {
+                        backgroundColor: isSelected
+                          ? isWF
+                            ? "#C0C0C0"
+                            : colors.petrolDeep
+                          : isWF
+                            ? "#E8E8E8"
+                            : colors.petrolLight,
+                      },
+                    ]}
+                  >
+                    <Feather
+                      name={labelIcon as any}
+                      size={16}
+                      color={
+                        isSelected
+                          ? "#FFFFFF"
+                          : isWF
+                            ? "#555"
+                            : colors.petrolDeep
+                      }
+                    />
+                  </View>
+
+                  <View style={{ flex: 1 }}>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 6,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: isWF ? "#333" : colors.charcoalInk,
+                          fontFamily: font("bodyMedium"),
+                          fontSize: FontSizes.sm,
+                        }}
+                      >
+                        {addr.label}
+                      </Text>
+
+                      {addr.isDefault && (
+                        <Text
+                          style={{
+                            color: isWF ? "#666" : colors.petrolDeep,
+                            fontFamily: font("bodyMedium"),
+                            fontSize: FontSizes.xs,
+                          }}
+                        >
+                          Default
+                        </Text>
+                      )}
+                    </View>
+
+                    <Text
+                      style={{
+                        color: isWF ? "#666" : colors.inkLight,
+                        fontFamily: font("body"),
+                        fontSize: FontSizes.xs,
+                        marginTop: 2,
+                      }}
+                    >
+                      {addr.street}
+                      {addr.suburb ? `, ${addr.suburb}` : ""}
+                      {addr.city ? `, ${addr.city}` : ""}
+                    </Text>
+                  </View>
+
+                  {isSelected && (
+                    <View
+                      style={[
+                        styles.checkIcon,
+                        {
+                          backgroundColor: isWF ? "#888" : colors.petrolDeep,
+                        },
+                      ]}
+                    >
+                      <Feather name="check" size={14} color="#FFFFFF" />
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })
+          )}
+
+          {/* =================================================
+              ADD ADDRESS
+          ================================================= */}
+
           <TouchableOpacity
-            style={[styles.addNewBtn, { borderColor: isWF ? '#AAAAAA' : colors.petrolDeep, borderRadius: isWF ? Radius.sm : Radius.lg }]}
+            style={[
+              styles.addNewBtn,
+              {
+                borderColor: isWF ? "#AAAAAA" : colors.petrolDeep,
+                borderRadius: isWF ? Radius.sm : Radius.lg,
+              },
+            ]}
             onPress={handleAddAddress}
           >
-            <Feather name="plus" size={18} color={isWF ? '#555' : colors.petrolDeep} />
-            <Text style={[{ color: isWF ? '#444' : colors.petrolDeep, fontFamily: font('bodyMedium'), fontSize: FontSizes.base }]}>
+            <Feather
+              name="plus"
+              size={18}
+              color={isWF ? "#555" : colors.petrolDeep}
+            />
+
+            <Text
+              style={{
+                color: isWF ? "#444" : colors.petrolDeep,
+                fontFamily: font("bodyMedium"),
+                fontSize: FontSizes.base,
+              }}
+            >
               Add new address
             </Text>
           </TouchableOpacity>
 
-          <Button label="Deliver here" onPress={handleContinue} size="lg" style={{ marginTop: Spacing.xl }} />
+          {/* =================================================
+              CONTINUE
+          ================================================= */}
+
+          <Button
+            label="Deliver here"
+            onPress={handleContinue}
+            size="lg"
+            style={{
+              marginTop: Spacing.xl,
+            }}
+            disabled={!selectedAddr}
+          />
         </ScrollView>
       </View>
     </SafeAreaView>
@@ -202,19 +595,159 @@ export default function DeliveryLocationScreen({ navigation, route }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: Spacing.base, paddingTop: Spacing.md },
-  backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  container: {
+    flex: 1,
+  },
+
+  topBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: Spacing.base,
+    paddingTop: Spacing.md,
+  },
+
+  backBtn: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
   screenTitle: {},
-  map: { height: 200, position: 'relative', overflow: 'hidden' },
-  sheet: { flex: 1, padding: Spacing.base, paddingTop: Spacing.md },
-  searchBar: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, padding: Spacing.md, borderWidth: 1, marginBottom: Spacing.md },
-  searchInput: { flex: 1 },
-  gpsOption: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md, borderBottomWidth: 1, marginBottom: Spacing.sm },
-  gpsIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  sectionTitle: { marginBottom: Spacing.md },
-  addrCard: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md, marginBottom: Spacing.sm },
-  addrIcon: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
-  checkIcon: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  addNewBtn: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, padding: Spacing.md, borderWidth: 1.5, borderStyle: 'dashed', marginTop: Spacing.sm },
+
+  mapContainer: {
+    height: 240,
+    position: "relative",
+    overflow: "hidden",
+  },
+
+  map: {
+    width: "100%",
+    height: "100%",
+  },
+
+  mapAddressCard: {
+    position: "absolute",
+    left: Spacing.md,
+    right: Spacing.md,
+    bottom: Spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.sm,
+    backgroundColor: "rgba(255,255,255,0.95)",
+    borderRadius: Radius.lg,
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
+  },
+
+  mapPinIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: Spacing.sm,
+  },
+
+  mapAddressTitle: {
+    fontSize: FontSizes.sm,
+  },
+
+  mapAddressText: {
+    fontSize: FontSizes.xs,
+    marginTop: 2,
+  },
+
+  sheet: {
+    flex: 1,
+    padding: Spacing.base,
+    paddingTop: Spacing.md,
+  },
+
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    padding: Spacing.md,
+    borderWidth: 1,
+    marginBottom: Spacing.md,
+  },
+
+  searchInput: {
+    flex: 1,
+  },
+
+  gpsOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    padding: Spacing.md,
+    borderBottomWidth: 1,
+    marginBottom: Spacing.sm,
+  },
+
+  gpsIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  sectionTitle: {
+    marginBottom: Spacing.md,
+  },
+
+  addrCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.sm,
+  },
+
+  addrIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  checkIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  addNewBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    padding: Spacing.md,
+    borderWidth: 1.5,
+    borderStyle: "dashed",
+    marginTop: Spacing.sm,
+  },
+
+  loadingContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing.xl,
+  },
+
+  emptyContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing.xl,
+  },
 });

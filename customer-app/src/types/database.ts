@@ -34,16 +34,23 @@ export interface Driver {
 export interface Address {
   address_id: string;
   customer_id: string;
-  label: string;
+
+  label: string | null;
+
   unit_number: string | null;
   street_number: string | null;
   street_name: string | null;
+
   suburb: string | null;
   city: string | null;
-  province: string;
+  province: string | null;
   postal_code: string | null;
+
   delivery_instructions: string | null;
-  is_default: boolean;
+  is_default: boolean | null;
+
+  latitude: number | null;
+  longitude: number | null;
 }
 
 export interface FuelType {
