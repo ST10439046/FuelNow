@@ -266,12 +266,17 @@ public async updateAddress(params: {
   postalCode?: string;
   deliveryInstructions?: string;
   isDefault?: boolean;
+  coordinates?: {
+    lat: number;
+    lng: number;
+  };
 }): Promise<AddressModel> {
   const userId = await this.getAuthenticatedUserId();
 
   const response = await CustomerApiClient.updateAddress({
     addressId: params.addressId,
     customerId: params.customerId ?? userId,
+
     label: params.label,
     unitNumber: params.unitNumber,
     streetNumber: params.streetNumber,
@@ -282,6 +287,9 @@ public async updateAddress(params: {
     postalCode: params.postalCode,
     deliveryInstructions: params.deliveryInstructions,
     isDefault: params.isDefault ?? false,
+
+    latitude: params.coordinates?.lat,
+    longitude: params.coordinates?.lng,
   });
 
   if (response.error || !response.data) {
@@ -297,13 +305,14 @@ public async updateAddress(params: {
   /**
    * Adds an address to the customer's Supabase account.
    */
-  public async addAddress(
+public async addAddress(
   address: Omit<AddressModel, 'id'>
 ): Promise<AddressModel> {
   const userId = await this.getAuthenticatedUserId();
 
   const response = await CustomerApiClient.createAddress({
     customerId: userId,
+
     label: address.label,
     unitNumber: address.unitNumber,
     streetNumber: address.streetNumber,
@@ -314,6 +323,9 @@ public async updateAddress(params: {
     postalCode: address.postalCode,
     deliveryInstructions: address.instructions,
     isDefault: address.isDefault ?? false,
+
+    latitude: address.coordinates?.lat,
+    longitude: address.coordinates?.lng,
   });
 
   if (response.error || !response.data) {
@@ -344,7 +356,7 @@ public async updateAddress(params: {
   /**
    * Converts a database Address into the format expected by the app.
    */
-  private mapAddress(address: Address): AddressModel {
+private mapAddress(address: Address): AddressModel {
   return {
     id: address.address_id,
 
@@ -369,6 +381,15 @@ public async updateAddress(params: {
 
     instructions: address.delivery_instructions ?? '',
     isDefault: address.is_default ?? false,
+
+    coordinates:
+      address.latitude != null &&
+      address.longitude != null
+        ? {
+            lat: address.latitude,
+            lng: address.longitude,
+          }
+        : undefined,
   };
 }
 
