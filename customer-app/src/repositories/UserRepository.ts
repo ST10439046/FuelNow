@@ -361,10 +361,9 @@ public async updateProfile(params: {
 }): Promise<UserModel> {
   const userId = await this.getAuthenticatedUserId();
 
+  // Get the currently authenticated Supabase user
   const {
-    data: {
-      user: authUser,
-    },
+    data: { user: authUser },
     error: authUserError,
   } = await supabase.auth.getUser();
 
@@ -376,31 +375,17 @@ public async updateProfile(params: {
     throw new Error('No authenticated user found.');
   }
 
-  const currentEmail = authUser.email ?? '';
-  const currentPhone = authUser.phone ?? '';
-
   // ==========================================================
-  // 1. UPDATE SUPABASE AUTH
+  // 1. UPDATE AUTH EMAIL IF IT CHANGED
   // ==========================================================
 
-  const authUpdates: {
-    email?: string;
-    phone?: string;
-  } = {};
+  const newEmail = params.email.trim();
+  const currentEmail = authUser.email?.trim() ?? '';
 
-  if (
-    params.email.trim().toLowerCase() !==
-    currentEmail.trim().toLowerCase()
-  ) {
-    authUpdates.email = params.email.trim();
-  }
-
-  if (params.phoneNumber.trim() !== currentPhone.trim()) {
-    authUpdates.phone = params.phoneNumber.trim();
-  }
-
-  if (Object.keys(authUpdates).length > 0) {
-    const { error } = await supabase.auth.updateUser(authUpdates);
+  if (newEmail.toLowerCase() !== currentEmail.toLowerCase()) {
+    const { error } = await supabase.auth.updateUser({
+      email: newEmail,
+    });
 
     if (error) {
       throw error;
@@ -409,12 +394,14 @@ public async updateProfile(params: {
 
   // ==========================================================
   // 2. UPDATE PUBLIC.USERS
+  //
+  // Phone stays in public.users for now.
   // ==========================================================
 
   const response = await CustomerApiClient.updateUser({
     userId,
     fullName: params.fullName.trim(),
-    email: params.email.trim(),
+    email: newEmail,
     phoneNumber: params.phoneNumber.trim(),
   });
 
@@ -423,7 +410,7 @@ public async updateProfile(params: {
   }
 
   // ==========================================================
-  // 3. RETURN FRESH PROFILE
+  // 3. GET FRESH PROFILE
   // ==========================================================
 
   return await this.getUser();

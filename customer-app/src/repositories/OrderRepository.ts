@@ -562,50 +562,149 @@ public async getOrders(): Promise<OrderModel[]> {
   // GET ORDER BY ID
   // ==========================================================================
 
-  public async getOrderById(
-    id: string
-  ): Promise<OrderModel | null> {
+// ==========================================================================
+// GET ORDER BY ID
+// ==========================================================================
+//
+// Uses get_customer_orders() so the order is returned with:
+//
+// - Fuel type
+// - Delivery address
+// - Payment information
+// - Driver information
+// - Review information
+//
+// IMPORTANT:
+// mapJoinedOrder() performs NO additional Supabase requests.
+//
+// This prevents Order Details from triggering separate requests for:
+// addresses, payments, reviews, fuel types, drivers, etc.
+//
+// ==========================================================================
 
-    const {
-      data,
-      error,
-    } = await supabase
-      .from('orders')
-      .select('*')
-      .eq(
-        'order_id',
-        id
-      )
-      .maybeSingle();
+public async getOrderById(
+  id: string
+): Promise<OrderModel | null> {
 
-    if (error) {
-      console.error(
-        'OrderRepository: failed to fetch order:',
-        error
-      );
+  if (!id) {
+    console.warn(
+      'OrderRepository: getOrderById called without an order ID.'
+    );
 
-      throw error;
-    }
-
-    if (!data) {
-      return null;
-    }
-
-    const order =
-      await this.mapOrder(
-        data
-      );
-
-    if (
-      this.activeOrder?.id === id
-    ) {
-      this.activeOrder =
-        order;
-    }
-
-    return order;
+    return null;
   }
 
+  // ------------------------------------------------------------------------
+  // Check local cache first
+  // ------------------------------------------------------------------------
+
+  const cachedOrder =
+    this.orders.find(
+      order =>
+        order.id === id
+    );
+
+  if (cachedOrder) {
+
+    // Keep the active order reference up to date
+    if (this.activeOrder?.id === id) {
+      this.activeOrder = cachedOrder;
+    }
+
+    return cachedOrder;
+  }
+
+
+  // ------------------------------------------------------------------------
+  // Fetch orders using the existing joined RPC
+  // ------------------------------------------------------------------------
+
+  const {
+    data,
+    error,
+  } = await supabase.rpc(
+    'get_customer_orders'
+  );
+
+  if (error) {
+
+    console.error(
+      'OrderRepository: failed to fetch order:',
+      error
+    );
+
+    throw error;
+  }
+
+
+  // ------------------------------------------------------------------------
+  // Find requested order
+  // ------------------------------------------------------------------------
+
+  const row =
+    (data ?? []).find(
+      (item: any) =>
+        item.order_id === id
+    );
+
+
+  if (!row) {
+    return null;
+  }
+
+
+  // ------------------------------------------------------------------------
+  // Map joined result
+  // ------------------------------------------------------------------------
+  //
+  // IMPORTANT:
+  // mapJoinedOrder() does NOT call Supabase.
+  //
+
+  const order =
+    this.mapJoinedOrder(
+      row
+    );
+
+
+  // ------------------------------------------------------------------------
+  // Update cache
+  // ------------------------------------------------------------------------
+
+  const existingIndex =
+    this.orders.findIndex(
+      existing =>
+        existing.id === id
+    );
+
+
+  if (existingIndex >= 0) {
+
+    this.orders[existingIndex] =
+      order;
+
+  } else {
+
+    this.orders.push(
+      order
+    );
+  }
+
+
+  // ------------------------------------------------------------------------
+  // Update active order
+  // ------------------------------------------------------------------------
+
+  if (
+    this.activeOrder?.id === id
+  ) {
+    this.activeOrder =
+      order;
+  }
+
+
+  return order;
+}
 
   // ==========================================================================
   // GET ACTIVE ORDER

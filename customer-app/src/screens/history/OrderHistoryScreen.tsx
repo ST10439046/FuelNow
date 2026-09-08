@@ -44,96 +44,46 @@ export default function OrderHistoryScreen({ navigation }: Props) {
   }, []);
 
   const renderItem = ({ item }: { item: OrderModel }) => (
-    <Card style={styles.orderCard}>
-      <View style={styles.orderHeader}>
-        <View style={{ flex: 1 }}>
-          <Text
-            style={[
-              styles.orderId,
-              {
-                color: isWF ? "#888" : colors.inkFaint,
-                fontFamily: isWF ? undefined : "Inter_400Regular",
-                fontSize: FontSizes.xs,
-              },
-            ]}
-          >
-            #{item.id}
-          </Text>
-          <Text
-            style={[
-              styles.fuelType,
-              {
-                color: isWF ? "#1A1A1A" : colors.charcoalInk,
-                fontFamily: font("bodyMedium"),
-                fontSize: FontSizes.base,
-              },
-            ]}
-          >
-            {item.item.litres}L {item.item.fuelType}
-          </Text>
-          <Text
-            style={[
-              styles.address,
-              {
-                color: isWF ? "#666" : colors.inkLight,
-                fontFamily: font("body"),
-                fontSize: FontSizes.xs,
-              },
-            ]}
-          >
-            {item.deliveryAddress.street}, {item.deliveryAddress.city}
-          </Text>
-        </View>
-        <View style={{ alignItems: "flex-end", gap: Spacing.xs }}>
-          <Text
-            style={[
-              styles.total,
-              {
-                color: isWF ? "#1A1A1A" : colors.ignitionAmber,
-                fontFamily: isWF ? undefined : "Inter_600SemiBold",
-                fontSize: FontSizes.md,
-              },
-            ]}
-          >
-            R{item.totalAmount.toFixed(2)}
-          </Text>
-          <StatusBadge status={item.status as any} size="sm" />
-        </View>
-      </View>
-
-      <View
-        style={[
-          styles.orderFooter,
-          { borderTopColor: isWF ? "#DDD" : colors.divider },
-        ]}
-      >
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-          <Feather
-            name="calendar"
-            size={12}
-            color={isWF ? "#888" : colors.inkFaint}
-          />
-          <Text
-            style={[
-              {
-                color: isWF ? "#666" : colors.inkLight,
-                fontFamily: font("body"),
-                fontSize: FontSizes.xs,
-              },
-            ]}
-          >
-            {formatDate(item.createdAt)}
-          </Text>
-        </View>
-        {item.rating != null && (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
-            <Feather
-              name="star"
-              size={12}
-              color={isWF ? "#888" : colors.ignitionAmber}
-            />
+    <TouchableOpacity
+      activeOpacity={0.85}
+      onPress={() =>
+        navigation.navigate("OrderDetails", {
+          orderId: item.id,
+        })
+      }
+    >
+      <Card style={styles.orderCard}>
+        <View style={styles.orderHeader}>
+          <View style={{ flex: 1 }}>
             <Text
               style={[
+                styles.orderId,
+                {
+                  color: isWF ? "#888" : colors.inkFaint,
+                  fontFamily: isWF ? undefined : "Inter_400Regular",
+                  fontSize: FontSizes.xs,
+                },
+              ]}
+            >
+              #{item.orderNumber || item.id}
+            </Text>
+
+            <Text
+              style={[
+                styles.fuelType,
+                {
+                  color: isWF ? "#1A1A1A" : colors.charcoalInk,
+                  fontFamily: font("bodyMedium"),
+                  fontSize: FontSizes.base,
+                },
+              ]}
+            >
+              {item.item.litres}L {item.item.fuelType}
+            </Text>
+
+            <Text
+              style={[
+                styles.address,
                 {
                   color: isWF ? "#666" : colors.inkLight,
                   fontFamily: font("body"),
@@ -141,41 +91,127 @@ export default function OrderHistoryScreen({ navigation }: Props) {
                 },
               ]}
             >
-              {item.rating}/5
+              {item.deliveryAddress.street}, {item.deliveryAddress.city}
             </Text>
           </View>
-        )}
-        <TouchableOpacity
+
+          <View style={{ alignItems: "flex-end", gap: Spacing.xs }}>
+            <Text
+              style={[
+                styles.total,
+                {
+                  color: isWF ? "#1A1A1A" : colors.ignitionAmber,
+                  fontFamily: isWF ? undefined : "Inter_600SemiBold",
+                  fontSize: FontSizes.md,
+                },
+              ]}
+            >
+              R{item.totalAmount.toFixed(2)}
+            </Text>
+
+            <StatusBadge status={item.status as any} size="sm" />
+          </View>
+        </View>
+
+        <View
           style={[
-            styles.reorderBtn,
+            styles.orderFooter,
             {
-              backgroundColor: isWF ? "#D0D0D0" : colors.petrolLight,
-              borderRadius: isWF ? Radius.sm : Radius.full,
+              borderTopColor: isWF ? "#DDD" : colors.divider,
             },
           ]}
-          onPress={() =>
-            navigation.navigate("FuelSelection", { reorder: item })
-          }
         >
-          <Feather
-            name="refresh-cw"
-            size={12}
-            color={isWF ? "#444" : colors.petrolDeep}
-          />
-          <Text
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 4,
+            }}
+          >
+            <Feather
+              name="calendar"
+              size={12}
+              color={isWF ? "#888" : colors.inkFaint}
+            />
+
+            <Text
+              style={{
+                color: isWF ? "#666" : colors.inkLight,
+                fontFamily: font("body"),
+                fontSize: FontSizes.xs,
+              }}
+            >
+              {formatDate(item.createdAt)}
+            </Text>
+          </View>
+
+          {item.rating != null && (
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 3,
+              }}
+            >
+              <Feather
+                name="star"
+                size={12}
+                color={isWF ? "#888" : colors.ignitionAmber}
+              />
+
+              <Text
+                style={{
+                  color: isWF ? "#666" : colors.inkLight,
+                  fontFamily: font("body"),
+                  fontSize: FontSizes.xs,
+                }}
+              >
+                {item.rating}/5
+              </Text>
+            </View>
+          )}
+
+          <TouchableOpacity
             style={[
+              styles.reorderBtn,
               {
+                backgroundColor: isWF ? "#D0D0D0" : colors.petrolLight,
+                borderRadius: isWF ? Radius.sm : Radius.full,
+              },
+            ]}
+            onPress={(event) => {
+              event.stopPropagation?.();
+
+              navigation.navigate("FuelSelection", {
+                reorder: item,
+              });
+            }}
+          >
+            <Feather
+              name="refresh-cw"
+              size={12}
+              color={isWF ? "#444" : colors.petrolDeep}
+            />
+
+            <Text
+              style={{
                 color: isWF ? "#444" : colors.petrolDeep,
                 fontFamily: font("bodyMedium"),
                 fontSize: FontSizes.xs,
-              },
-            ]}
-          >
-            Reorder
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </Card>
+              }}
+            >
+              Reorder
+            </Text>
+          </TouchableOpacity>
+
+          <Feather
+            name="chevron-right"
+            size={18}
+            color={isWF ? "#777" : colors.inkFaint}
+          />
+        </View>
+      </Card>
+    </TouchableOpacity>
   );
 
   return (

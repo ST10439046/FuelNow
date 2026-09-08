@@ -46,6 +46,7 @@ import TermsOfUseScreen from "./src/screens/profile/TermsOfUseScreen";
 import PrivacyPolicyScreen from "./src/screens/profile/PrivacyPolicyScreen";
 import PersonalInformationScreen from "./src/screens/profile/PersonalInformationScreen";
 import ChangePasswordScreen from "./src/screens/profile/ChangePasswordScreen";
+import OrderDetailsScreen from "./src/screens/history/OrderDetailsScreen";
 
 const RootStack = createStackNavigator();
 const CustomerTab = createBottomTabNavigator();
@@ -150,6 +151,7 @@ function CustomerNavigator() {
         name="DigitalReceipt"
         component={DigitalReceiptScreen}
       />
+      <RootStack.Screen name="OrderDetails" component={OrderDetailsScreen} />
 
       {/* Utilities */}
       <RootStack.Screen name="Notifications" component={NotificationsScreen} />
