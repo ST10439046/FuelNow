@@ -17,7 +17,8 @@ import { useDesignMode } from "../../context/DesignModeContext";
 import { FontSizes, Spacing, Radius } from "../../theme/tokens";
 import Card from "../../components/Card";
 import Button from "../../components/Button";
-
+import { useTranslation } from "react-i18next";
+import i18n from "../../i18n";
 import { userRepository, UserModel } from "../../repositories/UserRepository";
 
 import { supabase } from "../../services/supabase";
@@ -26,15 +27,20 @@ interface Props {
   navigation: any;
 }
 
-const LANGUAGES = ["English", "Afrikaans", "isiZulu"];
+const LANGUAGES = ["English", "Afrikaans"];
 
 export default function ProfileScreen({ navigation }: Props) {
   const { colors, font, isWireframe: isWF } = useDesignMode();
 
+  const { t } = useTranslation("profile");
+
   const [pushEnabled, setPushEnabled] = useState(true);
   const [smsEnabled, setSmsEnabled] = useState(true);
-  const [language, setLanguage] = useState("English");
-
+  const [language, setLanguage] = useState(i18n.language);
+  const handleLanguageChange = async (lang: "en" | "af") => {
+    await i18n.changeLanguage(lang);
+    setLanguage(lang);
+  };
   const [user, setUser] = useState<UserModel | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -534,54 +540,6 @@ export default function ProfileScreen({ navigation }: Props) {
         </Section>
 
         {/* =====================================================
-            PAYMENT METHODS
-        ====================================================== */}
-
-        <Section title="Payment Methods">
-          {user?.paymentMethods && user.paymentMethods.length > 0 ? (
-            user.paymentMethods.map((pm) => (
-              <Row
-                key={pm.id}
-                icon={pm.type === "mobile_money" ? "smartphone" : "credit-card"}
-                label={pm.label}
-                value={pm.isDefault ? "Default" : undefined}
-                onPress={() => {
-                  if (pm.type === "card") {
-                    navigation.navigate("AddCard", {
-                      existing: pm,
-                    });
-                  }
-                }}
-              />
-            ))
-          ) : (
-            <View style={styles.emptyRow}>
-              <Feather
-                name="credit-card"
-                size={18}
-                color={isWF ? "#999" : colors.inkFaint}
-              />
-
-              <Text
-                style={{
-                  color: isWF ? "#777" : colors.inkLight,
-                  fontFamily: font("body"),
-                  fontSize: FontSizes.sm,
-                }}
-              >
-                No saved payment methods
-              </Text>
-            </View>
-          )}
-
-          <Row
-            icon="plus"
-            label="Add payment method"
-            onPress={() => navigation.navigate("AddCard")}
-          />
-        </Section>
-
-        {/* =====================================================
             NOTIFICATIONS
         ====================================================== */}
 
@@ -607,62 +565,85 @@ export default function ProfileScreen({ navigation }: Props) {
             LANGUAGE
         ====================================================== */}
 
-        <View style={{ gap: Spacing.sm }}>
-          <Text
+        {/* =====================================================
+    LANGUAGE
+====================================================== */}
+
+        <Section title={t("profile.language")}>
+          <TouchableOpacity
             style={[
-              styles.sectionLabel,
+              styles.langRow,
               {
-                color: isWF ? "#888" : colors.inkLight,
-                fontFamily: font("body"),
-                fontSize: FontSizes.xs,
+                borderBottomColor: isWF ? "#EEE" : colors.divider,
               },
             ]}
+            onPress={() => handleLanguageChange("en")}
+            activeOpacity={0.7}
           >
-            LANGUAGE / TAAL / ULIMI
-          </Text>
+            <Text
+              style={[
+                {
+                  color: isWF ? "#1A1A1A" : colors.charcoalInk,
+                  fontFamily: font("body"),
+                  fontSize: FontSizes.base,
+                  flex: 1,
+                },
+              ]}
+            >
+              {t("languages.english")}
+            </Text>
 
-          <Card padded={false}>
-            {LANGUAGES.map((lang) => (
-              <TouchableOpacity
-                key={lang}
+            {language === "en" && (
+              <View
                 style={[
-                  styles.langRow,
+                  styles.checkCircle,
                   {
-                    borderBottomColor: isWF ? "#EEE" : colors.divider,
+                    backgroundColor: isWF ? "#888" : colors.petrolDeep,
                   },
                 ]}
-                onPress={() => setLanguage(lang)}
-                activeOpacity={0.7}
               >
-                <Text
-                  style={[
-                    {
-                      color: isWF ? "#1A1A1A" : colors.charcoalInk,
-                      fontFamily: font("body"),
-                      fontSize: FontSizes.base,
-                      flex: 1,
-                    },
-                  ]}
-                >
-                  {lang}
-                </Text>
+                <Feather name="check" size={12} color="#FFFFFF" />
+              </View>
+            )}
+          </TouchableOpacity>
 
-                {language === lang && (
-                  <View
-                    style={[
-                      styles.checkCircle,
-                      {
-                        backgroundColor: isWF ? "#888" : colors.petrolDeep,
-                      },
-                    ]}
-                  >
-                    <Feather name="check" size={12} color="#FFFFFF" />
-                  </View>
-                )}
-              </TouchableOpacity>
-            ))}
-          </Card>
-        </View>
+          <TouchableOpacity
+            style={[
+              styles.langRow,
+              {
+                borderBottomColor: isWF ? "#EEE" : colors.divider,
+              },
+            ]}
+            onPress={() => handleLanguageChange("af")}
+            activeOpacity={0.7}
+          >
+            <Text
+              style={[
+                {
+                  color: isWF ? "#1A1A1A" : colors.charcoalInk,
+                  fontFamily: font("body"),
+                  fontSize: FontSizes.base,
+                  flex: 1,
+                },
+              ]}
+            >
+              {t("languages.afrikaans")}
+            </Text>
+
+            {language === "af" && (
+              <View
+                style={[
+                  styles.checkCircle,
+                  {
+                    backgroundColor: isWF ? "#888" : colors.petrolDeep,
+                  },
+                ]}
+              >
+                <Feather name="check" size={12} color="#FFFFFF" />
+              </View>
+            )}
+          </TouchableOpacity>
+        </Section>
 
         {/* =====================================================
             APP

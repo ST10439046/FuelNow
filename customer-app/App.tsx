@@ -47,7 +47,7 @@ import PrivacyPolicyScreen from "./src/screens/profile/PrivacyPolicyScreen";
 import PersonalInformationScreen from "./src/screens/profile/PersonalInformationScreen";
 import ChangePasswordScreen from "./src/screens/profile/ChangePasswordScreen";
 import OrderDetailsScreen from "./src/screens/history/OrderDetailsScreen";
-
+import "./src/i18n";
 const RootStack = createStackNavigator();
 const CustomerTab = createBottomTabNavigator();
 

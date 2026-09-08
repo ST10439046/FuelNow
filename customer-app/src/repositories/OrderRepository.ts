@@ -493,69 +493,47 @@ public async getOrders(): Promise<OrderModel[]> {
   //
   // ==========================================================================
 
-  public async getRecentOrders(
-    days: number = 30
-  ): Promise<OrderModel[]> {
-    const userId =
-      await this.getCurrentUserId();
+public async getRecentOrders(days: number = 14): Promise<OrderModel[]> {
+  const cutoffDate = new Date(
+    Date.now() - days * 24 * 60 * 60 * 1000,
+  );
 
-    const cutoffDate =
-      new Date(
-        Date.now() -
-          days *
-            24 *
-            60 *
-            60 *
-            1000
-      );
+  console.log(
+    `OrderRepository: fetching orders from the last ${days} days`,
+  );
 
-    console.log(
-      `OrderRepository: fetching orders from last ${days} days`
-    );
+  const { data, error } = await supabase.rpc(
+    'get_customer_orders',
+  );
 
-    const {
-      data,
+  if (error) {
+    console.error(
+      'OrderRepository: failed to fetch recent orders:',
       error,
-    } = await supabase
-      .from('orders')
-      .select('*')
-      .eq(
-        'customer_id',
-        userId
-      )
-      .gte(
-        'placed_at',
-        cutoffDate.toISOString()
-      )
-      .order(
-        'placed_at',
-        {
-          ascending: false,
-        }
-      );
+    );
+    throw error;
+  }
 
-    if (error) {
-      console.error(
-        'OrderRepository: failed to fetch recent orders:',
-        error
-      );
-
-      throw error;
+  const recentRows = (data ?? []).filter((row: any) => {
+    if (!row.placed_at) {
+      return false;
     }
 
-    const orders =
-      await this.mapOrders(
-        data ?? []
-      );
+    return new Date(row.placed_at) >= cutoffDate;
+  });
 
-    this.orders = orders;
+  const orders = recentRows.map((row: any) =>
+    this.mapJoinedOrder(row),
+  );
 
-    console.log(
-      `OrderRepository: ${orders.length} recent orders found`
-    );
+  this.orders = orders;
 
-    return [...orders];
-  }
+  console.log(
+    `OrderRepository: ${orders.length} orders found in the last ${days} days`,
+  );
+
+  return [...orders];
+}
 
 
   // ==========================================================================
