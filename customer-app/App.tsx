@@ -48,6 +48,9 @@ import PersonalInformationScreen from "./src/screens/profile/PersonalInformation
 import ChangePasswordScreen from "./src/screens/profile/ChangePasswordScreen";
 import OrderDetailsScreen from "./src/screens/history/OrderDetailsScreen";
 import "./src/i18n";
+import ResetPasswordScreen from "./src/screens/auth/ResetPasswordScreen";
+import PayFastCheckoutScreen from "@/screens/order/PayFastCheckoutScreen";
+import PaymentResultScreen from "@/screens/order/PaymentResultScreen";
 const RootStack = createStackNavigator();
 const CustomerTab = createBottomTabNavigator();
 
@@ -128,7 +131,7 @@ function CustomerNavigator() {
         name="ForgotPassword"
         component={ForgotPasswordScreen}
       />
-
+      <RootStack.Screen name="ResetPassword" component={ResetPasswordScreen} />
       {/* Main Tabs */}
       <RootStack.Screen name="MainTabs" component={CustomerTabNavigator} />
 
@@ -152,7 +155,14 @@ function CustomerNavigator() {
         component={DigitalReceiptScreen}
       />
       <RootStack.Screen name="OrderDetails" component={OrderDetailsScreen} />
-
+      <RootStack.Screen
+        name="PayFastCheckout"
+        component={PayFastCheckoutScreen}
+        options={{
+          headerShown: false,
+        }}
+      />
+      <RootStack.Screen name="PaymentResult" component={PaymentResultScreen} />
       {/* Utilities */}
       <RootStack.Screen name="Notifications" component={NotificationsScreen} />
       <RootStack.Screen name="TermsOfUse" component={TermsOfUseScreen} />

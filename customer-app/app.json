@@ -1,13 +1,14 @@
 {
   "expo": {
+    "scheme": "fuelnow",
     "name": "FuelNow Customer",
     "slug": "fuelnow-customer",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/fuelnow-logo.png",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/splash.png",
+      "image": "./assets/fuelnow-logo.png",
       "resizeMode": "contain",
       "backgroundColor": "#1A2E35"
     },

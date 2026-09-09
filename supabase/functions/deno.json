@@ -1,0 +1,9 @@
+{
+  "compilerOptions": {
+    "strict": true
+  },
+  "imports": {
+    "supabase": "npm:@supabase/supabase-js@2.57.4",
+    "md5": "npm:md5@2.3.0"
+  }
+}

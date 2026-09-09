@@ -17,7 +17,8 @@ import { FontSizes, Spacing, Radius } from "../../theme/tokens";
 import Button from "../../components/Button";
 import { orderRepository } from "../../repositories/OrderRepository";
 import { userRepository } from "../../repositories/UserRepository";
-
+import { supabase } from "../../services/supabase";
+import { createPayFastPayment } from "../../services/payfast";
 interface Props {
   navigation: any;
   route?: any;
@@ -67,22 +68,101 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
   const handleConfirm = async () => {
     setLoading(true);
     setError("");
+
     try {
-      const order = await orderRepository.createOrder({
-        fuelType,
-        litres,
-        pricePerLitre,
-        deliveryAddress: address,
-        scheduledAt,
-        paymentMethod: pm,
+      // --------------------------------------------------
+      // 1. Get the logged-in FuelNow application user
+      // --------------------------------------------------
+
+      const userId = await userRepository.getCurrentUserId();
+
+      // --------------------------------------------------
+      // 2. Get the actual Auth user
+      // --------------------------------------------------
+
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+
+      if (authError || !user) {
+        throw new Error("Your session has expired. Please log in again.");
+      }
+
+      // --------------------------------------------------
+      // 3. Find the customer's actual address UUID
+      // --------------------------------------------------
+
+      const addressId = deliveryAddressId;
+
+      if (!addressId || addressId === "addr_001") {
+        throw new Error("Please select a valid delivery address.");
+      }
+
+      // --------------------------------------------------
+      // 4. Create REAL order in Supabase
+      // --------------------------------------------------
+
+      const deliveryPin = String(Math.floor(1000 + Math.random() * 9000));
+
+      /*
+       * rand_amount is currently the field
+       * used by your database schema for the
+       * order's amount.
+       */
+      const { data: createdOrder, error } = await supabase.rpc("create_order", {
+        p_customer_id: userId,
+
+        p_driver_id: null,
+
+        p_address_id: addressId,
+
+        p_fuel_type_id: route?.params?.fuelTypeId ?? null,
+
+        p_order_method: "CUSTOMER_APP",
+
+        p_volume_litres: litres,
+
+        p_rand_amount: total,
+
+        p_delivery_type: scheduledAt ? "Scheduled" : "Deliver Now",
+
+        p_scheduled_date_time: scheduledAt,
+
+        p_status: "PENDING_PAYMENT",
+
+        p_delivery_pin: deliveryPin,
       });
-      navigation.replace("OrderPlaced", {
-        orderCreated: true,
-        orderId: order.id,
-        order,
+
+      if (error) {
+        throw error;
+      }
+
+      if (!createdOrder) {
+        throw new Error("The order could not be created.");
+      }
+
+      // --------------------------------------------------
+      // 5. Ask Supabase to create the PayFast request
+      // --------------------------------------------------
+
+      const payment = await createPayFastPayment(createdOrder.order_id);
+
+      // --------------------------------------------------
+      // 6. Open PayFast Sandbox
+      // --------------------------------------------------
+
+      navigation.navigate("PayFastCheckout", {
+        paymentUrl: payment.paymentUrl,
+
+        paymentData: payment.paymentData,
+
+        orderId: createdOrder.order_id,
       });
     } catch (e: any) {
-      setError(e.message ?? "Failed to place order. Please try again.");
+      console.error("Order/payment error:", e);
+
+      setError(e?.message ?? "Unable to start payment. Please try again.");
     } finally {
       setLoading(false);
     }

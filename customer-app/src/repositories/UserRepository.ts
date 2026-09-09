@@ -354,6 +354,10 @@ public async addAddress(
   }
 
 
+public async getCurrentUserId(): Promise<string> {
+  return this.getAuthenticatedUserId();
+}
+
 public async updateProfile(params: {
   fullName: string;
   email: string;
