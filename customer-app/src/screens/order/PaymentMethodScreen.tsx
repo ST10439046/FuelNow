@@ -237,7 +237,7 @@ export default function PaymentMethodScreen({ navigation, route }: Props) {
         )}
 
         <Button
-          label="Continue"
+          label="Continue to Order Review →"
           onPress={handleContinue}
           size="lg"
           style={{

@@ -127,7 +127,9 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
 
         p_delivery_type: scheduledAt ? "Scheduled" : "Deliver Now",
 
-        p_scheduled_date_time: scheduledAt,
+        p_scheduled_date_time:
+          route?.params?.scheduledDateTime ??
+          (scheduledAt ? new Date().toISOString() : null),
 
         p_status: "PENDING_PAYMENT",
 
@@ -139,14 +141,29 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
       }
 
       if (!createdOrder) {
-        throw new Error("The order could not be created.");
+        throw new Error("The order could not be created. Please try again.");
       }
+
+      const orderId =
+        (typeof createdOrder === "string" ? createdOrder : null) ||
+        createdOrder?.order_id ||
+        createdOrder?.id ||
+        (Array.isArray(createdOrder)
+          ? createdOrder[0]?.order_id || createdOrder[0]?.id || createdOrder[0]
+          : null);
+
+      if (!orderId) {
+        console.error("Unexpected createdOrder return:", createdOrder);
+        throw new Error("Could not extract order ID from database response.");
+      }
+
+      console.log("Created order ID for payment:", orderId, "Total:", total);
 
       // --------------------------------------------------
       // 5. Ask Supabase to create the PayFast request
       // --------------------------------------------------
 
-      const payment = await createPayFastPayment(createdOrder.order_id);
+      const payment = await createPayFastPayment(orderId, total);
 
       // --------------------------------------------------
       // 6. Open PayFast Sandbox
@@ -157,7 +174,7 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
 
         paymentData: payment.paymentData,
 
-        orderId: createdOrder.order_id,
+        orderId: orderId,
       });
     } catch (e: any) {
       console.error("Order/payment error:", e);
@@ -448,9 +465,6 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    height: Platform.OS === "web" ? ("100vh" as any) : "100%",
-    maxHeight: Platform.OS === "web" ? ("100vh" as any) : "100%",
-    overflow: "hidden",
   },
   topBar: {
     flexDirection: "row",
@@ -468,7 +482,7 @@ const styles = StyleSheet.create({
   scroll: {
     paddingHorizontal: Spacing.base,
     paddingTop: Spacing.sm,
-    paddingBottom: Spacing["3xl"],
+    paddingBottom: Spacing["4xl"] + 40,
     gap: Spacing.md,
   },
   sectionCard: {

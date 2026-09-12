@@ -12,6 +12,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 
 import DeliveryMap from "../../components/DeliveryMap";
+import { geocodeAddress } from "../../services/geocoding";
 
 import {
   userRepository,
@@ -56,6 +57,45 @@ export default function DeliveryLocationScreen({ navigation, route }: Props) {
   useEffect(() => {
     loadAddresses();
   }, []);
+
+  /*
+   * If the selected address does not yet have coordinates,
+   * geocode it in the background so the map displays the real pin.
+   */
+  useEffect(() => {
+    if (selectedAddr && !selectedAddr.coordinates) {
+      const fullAddr = [
+        selectedAddr.street,
+        selectedAddr.suburb,
+        selectedAddr.city,
+        selectedAddr.province,
+      ]
+        .filter(Boolean)
+        .join(", ");
+
+      if (fullAddr.trim()) {
+        geocodeAddress(fullAddr)
+          .then((res) => {
+            if (res) {
+              setSelectedAddr((prev) =>
+                prev && prev.id === selectedAddr.id
+                  ? {
+                      ...prev,
+                      coordinates: {
+                        lat: res.latitude,
+                        lng: res.longitude,
+                      },
+                    }
+                  : prev
+              );
+            }
+          })
+          .catch((err) => {
+            console.warn("DeliveryLocation geocoding warning:", err);
+          });
+      }
+    }
+  }, [selectedAddr?.id]);
 
   const loadAddresses = async () => {
     try {

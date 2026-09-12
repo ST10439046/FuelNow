@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -7,11 +7,58 @@ import { FontSizes, Spacing, Radius } from '../../theme/tokens';
 import Card from '../../components/Card';
 import Button from '../../components/Button';
 
-const SCHEDULE_SLOTS = [
-  { label: 'Today', date: 'Mon, 28 Jul', times: ['08:00', '10:00', '12:00', '14:00', '16:00'] },
-  { label: 'Tomorrow', date: 'Tue, 29 Jul', times: ['08:00', '10:00', '12:00', '14:00', '16:00', '18:00'] },
-  { label: 'Wed, 30 Jul', date: 'Wed, 30 Jul', times: ['08:00', '10:00', '12:00', '14:00'] },
+interface ScheduleDay {
+  label: string;
+  dateStr: string;
+  dateObj: Date;
+  times: string[];
+}
+
+const ALL_TIME_SLOTS = [
+  '08:00', '09:00', '10:00', '11:00', '12:00',
+  '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00'
 ];
+
+function generateScheduleSlots(): ScheduleDay[] {
+  const slots: ScheduleDay[] = [];
+  const now = new Date();
+  const currentHour = now.getHours();
+
+  for (let i = 0; i < 7; i++) {
+    const dayDate = new Date(now);
+    dayDate.setDate(now.getDate() + i);
+
+    // Format: "Mon, 14 Sep"
+    const weekday = dayDate.toLocaleDateString('en-ZA', { weekday: 'short' });
+    const dayNum = dayDate.getDate();
+    const month = dayDate.toLocaleDateString('en-ZA', { month: 'short' });
+    const dateStr = `${weekday}, ${dayNum} ${month}`;
+
+    let label = dateStr;
+    if (i === 0) label = 'Today';
+    else if (i === 1) label = 'Tomorrow';
+
+    let times: string[] = [];
+    if (i === 0) {
+      // Filter times for today with at least 1 hour lead time
+      times = ALL_TIME_SLOTS.filter((time) => {
+        const hour = parseInt(time.split(':')[0], 10);
+        return hour > currentHour + 1;
+      });
+    } else {
+      times = [...ALL_TIME_SLOTS];
+    }
+
+    slots.push({
+      label,
+      dateStr,
+      dateObj: dayDate,
+      times,
+    });
+  }
+
+  return slots;
+}
 
 interface Props { navigation: any; route?: any }
 
@@ -19,16 +66,37 @@ export default function DeliveryTimeScreen({ navigation, route }: Props) {
   const { colors, font, isWireframe: isWF } = useDesignMode();
   const params = route?.params ?? {};
   const [deliveryMode, setDeliveryMode] = useState<'now' | 'schedule'>('now');
-  const [selectedDay, setSelectedDay] = useState(0);
+  
+  const scheduleSlots = useMemo(() => generateScheduleSlots(), []);
+
+  // If today has no slots, default to tomorrow (index 1)
+  const initialDayIndex = scheduleSlots[0].times.length === 0 ? 1 : 0;
+  const [selectedDay, setSelectedDay] = useState(initialDayIndex);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
 
   const handleContinue = () => {
-    const scheduledAt =
-      deliveryMode === 'schedule' && selectedTime
-        ? `${SCHEDULE_SLOTS[selectedDay].date} at ${selectedTime}`
-        : null;
-    navigation.navigate('PaymentMethod', { ...params, scheduledAt });
+    let scheduledAt: string | null = null;
+    let scheduledDateTime: string | null = null;
+
+    if (deliveryMode === 'schedule' && selectedTime) {
+      const selectedSlot = scheduleSlots[selectedDay];
+      scheduledAt = `${selectedSlot.dateStr} at ${selectedTime}`;
+
+      // Build valid ISO 8601 string
+      const [h, m] = selectedTime.split(':').map((n) => parseInt(n, 10));
+      const scheduledDate = new Date(selectedSlot.dateObj);
+      scheduledDate.setHours(h, m, 0, 0);
+      scheduledDateTime = scheduledDate.toISOString();
+    }
+
+    navigation.navigate('PaymentMethod', {
+      ...params,
+      scheduledAt,
+      scheduledDateTime,
+    });
   };
+
+  const currentSlot = scheduleSlots[selectedDay] || scheduleSlots[0];
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: isWF ? '#F0F0F0' : colors.warmAsh }]}>
@@ -110,8 +178,8 @@ export default function DeliveryTimeScreen({ navigation, route }: Props) {
             <Text style={[styles.sectionTitle, { color: isWF ? '#333' : colors.charcoalInk, fontFamily: font('bodyMedium'), fontSize: FontSizes.sm }]}>
               Select date
             </Text>
-            <View style={styles.dayRow}>
-              {SCHEDULE_SLOTS.map((slot, i) => (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dayScrollContainer}>
+              {scheduleSlots.map((slot, i) => (
                 <TouchableOpacity
                   key={i}
                   style={[
@@ -129,41 +197,51 @@ export default function DeliveryTimeScreen({ navigation, route }: Props) {
                   <Text style={[{ color: selectedDay === i ? '#FFFFFF' : isWF ? '#333' : colors.charcoalInk, fontFamily: font('bodyMedium'), fontSize: FontSizes.xs, textAlign: 'center' }]}>
                     {slot.label}
                   </Text>
-                  <Text style={[{ color: selectedDay === i ? 'rgba(255,255,255,0.75)' : isWF ? '#666' : colors.inkLight, fontFamily: font('body'), fontSize: 10, textAlign: 'center' }]}>
-                    {slot.date}
+                  <Text style={[{ color: selectedDay === i ? 'rgba(255,255,255,0.75)' : isWF ? '#666' : colors.inkLight, fontFamily: font('body'), fontSize: 10, textAlign: 'center', marginTop: 2 }]}>
+                    {slot.dateStr}
                   </Text>
                 </TouchableOpacity>
               ))}
-            </View>
+            </ScrollView>
 
             {/* Time slots */}
             <Text style={[styles.sectionTitle, { color: isWF ? '#333' : colors.charcoalInk, fontFamily: font('bodyMedium'), fontSize: FontSizes.sm, marginTop: Spacing.lg }]}>
-              Select time
+              Select time slot ({currentSlot.dateStr})
             </Text>
-            <View style={styles.timeGrid}>
-              {SCHEDULE_SLOTS[selectedDay].times.map((time) => (
-                <TouchableOpacity
-                  key={time}
-                  style={[
-                    styles.timeBtn,
-                    {
-                      backgroundColor: selectedTime === time
-                        ? isWF ? '#888' : colors.ignitionAmber
-                        : isWF ? '#FFFFFF' : colors.white,
-                      borderColor: selectedTime === time
-                        ? isWF ? '#555' : colors.ignitionAmber
-                        : isWF ? '#CCCCCC' : colors.divider,
-                      borderRadius: isWF ? Radius.sm : Radius.full,
-                    },
-                  ]}
-                  onPress={() => setSelectedTime(time)}
-                >
-                  <Text style={[{ color: selectedTime === time ? '#FFFFFF' : isWF ? '#333' : colors.charcoalInk, fontFamily: isWF ? undefined : 'Inter_500Medium', fontSize: FontSizes.sm }]}>
-                    {time}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+
+            {currentSlot.times.length === 0 ? (
+              <View style={[styles.noSlotsBox, { backgroundColor: isWF ? '#FFFFFF' : colors.white, borderColor: isWF ? '#CCCCCC' : colors.divider }]}>
+                <Feather name="clock" size={24} color={isWF ? '#888' : colors.inkLight} />
+                <Text style={{ color: isWF ? '#666' : colors.inkLight, fontFamily: font('body'), fontSize: FontSizes.sm, textAlign: 'center' }}>
+                  No more delivery slots available for today. Please select tomorrow or another date.
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.timeGrid}>
+                {currentSlot.times.map((time) => (
+                  <TouchableOpacity
+                    key={time}
+                    style={[
+                      styles.timeBtn,
+                      {
+                        backgroundColor: selectedTime === time
+                          ? isWF ? '#888' : colors.ignitionAmber
+                          : isWF ? '#FFFFFF' : colors.white,
+                        borderColor: selectedTime === time
+                          ? isWF ? '#555' : colors.ignitionAmber
+                          : isWF ? '#CCCCCC' : colors.divider,
+                        borderRadius: isWF ? Radius.sm : Radius.full,
+                      },
+                    ]}
+                    onPress={() => setSelectedTime(time)}
+                  >
+                    <Text style={[{ color: selectedTime === time ? '#FFFFFF' : isWF ? '#333' : colors.charcoalInk, fontFamily: isWF ? undefined : 'Inter_500Medium', fontSize: FontSizes.sm }]}>
+                      {time}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
           </>
         )}
 
@@ -194,8 +272,9 @@ const styles = StyleSheet.create({
   nowIcon: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
   etaBox: { padding: Spacing.lg, alignItems: 'center', gap: 4 },
   sectionTitle: { marginBottom: Spacing.sm },
-  dayRow: { flexDirection: 'row', gap: Spacing.sm },
-  dayBtn: { flex: 1, padding: Spacing.sm, borderWidth: 1, alignItems: 'center', gap: 2 },
+  dayScrollContainer: { flexDirection: 'row', gap: Spacing.sm, paddingVertical: 4 },
+  dayBtn: { minWidth: 90, paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md, borderWidth: 1, alignItems: 'center', gap: 2 },
   timeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
   timeBtn: { paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md, borderWidth: 1 },
+  noSlotsBox: { padding: Spacing.lg, borderWidth: 1, borderRadius: Radius.md, alignItems: 'center', gap: Spacing.sm, marginTop: Spacing.xs },
 });

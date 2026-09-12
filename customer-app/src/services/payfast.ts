@@ -7,7 +7,8 @@ export interface PayFastPayment {
 }
 
 export async function createPayFastPayment(
-  orderId: string
+  orderId: string,
+  amount?: number
 ): Promise<PayFastPayment> {
   const {
     data,
@@ -17,12 +18,28 @@ export async function createPayFastPayment(
     {
       body: {
         orderId,
+        amount,
       },
     }
   );
 
   if (error) {
-    throw error;
+    let errorDetail = error.message;
+    if ((error as any).context) {
+      try {
+        const responseJson = await (error as any).context.json();
+        if (responseJson?.error) {
+          errorDetail = responseJson.error;
+        }
+      } catch (_) {
+        try {
+          const responseText = await (error as any).context.text();
+          if (responseText) errorDetail = responseText;
+        } catch (_) {}
+      }
+    }
+    console.error('createPayFastPayment Edge Function error:', errorDetail, error);
+    throw new Error(errorDetail || 'Unable to create PayFast payment.');
   }
 
   if (!data?.success) {

@@ -5,6 +5,7 @@ import {
   StyleSheet,
   Animated,
   TouchableOpacity,
+  ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -266,7 +267,11 @@ export default function OrderPlacedScreen({ navigation, route }: Props) {
         </View>
       </View>
 
-      <View style={styles.content}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Success icon */}
         <View style={styles.successContainer}>
           <View
@@ -511,7 +516,7 @@ export default function OrderPlacedScreen({ navigation, route }: Props) {
             </Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -519,6 +524,12 @@ export default function OrderPlacedScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+
+  scroll: {
+    paddingHorizontal: Spacing.base,
+    paddingBottom: Spacing["4xl"],
+    gap: Spacing.lg,
   },
 
   header: {
