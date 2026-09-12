@@ -177,18 +177,59 @@ export default function SignUpScreen({ navigation }: Props) {
   const handleVerifyOtp = async () => {
     const otpStr = otp.join("");
     if (otpStr.length < 6) {
-      setError("Please enter the full 6-digit OTP.");
+      setError("Please enter the full 6-digit code.");
       return;
     }
     setError("");
     setLoading(true);
     try {
-      // await verifyOtp({ phone, otp: otpStr });
+      // Verify the email OTP sent by Supabase on sign-up
+      const { data, error: verifyError } = await supabase.auth.verifyOtp({
+        email: email.trim().toLowerCase(),
+        token: otpStr,
+        type: "email",
+      });
+
+      if (verifyError) throw verifyError;
+      if (!data.user) throw new Error("Verification failed. No user returned.");
+
+      // Look up the application user created by the DB trigger
+      const { data: appUser, error: appUserError } = await supabase
+        .from("users")
+        .select("user_id, auth_id, status")
+        .eq("auth_id", data.user.id)
+        .single();
+
+      if (appUserError || !appUser) {
+        throw new Error(
+          "Your account was verified, but your FuelNow profile could not be found.",
+        );
+      }
+
+      if (appUser.status !== "active") {
+        await supabase.auth.signOut();
+        throw new Error(
+          "Your FuelNow account is not active. Please contact support.",
+        );
+      }
+
+      await userRepository.setAuthenticatedUserId(appUser.user_id);
       navigation.replace("MainTabs");
     } catch (e: any) {
-      setError(e.message ?? "Invalid OTP. Please try again.");
+      setError(e.message ?? "Invalid code. Please try again.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResendCode = async () => {
+    try {
+      await supabase.auth.resend({
+        type: "signup",
+        email: email.trim().toLowerCase(),
+      });
+    } catch {
+      // Silently ignore — Supabase rate-limits resend automatically
     }
   };
 
@@ -203,6 +244,7 @@ export default function SignUpScreen({ navigation }: Props) {
         ]}
       >
         <ScrollView
+          style={{ flex: 1 }}
           contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
         >
@@ -326,7 +368,7 @@ export default function SignUpScreen({ navigation }: Props) {
             size="lg"
           />
 
-          <TouchableOpacity style={styles.resendBtn}>
+          <TouchableOpacity style={styles.resendBtn} onPress={handleResendCode}>
             <Text
               style={[
                 styles.resendText,
@@ -337,7 +379,7 @@ export default function SignUpScreen({ navigation }: Props) {
                 },
               ]}
             >
-              Resend code (00:45)
+              Resend code
             </Text>
           </TouchableOpacity>
         </ScrollView>
@@ -357,6 +399,7 @@ export default function SignUpScreen({ navigation }: Props) {
         style={{ flex: 1 }}
       >
         <ScrollView
+          style={{ flex: 1 }}
           contentContainerStyle={styles.scroll}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"

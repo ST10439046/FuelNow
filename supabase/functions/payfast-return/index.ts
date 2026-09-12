@@ -1,21 +1,26 @@
-export default {
-  async fetch(req: Request): Promise<Response> {
+Deno.serve(async (req) => {
+  try {
     const url = new URL(req.url);
 
-    const paymentId =
-      url.searchParams.get("m_payment_id") ??
-      url.searchParams.get("order_id");
+    const orderId =
+      url.searchParams.get("m_payment_id");
 
-    const target = new URL(
-      "http://localhost:8081/payment-result"
+    const appUrl = orderId
+      ? `fuelnow://payment/success?orderId=${encodeURIComponent(orderId)}`
+      : "fuelnow://payment/success";
+
+    return Response.redirect(appUrl, 302);
+  } catch (error) {
+    console.error("PayFast return error:", error);
+
+    return new Response(
+      "Unable to return to FuelNow.",
+      {
+        status: 500,
+        headers: {
+          "Content-Type": "text/plain",
+        },
+      }
     );
-
-    target.searchParams.set("status", "returned");
-
-    if (paymentId) {
-      target.searchParams.set("orderId", paymentId);
-    }
-
-    return Response.redirect(target.toString(), 302);
-  },
-};
+  }
+});

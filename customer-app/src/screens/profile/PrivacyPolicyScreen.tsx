@@ -174,6 +174,7 @@ export default function PrivacyPolicyScreen({
       </View>
 
       <ScrollView
+        style={{ flex: 1 }}
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
       >

@@ -18,7 +18,8 @@ import Button from "../../components/Button";
 import { orderRepository } from "../../repositories/OrderRepository";
 import { userRepository } from "../../repositories/UserRepository";
 import { supabase } from "../../services/supabase";
-import { createPayFastPayment } from "../../services/payfast";
+import { createPayFastPaymentData } from "../../services/payfast";
+
 interface Props {
   navigation: any;
   route?: any;
@@ -28,13 +29,12 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
   const { colors, font, isWireframe: isWF } = useDesignMode();
   const insets = useSafeAreaInsets();
 
-  // Pull order params — fall back to sensible defaults so screen always renders
+  // Pull order params
   const fuelType = route?.params?.fuelType ?? "Petrol 95";
   const litres = route?.params?.litres ?? 40;
   const pricePerLitre = route?.params?.pricePerLitre ?? 23.45;
   const deliveryAddressId = route?.params?.deliveryAddressId ?? "addr_001";
   const scheduledAt = route?.params?.scheduledAt ?? null;
-  const paymentMethodId = route?.params?.paymentMethodId ?? "pm_001";
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -50,15 +50,6 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
     province: "KwaZulu-Natal",
     postalCode: "4051",
     coordinates: { lat: -29.8, lng: 31.0333 },
-  };
-
-  const pm = {
-    id: paymentMethodId,
-    type: "card" as const,
-    label: "FNB Corporate Cheque ••• 4821",
-    last4: "4821",
-    brand: "visa" as const,
-    isDefault: true,
   };
 
   const deliveryFee = 49.0;
@@ -105,11 +96,6 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
 
       const deliveryPin = String(Math.floor(1000 + Math.random() * 9000));
 
-      /*
-       * rand_amount is currently the field
-       * used by your database schema for the
-       * order's amount.
-       */
       const { data: createdOrder, error } = await supabase.rpc("create_order", {
         p_customer_id: userId,
 
@@ -163,18 +149,19 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
       // 5. Ask Supabase to create the PayFast request
       // --------------------------------------------------
 
-      const payment = await createPayFastPayment(orderId, total);
+      if (!user.email) {
+        throw new Error("No email address is associated with this account.");
+      }
 
-      // --------------------------------------------------
-      // 6. Open PayFast Sandbox
-      // --------------------------------------------------
-
+      const paymentData = createPayFastPaymentData({
+        orderId,
+        amount: total,
+        email: user.email,
+      });
       navigation.navigate("PayFastCheckout", {
-        paymentUrl: payment.paymentUrl,
-
-        paymentData: payment.paymentData,
-
-        orderId: orderId,
+        paymentUrl: "https://sandbox.payfast.co.za/eng/process",
+        paymentData,
+        orderId,
       });
     } catch (e: any) {
       console.error("Order/payment error:", e);
@@ -185,14 +172,14 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
     }
   };
 
-  // ── Shared colours ─────────────────────────────────────────────────────────
+  // Shared colours
   const bg = isWF ? "#F0F0F0" : colors.warmAsh;
   const cardBg = isWF ? "#FFFFFF" : colors.white;
   const border = isWF ? "#DDDDDD" : colors.divider;
   const headingColor = isWF ? "#1A1A1A" : colors.charcoalInk;
   const subColor = isWF ? "#555555" : colors.inkLight;
 
-  // ── Sub-component: label / value row ──────────────────────────────────────
+  // Label / value row
   const Row = ({
     label,
     value,
@@ -211,10 +198,12 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
           fontFamily: font("body"),
           fontSize: FontSizes.sm,
           flex: 1,
+          paddingRight: Spacing.sm,
         }}
       >
         {label}
       </Text>
+
       <Text
         style={{
           color: large ? (isWF ? "#1A1A1A" : colors.petrolDeep) : headingColor,
@@ -224,6 +213,8 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
               : "Inter_600SemiBold"
             : font("bodyMedium"),
           fontSize: large ? FontSizes.lg : FontSizes.base,
+          textAlign: "right",
+          flexShrink: 1,
         }}
       >
         {value}
@@ -231,7 +222,7 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
     </View>
   );
 
-  // ── Sub-component: section card ───────────────────────────────────────────
+  // Section card
   const Section = ({
     icon,
     emoji,
@@ -265,6 +256,7 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
             )}
           </View>
         )}
+
         <Text
           style={{
             color: headingColor,
@@ -275,20 +267,31 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
           {title}
         </Text>
       </View>
-      <View style={{ gap: 6 }}>{children}</View>
+
+      <View style={styles.sectionContent}>{children}</View>
     </View>
   );
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: bg }]}>
-      {/* ── Header ─────────────────────────────────────────────────────────── */}
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: bg,
+          paddingTop: insets.top,
+        },
+      ]}
+    >
+      {/* Header */}
       <View style={styles.topBar}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={styles.backBtn}
+          activeOpacity={0.7}
         >
           <Feather name="arrow-left" size={22} color={headingColor} />
         </TouchableOpacity>
+
         <Text
           style={{
             color: headingColor,
@@ -298,40 +301,53 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
         >
           Order Review
         </Text>
+
         <View style={{ width: 40 }} />
       </View>
 
-      {/* ── Scrollable content ─────────────────────────────────────────────── */}
+      {/* Scrollable content */}
       <ScrollView
-        style={{ flex: 1 }}
+        style={styles.scrollView}
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        bounces={true}
+        nestedScrollEnabled={true}
+        scrollEnabled={true}
       >
         {/* Fuel card */}
         <Section emoji="⛽" title="Fuel Order">
           <Row label="Fuel type" value={fuelType} />
+
           <Row label="Volume" value={`${litres.toFixed(1)} litres`} mono />
+
           <Row
             label="Unit price"
             value={`R${pricePerLitre.toFixed(2)}/L`}
             mono
           />
-          <View style={[styles.divider, { backgroundColor: border }]} />
+
+          <View
+            style={[
+              styles.divider,
+              {
+                backgroundColor: border,
+              },
+            ]}
+          />
+
           <Row label="Fuel subtotal" value={`R${subtotal.toFixed(2)}`} mono />
         </Section>
 
         {/* Delivery card */}
         <Section icon="map-pin" title="Delivery">
-          <Row label="Address" value={`${address.street}`} />
-          <Row label="Suburb" value={`${address.suburb}, ${address.city}`} />
-          <Row label="Timing" value={scheduledAt ?? "As soon as possible"} />
-          <Row label="Est. arrival" value="20–35 minutes" />
-        </Section>
+          <Row label="Address" value={address.street} />
 
-        {/* Payment card */}
-        <Section icon="credit-card" title="Payment">
-          <Row label="Method" value={pm.label} />
-          <Row label="Billing" value="Charged on delivery" />
+          <Row label="Suburb" value={`${address.suburb}, ${address.city}`} />
+
+          <Row label="Timing" value={scheduledAt ?? "As soon as possible"} />
+
+          <Row label="Est. arrival" value="20–35 minutes" />
         </Section>
 
         {/* Cost breakdown */}
@@ -350,10 +366,13 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
             <View
               style={[
                 styles.accentStripe,
-                { backgroundColor: colors.petrolDeep },
+                {
+                  backgroundColor: colors.petrolDeep,
+                },
               ]}
             />
           )}
+
           <Text
             style={{
               color: headingColor,
@@ -364,19 +383,31 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
           >
             Cost Breakdown
           </Text>
-          <View style={{ gap: 6 }}>
+
+          <View style={styles.sectionContent}>
             <Row
               label={`Fuel (${litres}L × R${pricePerLitre.toFixed(2)})`}
               value={`R${subtotal.toFixed(2)}`}
               mono
             />
+
             <Row
               label="Delivery fee"
               value={`R${deliveryFee.toFixed(2)}`}
               mono
             />
+
             <Row label="Service fee" value="R0.00" mono />
-            <View style={[styles.divider, { backgroundColor: border }]} />
+
+            <View
+              style={[
+                styles.divider,
+                {
+                  backgroundColor: border,
+                },
+              ]}
+            />
+
             <Row
               label="Total (incl. VAT)"
               value={`R${total.toFixed(2)}`}
@@ -400,6 +431,7 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
           fee may vary based on your exact location.
         </Text>
 
+        {/* Error */}
         {error ? (
           <Text
             style={{
@@ -414,16 +446,17 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
         ) : null}
       </ScrollView>
 
-      {/* ── Sticky confirm button at bottom ───────────────────────────────── */}
+      {/* Sticky confirm button */}
       <View
         style={[
           styles.footer,
           {
             backgroundColor: cardBg,
             borderTopColor: border,
+            justifyContent: "space-between",
             paddingBottom:
               Platform.OS === "web"
-                ? Spacing.lg
+                ? Spacing.base
                 : Math.max(insets.bottom, Spacing.base),
           },
         ]}
@@ -438,6 +471,7 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
           >
             Total due
           </Text>
+
           <Text
             style={{
               color: headingColor,
@@ -448,6 +482,7 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
             R{total.toFixed(2)}
           </Text>
         </View>
+
         <Button
           label={loading ? "Placing order..." : "Confirm Order →"}
           onPress={handleConfirm}
@@ -455,47 +490,64 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
           variant="primary"
           size="lg"
           fullWidth={false}
-          style={{ flex: 1 }}
+          style={{ minWidth: 160 }}
         />
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    minHeight: 0,
   },
+
   topBar: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: Spacing.base,
     paddingVertical: Spacing.md,
+    flexShrink: 0,
   },
+
   backBtn: {
     width: 40,
     height: 40,
     alignItems: "center",
     justifyContent: "center",
   },
+
+  scrollView: {
+    flex: 1,
+    minHeight: 0,
+  },
+
   scroll: {
     paddingHorizontal: Spacing.base,
     paddingTop: Spacing.sm,
     paddingBottom: Spacing["4xl"] + 40,
     gap: Spacing.md,
   },
+
   sectionCard: {
     padding: Spacing.base,
     borderWidth: 1,
     gap: Spacing.md,
     position: "relative",
   },
+
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.sm,
   },
+
+  sectionContent: {
+    gap: 6,
+  },
+
   iconCircle: {
     width: 32,
     height: 32,
@@ -503,6 +555,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+
   accentStripe: {
     position: "absolute",
     left: 0,
@@ -512,18 +565,32 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: Radius.lg,
     borderBottomLeftRadius: Radius.lg,
   },
+
   row: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    minHeight: 28,
   },
-  divider: { height: 1, marginVertical: Spacing.xs },
+
+  divider: {
+    height: 1,
+    marginVertical: Spacing.xs,
+  },
+
   footer: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     gap: Spacing.md,
-    padding: Spacing.base,
+    paddingHorizontal: Spacing.base,
+    paddingTop: Spacing.base,
     borderTopWidth: 1,
+    flexShrink: 0,
+    minHeight: 90,
   },
-  totalPreview: { alignItems: "flex-start" },
+
+  totalPreview: {
+    alignItems: "flex-start",
+  },
 });

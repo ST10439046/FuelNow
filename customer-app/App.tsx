@@ -3,7 +3,10 @@ import { View, StyleSheet, Platform } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { createStackNavigator } from "@react-navigation/stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import { SafeAreaProvider } from "react-native-safe-area-context";
+import {
+  SafeAreaProvider,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import {
   useFonts,
@@ -22,6 +25,21 @@ import { Fonts } from "./src/theme/tokens";
 
 // Screens
 import OnboardingScreen from "./src/screens/onboarding/OnboardingScreen";
+
+// Fix root height on web so ScrollViews can work
+if (Platform.OS === "web") {
+  const style = document.createElement("style");
+  style.textContent = `
+    html, body, #root {
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+      display: flex;
+      flex: 1;
+    }
+  `;
+  document.head.appendChild(style);
+}
 import LoginScreen from "./src/screens/auth/LoginScreen";
 import SignUpScreen from "./src/screens/auth/SignUpScreen";
 import ForgotPasswordScreen from "./src/screens/auth/ForgotPasswordScreen";
@@ -56,7 +74,7 @@ const CustomerTab = createBottomTabNavigator();
 
 function CustomerTabNavigator() {
   const { colors, isWireframe } = useDesignMode();
-
+  const insets = useSafeAreaInsets();
   return (
     <CustomerTab.Navigator
       screenOptions={({ route }) => ({
@@ -66,9 +84,11 @@ function CustomerTabNavigator() {
           backgroundColor: isWireframe ? "#FFFFFF" : colors.white,
           borderTopColor: isWireframe ? "#CCCCCC" : colors.divider,
           borderTopWidth: 1,
-          paddingBottom: Platform.OS === "ios" ? 20 : 8,
+
           paddingTop: 8,
-          height: Platform.OS === "ios" ? 84 : 64,
+          paddingBottom: insets.bottom + 4,
+
+          height: 60 + insets.bottom,
         },
         tabBarActiveTintColor: isWireframe ? "#333333" : colors.petrolDeep,
         tabBarInactiveTintColor: isWireframe ? "#AAAAAA" : colors.inkFaint,
@@ -203,6 +223,7 @@ export default function App() {
           <NavigationContainer>
             <CustomerNavigator />
           </NavigationContainer>
+
           <StatusBar style="auto" />
         </View>
       </DesignModeProvider>
@@ -211,5 +232,11 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  appContainer: { flex: 1 },
+  appContainer: {
+    flex: 1,
+    minHeight: 0,
+    // On web, prevent the root div from expanding beyond the viewport.
+    // Without this, ScrollView children have no bounded height and cannot scroll.
+    ...(Platform.OS === "web" ? { overflow: "hidden" as const } : {}),
+  },
 });

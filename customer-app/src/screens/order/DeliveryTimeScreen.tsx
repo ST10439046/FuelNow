@@ -110,7 +110,7 @@ export default function DeliveryTimeScreen({ navigation, route }: Props) {
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         {/* Mode toggle */}
         <View style={styles.modeRow}>
           {(['now', 'schedule'] as const).map((mode) => (

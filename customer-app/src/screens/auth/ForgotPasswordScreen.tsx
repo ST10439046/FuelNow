@@ -5,6 +5,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -13,6 +14,13 @@ import { FontSizes, Spacing } from "../../theme/tokens";
 import Button from "../../components/Button";
 import Input from "../../components/Input";
 import { supabase } from "../../services/supabase";
+
+// Deep-link URL for the password reset callback.
+// On web we use the browser origin; on native we use the app scheme.
+const RESET_REDIRECT_URL =
+  Platform.OS === "web"
+    ? `${typeof window !== "undefined" ? window.location.origin : "http://localhost:8081"}/reset-password`
+    : "fuelnow://reset-password";
 
 interface Props {
   navigation: any;
@@ -45,7 +53,7 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(
         trimmedEmail,
         {
-          redirectTo: "http://localhost:8081/reset-password",
+          redirectTo: RESET_REDIRECT_URL,
         },
       );
 
@@ -77,6 +85,7 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
       ]}
     >
       <ScrollView
+        style={{ flex: 1 }}
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
       >

@@ -146,6 +146,7 @@ export default function TermsOfUseScreen({ navigation }: Props) {
       </View>
 
       <ScrollView
+        style={{ flex: 1 }}
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
       >

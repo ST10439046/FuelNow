@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no"
+    />
+    <title>FuelNow</title>
+    <style>
+      /*
+       * Root height fix for React Native Web / Expo web.
+       *
+       * On web, a flex container only distributes space among children
+       * if IT ITSELF has a bounded height. Without height: 100% here,
+       * the body and #root divs grow to wrap their content, which means
+       * `flex: 1` on any descendant View has nothing to flex against and
+       * ScrollView has no bounded viewport to scroll within.
+       */
+      html,
+      body,
+      #root {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

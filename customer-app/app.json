@@ -1,16 +1,25 @@
 {
   "expo": {
-    "scheme": "fuelnow",
     "name": "FuelNow Customer",
     "slug": "fuelnow-customer",
     "version": "1.0.0",
+    "scheme": "fuelnow",
     "orientation": "portrait",
-    "icon": "./assets/fuelnow-logo.png",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "splash": {
-      "image": "./assets/fuelnow-logo.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#1A2E35"
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.thegoat786.fuelnowcustomer"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0B3D42"
+      },
+      "package": "com.thegoat786.fuelnowcustomer"
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -27,7 +36,8 @@
             "node_modules/@expo-google-fonts/inter/Inter_700Bold.ttf"
           ]
         }
-      ]
+      ],
+      "expo-status-bar"
     ]
   }
 }

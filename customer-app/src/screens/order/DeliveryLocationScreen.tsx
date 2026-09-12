@@ -20,11 +20,7 @@ import {
 } from "../../repositories/UserRepository";
 
 import { useDesignMode } from "../../context/DesignModeContext";
-import {
-  FontSizes,
-  Spacing,
-  Radius,
-} from "../../theme/tokens";
+import { FontSizes, Spacing, Radius } from "../../theme/tokens";
 
 import Button from "../../components/Button";
 
@@ -86,7 +82,7 @@ export default function DeliveryLocationScreen({ navigation, route }: Props) {
                         lng: res.longitude,
                       },
                     }
-                  : prev
+                  : prev,
               );
             }
           })
@@ -308,10 +304,12 @@ export default function DeliveryLocationScreen({ navigation, route }: Props) {
         ]}
       >
         <ScrollView
-          contentContainerStyle={{
-            paddingBottom: Spacing["3xl"],
-          }}
-          showsVerticalScrollIndicator={false}
+          style={styles.sheetScroll}
+          contentContainerStyle={styles.sheetScrollContent}
+          showsVerticalScrollIndicator={true}
+          keyboardShouldPersistTaps="handled"
+          nestedScrollEnabled={true}
+          scrollEnabled={true}
         >
           {/* =================================================
               SEARCH
@@ -637,6 +635,7 @@ export default function DeliveryLocationScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    minHeight: 0,
   },
 
   topBar: {
@@ -658,6 +657,7 @@ const styles = StyleSheet.create({
 
   mapContainer: {
     height: 240,
+    flexShrink: 0,
     position: "relative",
     overflow: "hidden",
   },
@@ -703,12 +703,6 @@ const styles = StyleSheet.create({
   mapAddressText: {
     fontSize: FontSizes.xs,
     marginTop: 2,
-  },
-
-  sheet: {
-    flex: 1,
-    padding: Spacing.base,
-    paddingTop: Spacing.md,
   },
 
   searchBar: {
@@ -783,6 +777,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: Spacing.xl,
+  },
+
+  sheet: {
+    flex: 1,
+    minHeight: 0,
+    padding: Spacing.base,
+    paddingTop: Spacing.md,
+  },
+
+  sheetScroll: {
+    flex: 1,
+    minHeight: 0,
+  },
+
+  sheetScrollContent: {
+    paddingBottom: Spacing["3xl"],
   },
 
   emptyContainer: {
