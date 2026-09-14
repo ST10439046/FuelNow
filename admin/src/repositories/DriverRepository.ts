@@ -34,6 +34,9 @@ export interface DriverModel {
   licence_number?: string;
   avatar?: string;
   truck?: string;
+  email?: string;
+  truck_type?: string;
+  truck_color?: string;
 }
 
 export class DriverRepository {
@@ -73,94 +76,214 @@ export class DriverRepository {
     return { ...this.activeDriver };
   }
 
-  public async getAllDrivers(): Promise<DriverModel[]> {
-    const { data, error } = await supabase.rpc('get_all_drivers');
-    
-    if (error) {
-      console.error('Failed to fetch drivers:', error);
-      return [];
+public async getAllDrivers(): Promise<DriverModel[]> {
+  const { data, error } = await supabase.rpc('get_all_drivers');
+
+  if (error) {
+    console.error('Failed to fetch drivers:', error);
+    throw error;
+  }
+
+  return (data || []).map((d: any) => ({
+    id: d.id,
+    name: d.name || 'Unknown Driver',
+    phone: d.phone || '',
+    rating: Number(d.rating ?? 0),
+    totalDeliveries: 0,
+    vehicleReg: d.licence_number || '',
+    vehicleModel: '',
+    vehicleColor: '',
+    stationName: '',
+    isOnDuty: ['active', 'online'].includes(
+      String(d.status ?? '').toLowerCase()
+    ),
+    isApproved: true,
+    coordinates: {
+      lat: 0,
+      lng: 0,
+    },
+    dailyTarget: 0,
+    todayEarnings: 0,
+    weekEarnings: 0,
+    monthEarnings: 0,
+    documents: [],
+    zone: d.zone || '',
+    province: d.province || '',
+    status: d.status || '',
+    licence_number: d.licence_number || '',
+    avatar: d.name
+      ? d.name.substring(0, 2).toUpperCase()
+      : 'DR',
+    truck: 'N/A',
+  }));
+}
+
+public async toggleOnDutyStatus(isOnDuty: boolean): Promise<boolean> {
+  const driverId = this.activeDriver.id;
+
+  const { data, error } = await supabase.rpc(
+    'update_driver_status',
+    {
+      p_driver_id: driverId,
+      p_status: isOnDuty ? 'active' : 'inactive',
     }
-    
-    // Map JSON response to DriverModel
-    return (data || []).map((d: any) => ({
-      id: d.id,
-      name: d.name,
-      phone: d.phone,
-      rating: d.rating || 5,
-      totalDeliveries: 0,
-      vehicleReg: d.licence_number || '', // Mapping licence to reg for now
-      vehicleModel: '',
-      vehicleColor: '',
-      stationName: '',
-      isOnDuty: d.status === 'active',
-      isApproved: true,
-      coordinates: { lat: 0, lng: 0 },
-      dailyTarget: 0,
-      todayEarnings: 0,
-      weekEarnings: 0,
-      monthEarnings: 0,
-      documents: [],
-      zone: d.zone,
-      province: d.province,
-      status: d.status,
-      licence_number: d.licence_number,
-      avatar: d.name ? d.name.substring(0, 2).toUpperCase() : 'DR',
-      truck: 'N/A'
-    }));
+  );
+
+  if (error) {
+    console.error('Failed to update driver duty status:', error);
+    throw error;
   }
 
-  public async toggleOnDutyStatus(isOnDuty: boolean): Promise<boolean> {
-    this.activeDriver.isOnDuty = isOnDuty;
-    return this.activeDriver.isOnDuty;
+  this.activeDriver.isOnDuty = isOnDuty;
+
+  return Boolean(data);
+}
+
+public async updateGpsCoordinates(
+  lat: number,
+  lng: number
+): Promise<void> {
+  const driverId = this.activeDriver.id;
+
+  const { data, error } = await supabase.rpc(
+    'update_driver_gps',
+    {
+      p_driver_id: driverId,
+      p_latitude: lat,
+      p_longitude: lng,
+    }
+  );
+
+  if (error) {
+    console.error('Failed to update driver GPS:', error);
+    throw error;
   }
 
-  public async updateGpsCoordinates(lat: number, lng: number): Promise<void> {
-    this.activeDriver.coordinates = { lat, lng };
-    realtimeHub.getDriverGpsChannel(this.activeDriver.id).notify({
-      driverId: this.activeDriver.id,
-      coordinates: { lat, lng },
-      timestamp: new Date().toISOString(),
+  this.activeDriver.coordinates = {
+    lat,
+    lng,
+  };
+
+  realtimeHub
+    .getDriverGpsChannel(driverId)
+    .notify({
+      driverId,
+      coordinates: {
+        lat,
+        lng,
+      },
+      timestamp:
+        data?.timestamp ??
+        new Date().toISOString(),
     });
+}
+
+public async getUserIdByEmail(email: string): Promise<string> {
+  const { data, error } = await supabase
+    .from('users')
+    .select('user_id')
+    .eq('email', email.trim().toLowerCase())
+    .single();
+
+  if (error || !data) {
+    throw new Error('No FuelNow user was found with this email address.');
   }
 
-  public async addDriver(driver: Omit<DriverModel, 'id' | 'todayEarnings' | 'weekEarnings' | 'monthEarnings' | 'documents'>): Promise<DriverModel> {
-    // Ideally this uses a supabase insert or RPC. For now we just return a fake object 
-    // to satisfy the UI until the user runs a SQL script to add full driver insert support.
-    const newDriver: DriverModel = {
-      ...driver,
-      id: `drv_${Date.now().toString().slice(-4)}`,
-      todayEarnings: 0,
-      weekEarnings: 0,
-      monthEarnings: 0,
-      documents: [],
-    };
-    return newDriver;
+  return data.user_id;
+}
+
+public async addDriver(
+  driverId: string,
+  driver: Omit<
+    DriverModel,
+    'id' |
+    'todayEarnings' |
+    'weekEarnings' |
+    'monthEarnings' |
+    'documents'
+  >
+): Promise<DriverModel> {
+  const { data, error } = await supabase.rpc(
+    'create_driver',
+    {
+      p_driver_id: driverId,
+      p_name: driver.name,
+      p_phone: driver.phone,
+      p_licence_number:
+        driver.licence_number ||
+        driver.vehicleReg ||
+        null,
+      p_zone: driver.zone || null,
+      p_province: driver.province || null,
+      p_status:
+        driver.status ||
+        (driver.isOnDuty ? 'active' : 'inactive'),
+      p_rating: driver.rating || 0,
+    }
+  );
+
+  if (error) {
+    console.error('Failed to create driver:', error);
+    throw error;
   }
+
+  return {
+    ...driver,
+    id: data,
+    todayEarnings: 0,
+    weekEarnings: 0,
+    monthEarnings: 0,
+    documents: [],
+  };
+}
   
-  public async updateDriver(id: string, updates: Partial<DriverModel>): Promise<void> {
-    const { error } = await supabase.rpc('update_driver_details', {
+public async updateDriver(
+  id: string,
+  updates: Partial<DriverModel>
+): Promise<void> {
+  const { error } = await supabase.rpc(
+    'update_driver_details',
+    {
       p_driver_id: id,
-      p_name: updates.name || null,
-      p_phone: updates.phone || null,
-      p_zone: updates.zone || null,
-      p_province: updates.province || null
-    });
-    
-    if (error) {
-      console.error('Error updating driver:', error);
-      throw error;
+      p_name: updates.name ?? null,
+      p_phone: updates.phone ?? null,
+      p_zone: updates.zone ?? null,
+      p_province: updates.province ?? null,
+      p_licence_number:
+        updates.licence_number ??
+        updates.vehicleReg ??
+        null,
+      p_status: updates.status ?? null,
+      p_rating:
+        updates.rating !== undefined
+          ? updates.rating
+          : null,
     }
+  );
+
+  if (error) {
+    console.error('Error updating driver:', error);
+    throw error;
+  }
+}
+
+public async deleteDriver(id: string): Promise<void> {
+  const { data, error } = await supabase.rpc(
+    'delete_driver',
+    {
+      p_driver_id: id,
+    }
+  );
+
+  if (error) {
+    console.error('Error deleting driver:', error);
+    throw error;
   }
 
-  public async deleteDriver(id: string): Promise<void> {
-    // Implement standard delete if possible. Note: deleting users via client is restricted in Supabase,
-    // usually requires a secure Edge Function. We will just attempt to delete the driver profile.
-    const { error } = await supabase.from('drivers').delete().eq('id', id);
-    if (error) {
-      console.error('Error deleting driver:', error);
-      throw error;
-    }
+  if (!data) {
+    throw new Error('Driver was not found.');
   }
+}
 }
 
 export const driverRepository = DriverRepository.getInstance();

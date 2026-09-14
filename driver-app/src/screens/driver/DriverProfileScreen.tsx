@@ -16,11 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useDesignMode } from '../../context/DesignModeContext';
-import {
-  getDriverDocuments,
-  DriverDocument,
-  MOCK_DRIVER,
-} from '../../services/mockApi';
+import { driverRepository, DriverDocumentModel as DriverDocument } from '../../repositories/DriverRepository';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -196,13 +192,18 @@ interface Props {
 export default function DriverProfileScreen({ navigation }: Props) {
   const { colors, font, isWireframe } = useDesignMode();
 
+  const [driver, setDriver] = useState<any>(null);
   const [documents, setDocuments] = useState<DriverDocument[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
       try {
-        const docs = await getDriverDocuments();
+        const [driverData, docs] = await Promise.all([
+          driverRepository.getActiveDriver().catch(() => null),
+          driverRepository.getDriverDocuments(),
+        ]);
+        setDriver(driverData);
         setDocuments(docs);
       } catch (_) {
         // fall back silently
@@ -280,7 +281,7 @@ export default function DriverProfileScreen({ navigation }: Props) {
                 { color: headerSub, fontFamily: font('body') },
               ]}
             >
-              ⭐ {MOCK_DRIVER.rating} Rating  •  {MOCK_DRIVER.totalDeliveries.toLocaleString()} Deliveries
+              ⭐ {driver?.rating ?? '—'} Rating  •  {(driver?.totalDeliveries ?? 0).toLocaleString()} Deliveries
             </Text>
 
             {/* Vehicle chip */}
@@ -292,7 +293,7 @@ export default function DriverProfileScreen({ navigation }: Props) {
                   { color: headerText, fontFamily: font('bodyMedium') },
                 ]}
               >
-                {MOCK_DRIVER.vehicleModel}  ·  {MOCK_DRIVER.vehicleReg}
+                {driver?.vehicleModel ?? 'Vehicle'}  ·  {driver?.vehicleReg ?? ''}
               </Text>
             </View>
           </View>

@@ -1,3 +1,4 @@
+import { supabase } from '../services/supabase';
 import { realtimeHub } from '../patterns/realtimeObserver';
 
 export interface DriverDocumentModel {
@@ -29,107 +30,29 @@ export interface DriverModel {
   documents: DriverDocumentModel[];
 }
 
+// ── Earnings entry returned per completed delivery ──────────────────────────
+export interface DriverEarningsEntry {
+  id: string;
+  address: string;
+  date: string;
+  litres: number;
+  fuelType: string;
+  amount: number;
+}
+
+export interface DriverEarnings {
+  todayEarnings: number;
+  weekEarnings: number;
+  monthEarnings: number;
+  dailyTarget: number;
+  totalDeliveries: number;
+  deliveryHistory: DriverEarningsEntry[];
+}
+
 export class DriverRepository {
   private static instance: DriverRepository;
 
-  private activeDriver: DriverModel = {
-    id: 'drv_001',
-    name: 'France Sizwe',
-    phone: '060 123 4567',
-    rating: 4.9,
-    totalDeliveries: 1248,
-    vehicleReg: 'ND 456-789',
-    vehicleModel: 'Toyota Hilux 2.8 GD-6',
-    vehicleColor: 'Super White',
-    stationName: 'Engen Durban North',
-    isOnDuty: true,
-    isApproved: true,
-    coordinates: { lat: -29.7990, lng: 31.0340 },
-    dailyTarget: 1500.0,
-    todayEarnings: 892.50,
-    weekEarnings: 4310.00,
-    monthEarnings: 16840.00,
-    documents: [
-      {
-        id: 'doc_001',
-        type: "Driver's Licence",
-        number: 'DL-KZN-20456',
-        expiryDate: '2027-08-15',
-        isExpired: false,
-        isExpiringSoon: false,
-      },
-      {
-        id: 'doc_002',
-        type: 'Professional Driver Permit',
-        number: 'PDP-KZN-89012',
-        expiryDate: '2025-09-01',
-        isExpired: false,
-        isExpiringSoon: true,
-      },
-      {
-        id: 'doc_003',
-        type: 'Hazmat Certificate',
-        number: 'HAZ-001-2024',
-        expiryDate: '2024-12-31',
-        isExpired: true,
-        isExpiringSoon: false,
-      },
-      {
-        id: 'doc_004',
-        type: 'Vehicle Permit',
-        number: 'VP-ND456789-25',
-        expiryDate: '2026-03-20',
-        isExpired: false,
-        isExpiringSoon: false,
-      },
-    ],
-  };
-
-  private driversList: DriverModel[] = [];
-
-  private constructor() {
-    this.driversList = [
-      this.activeDriver,
-      {
-        id: 'drv_002',
-        name: 'Ruan van der Merwe',
-        phone: '072 987 6543',
-        rating: 4.7,
-        totalDeliveries: 834,
-        vehicleReg: 'ND 882-104',
-        vehicleModel: 'Isuzu D-Max 3.0 Ddi',
-        vehicleColor: 'Silver',
-        stationName: 'Total Westville',
-        isOnDuty: true,
-        isApproved: true,
-        coordinates: { lat: -29.8256, lng: 30.9312 },
-        dailyTarget: 1500.0,
-        todayEarnings: 680.00,
-        weekEarnings: 3450.00,
-        monthEarnings: 13900.00,
-        documents: [],
-      },
-      {
-        id: 'drv_003',
-        name: 'Sipho Mthembu',
-        phone: '083 555 1290',
-        rating: 4.85,
-        totalDeliveries: 942,
-        vehicleReg: 'ND 619-332',
-        vehicleModel: 'Ford Ranger 2.2 TDCi',
-        vehicleColor: 'Dark Grey',
-        stationName: 'Shell Umhlanga Ridge',
-        isOnDuty: false,
-        isApproved: true,
-        coordinates: { lat: -29.7280, lng: 31.0680 },
-        dailyTarget: 1500.0,
-        todayEarnings: 0,
-        weekEarnings: 2980.00,
-        monthEarnings: 11400.00,
-        documents: [],
-      },
-    ];
-  }
+  private constructor() {}
 
   public static getInstance(): DriverRepository {
     if (!DriverRepository.instance) {
@@ -138,39 +61,234 @@ export class DriverRepository {
     return DriverRepository.instance;
   }
 
+  private mapDriver(row: any, documents: DriverDocumentModel[] = []): DriverModel {
+    return {
+      id: row.driver_id ?? row.id ?? '',
+      name: row.full_name ?? row.users?.full_name ?? 'Driver',
+      phone: row.phone_number ?? row.users?.phone_number ?? '',
+      rating: Number(row.average_rating ?? 5),
+      totalDeliveries: Number(row.total_deliveries ?? 0),
+      vehicleReg: row.vehicle_registration ?? '',
+      vehicleModel: row.vehicle_model ?? '',
+      vehicleColor: row.vehicle_color ?? '',
+      stationName: row.station_name ?? '',
+      isOnDuty: row.is_on_duty ?? false,
+      isApproved: row.is_approved ?? false,
+      coordinates: {
+        lat: Number(row.current_latitude ?? -29.8587),
+        lng: Number(row.current_longitude ?? 31.0218),
+      },
+      dailyTarget: Number(row.daily_target ?? 1500),
+      todayEarnings: 0,
+      weekEarnings: 0,
+      monthEarnings: 0,
+      documents,
+    };
+  }
+
+  private mapDocument(doc: any): DriverDocumentModel {
+    const expiryDate = doc.expiry_date ?? '';
+    const now = new Date();
+    const expiry = new Date(expiryDate);
+    const daysUntilExpiry = (expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+    const isExpired = daysUntilExpiry < 0;
+    const isExpiringSoon = !isExpired && daysUntilExpiry <= 30;
+
+    return {
+      id: doc.document_id ?? doc.id ?? '',
+      type: doc.document_type as DriverDocumentModel['type'],
+      number: doc.document_number ?? '',
+      expiryDate,
+      isExpired,
+      isExpiringSoon,
+    };
+  }
+
+  /**
+   * Fetches the authenticated driver's own profile from Supabase.
+   */
   public async getActiveDriver(): Promise<DriverModel> {
-    return { ...this.activeDriver };
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      throw new Error('No authenticated driver found.');
+    }
+
+    const { data, error } = await supabase
+      .from('drivers')
+      .select('*, users(full_name, phone_number)')
+      .eq('driver_id', user.id)
+      .single();
+
+    if (error || !data) {
+      throw error ?? new Error('Driver profile not found.');
+    }
+
+    const { data: docs } = await supabase
+      .from('driver_documents')
+      .select('*')
+      .eq('driver_id', user.id);
+
+    const documents = (docs ?? []).map((d: any) => this.mapDocument(d));
+    return this.mapDriver(data, documents);
   }
 
+  /**
+   * Fetches all drivers (for admin or listing purposes).
+   */
   public async getAllDrivers(): Promise<DriverModel[]> {
-    return [...this.driversList];
+    const { data, error } = await supabase
+      .from('drivers')
+      .select('*, users(full_name, phone_number)');
+
+    if (error) {
+      console.error('DriverRepository: failed to fetch drivers', error);
+      return [];
+    }
+
+    return (data ?? []).map((row: any) => this.mapDriver(row));
   }
 
+  /**
+   * Fetches driver earnings and delivery history.
+   */
+  public async getEarnings(): Promise<DriverEarnings> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+    const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay()).toISOString();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+    const { data: orders, error } = await supabase
+      .from('orders')
+      .select('*, payments(delivery_fee, fuel_subtotal, total_amount), fuel_types(name), addresses(street_name, suburb)')
+      .eq('driver_id', user.id)
+      .eq('status', 'DELIVERED');
+
+    if (error) {
+      console.error('DriverRepository: failed to fetch earnings', error);
+    }
+
+    const delivered = orders ?? [];
+    const todayEarnings = delivered
+      .filter((o: any) => o.delivered_at >= startOfToday)
+      .reduce((acc: number, o: any) => acc + Number(o.payments?.[0]?.delivery_fee ?? 0), 0);
+
+    const weekEarnings = delivered
+      .filter((o: any) => o.delivered_at >= startOfWeek)
+      .reduce((acc: number, o: any) => acc + Number(o.payments?.[0]?.delivery_fee ?? 0), 0);
+
+    const monthEarnings = delivered
+      .filter((o: any) => o.delivered_at >= startOfMonth)
+      .reduce((acc: number, o: any) => acc + Number(o.payments?.[0]?.delivery_fee ?? 0), 0);
+
+    const deliveryHistory: DriverEarningsEntry[] = delivered.slice(0, 20).map((o: any) => ({
+      id: o.order_id,
+      address: `${o.addresses?.street_name ?? ''}, ${o.addresses?.suburb ?? ''}`,
+      date: o.delivered_at ?? o.placed_at ?? new Date().toISOString(),
+      litres: Number(o.volume_litres ?? 0),
+      fuelType: o.fuel_types?.name ?? 'Fuel',
+      amount: Number(o.payments?.[0]?.delivery_fee ?? 0),
+    }));
+
+    return {
+      todayEarnings,
+      weekEarnings,
+      monthEarnings,
+      dailyTarget: 1500,
+      totalDeliveries: delivered.length,
+      deliveryHistory,
+    };
+  }
+
+  /**
+   * Fetches documents for the authenticated driver.
+   */
+  public async getDriverDocuments(): Promise<DriverDocumentModel[]> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
+    const { data, error } = await supabase
+      .from('driver_documents')
+      .select('*')
+      .eq('driver_id', user.id);
+
+    if (error) {
+      console.error('DriverRepository: failed to fetch documents', error);
+      return [];
+    }
+
+    return (data ?? []).map((d: any) => this.mapDocument(d));
+  }
+
+  /**
+   * Toggles the driver's on-duty status in Supabase.
+   */
   public async toggleOnDutyStatus(isOnDuty: boolean): Promise<boolean> {
-    this.activeDriver.isOnDuty = isOnDuty;
-    return this.activeDriver.isOnDuty;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
+    const { error } = await supabase
+      .from('drivers')
+      .update({ is_on_duty: isOnDuty })
+      .eq('driver_id', user.id);
+
+    if (error) {
+      throw error;
+    }
+
+    return isOnDuty;
   }
 
+  /**
+   * Updates the driver's GPS coordinates in Supabase and notifies realtime hub.
+   */
   public async updateGpsCoordinates(lat: number, lng: number): Promise<void> {
-    this.activeDriver.coordinates = { lat, lng };
-    realtimeHub.getDriverGpsChannel(this.activeDriver.id).notify({
-      driverId: this.activeDriver.id,
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    await supabase
+      .from('drivers')
+      .update({ current_latitude: lat, current_longitude: lng })
+      .eq('driver_id', user.id);
+
+    realtimeHub.getDriverGpsChannel(user.id).notify({
+      driverId: user.id,
       coordinates: { lat, lng },
       timestamp: new Date().toISOString(),
     });
   }
 
-  public async addDriver(driver: Omit<DriverModel, 'id' | 'todayEarnings' | 'weekEarnings' | 'monthEarnings' | 'documents'>): Promise<DriverModel> {
-    const newDriver: DriverModel = {
-      ...driver,
-      id: `drv_${Date.now().toString().slice(-4)}`,
-      todayEarnings: 0,
-      weekEarnings: 0,
-      monthEarnings: 0,
-      documents: [],
-    };
-    this.driversList.push(newDriver);
-    return newDriver;
+  /**
+   * Accepts an order as the current driver.
+   */
+  public async acceptOrder(orderId: string): Promise<void> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
+    const { error } = await supabase
+      .from('orders')
+      .update({ driver_id: user.id, status: 'ACCEPTED' })
+      .eq('order_id', orderId);
+
+    if (error) throw error;
+  }
+
+  /**
+   * Updates order status (e.g., NAVIGATING, ARRIVED, DISPENSING, DELIVERED).
+   */
+  public async updateOrderStatus(orderId: string, status: string, deliveredAt?: string): Promise<void> {
+    const update: any = { status };
+    if (deliveredAt) update.delivered_at = deliveredAt;
+
+    const { error } = await supabase
+      .from('orders')
+      .update(update)
+      .eq('order_id', orderId);
+
+    if (error) throw error;
   }
 }
 

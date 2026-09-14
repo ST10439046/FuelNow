@@ -82,7 +82,10 @@ export interface Order {
   delivery_pin: string | null;
   delivered_at: string | null;
   created_at?: string;
+  rating : number | null;
 }
+
+
 
 export interface Payment {
   id: string;

@@ -6,14 +6,14 @@ import { useDesignMode } from '../../context/DesignModeContext';
 import { FontSizes, Spacing, Radius } from '../../theme/tokens';
 import Card from '../../components/Card';
 import Button from '../../components/Button';
-import { MOCK_USER, PaymentMethod } from '../../services/mockApi';
+import { userRepository, PaymentMethodModel as PaymentMethod } from '../../repositories/UserRepository';
 
 interface Props { navigation: any; route?: any }
 
 export default function PaymentMethodScreen({ navigation, route }: Props) {
   const { colors, font, isWireframe: isWF } = useDesignMode();
   const params = route?.params ?? {};
-  const [selected, setSelected] = useState<string>(MOCK_USER.paymentMethods.find(p => p.isDefault)?.id ?? 'pm_001');
+  const [selected, setSelected] = useState<string>('');
 
   const handleContinue = () => {
     navigation.navigate('OrderReview', { ...params, paymentMethodId: selected });

@@ -17,11 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useDesignMode } from '../../context/DesignModeContext';
 import FuelGaugeArc from '../../components/FuelGaugeArc';
-import {
-  getDriverEarnings,
-  DriverEarnings,
-  DriverEarningsEntry,
-} from '../../services/mockApi';
+import { driverRepository, DriverEarnings, DriverEarningsEntry } from '../../repositories/DriverRepository';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -199,7 +195,7 @@ export default function EarningsScreen({ navigation }: Props) {
   useEffect(() => {
     (async () => {
       try {
-        const data = await getDriverEarnings();
+        const data = await driverRepository.getEarnings();
         setEarnings(data);
       } catch (_) {
         // silently fall back — mock data always succeeds

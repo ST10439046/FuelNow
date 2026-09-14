@@ -8,7 +8,7 @@ import { useDesignMode } from '../../context/DesignModeContext';
 import { FontSizes, Spacing, Radius } from '../../theme/tokens';
 import Card from '../../components/Card';
 import Button from '../../components/Button';
-import { MOCK_USER, Address } from '../../services/mockApi';
+import { userRepository, AddressModel as Address } from '../../repositories/UserRepository';
 
 interface Props { navigation: any; route?: any }
 

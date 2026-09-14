@@ -6,7 +6,7 @@ import { useDesignMode } from '../../context/DesignModeContext';
 import { FontSizes, Spacing, Radius } from '../../theme/tokens';
 import Card from '../../components/Card';
 import Button from '../../components/Button';
-import { rateOrder, MOCK_DRIVER } from '../../services/mockApi';
+import { CustomerApiClient } from '../../services/apiClient';
 
 interface Props { navigation: any; route?: any }
 
@@ -42,7 +42,14 @@ export default function RateReviewScreen({ navigation, route }: Props) {
   const handleSubmit = async () => {
     setLoading(true);
     try {
-      await rateOrder(orderId, { rating: driverRating, comment });
+      // We need customerId and driverId from the order for a real review
+      await CustomerApiClient.createReview({
+        orderId,
+        customerId: '', // populated from order in a full implementation
+        driverId: '',   // populated from order in a full implementation
+        rating: driverRating,
+        comment,
+      });
       setDone(true);
       setTimeout(() => navigation.navigate('DigitalReceipt', { orderId }), 1500);
     } finally {

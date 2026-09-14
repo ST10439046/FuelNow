@@ -6,7 +6,7 @@ import { useDesignMode } from '../../context/DesignModeContext';
 import { FontSizes, Spacing, Radius } from '../../theme/tokens';
 import Card from '../../components/Card';
 import Button from '../../components/Button';
-import { MOCK_USER } from '../../services/mockApi';
+import { userRepository } from '../../repositories/UserRepository';
 
 interface Props { navigation: any }
 

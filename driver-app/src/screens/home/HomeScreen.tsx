@@ -16,7 +16,8 @@ import { useDesignMode } from '../../context/DesignModeContext';
 import { FontSizes, Spacing, Radius, Shadow, Colors } from '../../theme/tokens';
 import Card from '../../components/Card';
 import Button from '../../components/Button';
-import { getCurrentRates, FuelRate, MOCK_USER } from '../../services/mockApi';
+import { fuelRateRepository, FuelRateModel as FuelRate } from '../../repositories/FuelRateRepository';
+import { userRepository } from '../../repositories/UserRepository';
 
 const { width: W } = Dimensions.get('window');
 
@@ -102,7 +103,7 @@ export default function HomeScreen({ navigation }: Props) {
   useEffect(() => {
     const fetchRates = async () => {
       try {
-        const data = await getCurrentRates();
+        const data = await fuelRateRepository.getRates();
         setRates(data);
       } finally {
         setLoadingRates(false);

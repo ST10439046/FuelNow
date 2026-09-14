@@ -1,8 +1,10 @@
-import {
-  OrderStateMachine,
+import type{
+ 
   OrderStatus,
   OrderContext,
 } from '../patterns/orderStateMachine';
+
+import { OrderStateMachine } from '../patterns/orderStateMachine';
 
 import { realtimeHub } from '../patterns/realtimeObserver';
 
@@ -11,17 +13,18 @@ import {
   supabaseService,
 } from '../services/supabase';
 
-import {
+import type{
   AddressModel,
   PaymentMethodModel,
-  userRepository,
 } from './UserRepository';
 
-import {
+import { userRepository } from './UserRepository';
+
+import type {
   DriverModel,
 } from './DriverRepository';
 
-import {
+import type{
   FuelRateModel,
 } from './FuelRateRepository';
 
@@ -68,7 +71,9 @@ export interface OrderModel {
 
   distanceKm: number;
 
+  rating?: number;
   ratingComment?: string;
+
   customerName?: string;
   phone?: string;
   driverName?: string;
@@ -547,41 +552,126 @@ public async getRecentOrders(days: number = 14): Promise<OrderModel[]> {
   return [...orders];
 }
 
-  public async getAllAdminOrders(): Promise<OrderModel[]> {
-    const { data, error } = await supabase.rpc('get_all_admin_orders');
-    if (error) {
-      console.error('Failed to fetch admin orders:', error);
-      throw error;
-    }
-    
-    // Map minimal data for admin orders screen
-    const orders = (data || []).map((row: any) => ({
-      id: row.id,
-      orderNumber: row.id,
-      status: row.status,
-      item: {
-        fuelType: row.fuelType,
-        litres: row.litres,
-        pricePerLitre: 0,
-        subtotal: row.totalZAR
-      },
-      deliveryAddress: {} as any,
-      scheduledAt: null,
-      paymentMethod: {} as any,
-      deliveryFee: 0,
-      vatAmount: 0,
-      totalAmount: row.totalZAR,
-      driverName: row.driverName,
-      customerName: row.customerName,
-      phone: row.phone,
-      pin: '',
-      createdAt: row.placedAt,
-      placedAt: row.placedAt,
-      estimatedArrivalMinutes: 0,
-      distanceKm: 0,
-    }));
-    return orders;
+public async getAllAdminOrders(): Promise<OrderModel[]> {
+  const { data, error } = await supabase.rpc(
+    'get_all_admin_orders'
+  );
+
+  if (error) {
+    console.error(
+      'Failed to fetch admin orders:',
+      error
+    );
+
+    throw error;
   }
+
+  const orders: OrderModel[] = (data || []).map(
+    (row: any) => ({
+      id: row.id,
+
+      orderNumber:
+        row.orderNumber ??
+        row.order_number ??
+        row.id,
+
+      status: this.mapOrderStatus(
+        row.status
+      ),
+
+      item: {
+        fuelType:
+          row.fuelType ??
+          row.fuel_type ??
+          'Unknown Fuel',
+
+        litres:
+          Number(
+            row.litres ??
+            row.volume_litres ??
+            0
+          ),
+
+        pricePerLitre: 0,
+
+        subtotal:
+          Number(
+            row.totalZAR ??
+            row.total_amount ??
+            row.rand_amount ??
+            0
+          ),
+      },
+
+      deliveryAddress: {} as AddressModel,
+
+      scheduledAt:
+        row.scheduledAt ??
+        row.scheduled_at ??
+        row.scheduled_date_time ??
+        null,
+
+      paymentMethod:
+        {} as PaymentMethodModel,
+
+      deliveryFee:
+        Number(
+          row.deliveryFee ??
+          row.delivery_fee ??
+          0
+        ),
+
+      vatAmount:
+        Number(
+          row.vatAmount ??
+          row.vat_amount ??
+          0
+        ),
+
+      totalAmount:
+        Number(
+          row.totalZAR ??
+          row.totalAmount ??
+          row.total_amount ??
+          row.rand_amount ??
+          0
+        ),
+
+      driverName:
+        row.driverName ??
+        row.driver_name ??
+        undefined,
+
+      customerName:
+        row.customerName ??
+        row.customer_name ??
+        undefined,
+
+      phone:
+        row.phone ??
+        row.phone_number ??
+        undefined,
+
+      pin:
+        row.deliveryPin ??
+        row.delivery_pin ??
+        '',
+
+      createdAt:
+        row.placedAt ??
+        row.placed_at ??
+        row.createdAt ??
+        row.created_at ??
+        new Date().toISOString(),
+
+      estimatedArrivalMinutes: 0,
+
+      distanceKm: 0,
+    })
+  );
+
+  return orders;
+}
 
   public async getKPISummary(): Promise<KPISummary | null> {
     const { data, error } = await supabase.rpc('get_kpi_summary');
@@ -2162,44 +2252,51 @@ public async getOrderById(
   // ==========================================================================
   // MAP DATABASE STATUS TO STATE MACHINE STATUS
   // ==========================================================================
+private mapOrderStatus(status: string | null | undefined): OrderStatus {
+  const normalized = String(status ?? "")
+    .trim()
+    .toUpperCase();
 
-  private mapOrderStatus(
-    status:
-      | string
-      | null
-      | undefined
-  ): OrderStatus {
+  switch (normalized) {
+    case "PENDING_PAYMENT":
+    case "PENDING":
+      return "PENDING_PAYMENT";
 
-    const validStatuses: OrderStatus[] = [
-  'PENDING_PAYMENT',
-  'PAID',
-  'FINDING_DRIVER',
-  'ACCEPTED',
-  'NAVIGATING',
-  'ARRIVED',
-  'DISPENSING',
-  'DELIVERED',
-  'COMPLETED',
-  'CANCELLED',
-];
+    case "PAID":
+      return "PAID";
 
-    if (
-      status &&
-      validStatuses.includes(
-        status as OrderStatus
-      )
-    ) {
-      return status as OrderStatus;
-    }
+    case "FINDING_DRIVER":
+      return "FINDING_DRIVER";
 
+    case "ACCEPTED":
+      return "ACCEPTED";
 
-    console.warn(
-      `OrderRepository: unknown order status "${status}". Falling back to PENDING_PAYMENT.`
-    );
+    case "NAVIGATING":
+    case "IN_TRANSIT":
+      return "NAVIGATING";
 
+    case "ARRIVED":
+      return "ARRIVED";
 
-    return 'PENDING_PAYMENT';
+    case "DISPENSING":
+      return "DISPENSING";
+
+    case "COMPLETED":
+    case "DELIVERED":
+      return "COMPLETED";
+
+    case "CANCELLED":
+    case "CANCELED":
+      return "CANCELLED";
+
+    default:
+      console.warn(
+        `OrderRepository: unknown order status "${status}". Falling back to PENDING_PAYMENT.`
+      );
+
+      return "PENDING_PAYMENT";
   }
+}
 
 
   // ==========================================================================

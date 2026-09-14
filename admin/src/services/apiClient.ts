@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import {
+import type {
   User,
   Customer,
   Address,

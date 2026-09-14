@@ -11,7 +11,19 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useDesignMode } from '../../context/DesignModeContext';
 import { FontSizes, Spacing, Radius, Shadow } from '../../theme/tokens';
-import { getAvailableOrders, AvailableOrder } from '../../services/mockApi';
+import { orderRepository } from '../../repositories/OrderRepository';
+
+export interface AvailableOrder {
+  id: string;
+  fuelType: string;
+  litres: number;
+  address: string;
+  suburb: string;
+  customerInitials: string;
+  distanceKm: number;
+  estimatedMinutes: number;
+  totalZAR: number;
+}
 
 interface Props { navigation: any; }
 
@@ -173,7 +185,7 @@ export default function AvailableOrdersScreen({ navigation }: Props) {
 
   const loadOrders = useCallback(async () => {
     try {
-      const data = await getAvailableOrders();
+      const data = await orderRepository.getAvailableOrders();
       setOrders(data);
     } catch (_) {
       setOrders([]);

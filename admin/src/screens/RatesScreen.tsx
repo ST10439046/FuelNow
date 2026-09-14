@@ -1,26 +1,29 @@
-import { useEffect, useState } from 'react';
-import { fuelRateRepository, type FuelRateModel as FuelRate } from '../repositories/FuelRateRepository';
-import Card from '../components/Card';
-import DataTable, { type Column } from '../components/DataTable';
-import StatusBadge from '../components/StatusBadge';
-import Button from '../components/Button';
-import Input from '../components/Input';
+import { useEffect, useState } from "react";
+import {
+  fuelRateRepository,
+  type FuelRateModel as FuelRate,
+} from "../repositories/FuelRateRepository";
+import Card from "../components/Card";
+import DataTable, { type Column } from "../components/DataTable";
+import StatusBadge from "../components/StatusBadge";
+import Button from "../components/Button";
+import Input from "../components/Input";
 
 function fmtZAR(n: number) {
-  return 'R ' + n.toFixed(2);
+  return "R " + n.toFixed(2);
 }
 
 function timeAgo(iso: string) {
   const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
   if (mins < 60) return `${mins} mins ago`;
   const hrs = Math.floor(mins / 60);
-  return `${hrs} hour${hrs > 1 ? 's' : ''} ago`;
+  return `${hrs} hour${hrs > 1 ? "s" : ""} ago`;
 }
 
 export default function RatesScreen() {
   const [rates, setRates] = useState<FuelRate[]>([]);
   const [editing, setEditing] = useState<string | null>(null);
-  const [editPrice, setEditPrice] = useState('');
+  const [editPrice, setEditPrice] = useState("");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -29,12 +32,17 @@ export default function RatesScreen() {
 
   const fetchRates = () => fuelRateRepository.getRates().then(setRates);
 
-  const handleSave = async (fuelType: any) => {
+  const handleSave = async (rateId: string) => {
     const num = parseFloat(editPrice);
-    if (isNaN(num) || num <= 0) return alert('Invalid price');
+
+    if (isNaN(num) || num <= 0) {
+      return alert("Invalid price");
+    }
+
     setLoading(true);
+
     try {
-      await fuelRateRepository.updateRate(fuelType, num);
+      await fuelRateRepository.updateRate(rateId, num);
       await fetchRates();
       setEditing(null);
     } finally {
@@ -44,79 +52,178 @@ export default function RatesScreen() {
 
   const columns: Column<FuelRate>[] = [
     {
-      key: 'fuelType', label: 'Fuel Type',
-      render: (v) => <span style={{ fontWeight: 600, color: v.includes('Diesel') ? 'var(--diesel-blue)' : 'var(--petrol-deep)' }}>{v}</span>
+      key: "type",
+      label: "Fuel Type",
+      render: (v) => {
+        const fuelType = String(v ?? "");
+
+        return (
+          <span
+            style={{
+              fontWeight: 600,
+              color: fuelType.includes("Diesel")
+                ? "var(--diesel-blue)"
+                : "var(--petrol-deep)",
+            }}
+          >
+            {fuelType || "Unknown"}
+          </span>
+        );
+      },
     },
     {
-      key: 'pricePerLitre', label: 'Current Price (per Litre)',
-      render: (v, row) => (
-        editing === row.fuelType ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      key: "pricePerLitre",
+      label: "Current Price (per Litre)",
+      render: (v, row) =>
+        editing === row.id ? (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
             <span style={{ fontWeight: 600 }}>R</span>
+
             <Input
-              type="number" step="0.01" value={editPrice}
-              onChange={e => setEditPrice(e.target.value)}
-              style={{ width: 100, padding: '6px 10px' }}
+              type="number"
+              step="0.01"
+              value={editPrice}
+              onChange={(e) => setEditPrice(e.target.value)}
+              style={{
+                width: 100,
+                padding: "6px 10px",
+              }}
               autoFocus
             />
           </div>
         ) : (
-          <span style={{ fontSize: 16, fontWeight: 700 }}>{fmtZAR(v)}</span>
-        )
-      )
+          <span
+            style={{
+              fontSize: 16,
+              fontWeight: 700,
+            }}
+          >
+            {fmtZAR(Number(v ?? 0))}
+          </span>
+        ),
     },
     {
-      key: 'source', label: 'Source',
-      render: (v) => <StatusBadge status={v === 'api' ? 'valid' : 'warning'} customLabel={v === 'api' ? 'Automated API Sync' : 'Manual Override'} />
+      key: "changeSource",
+      label: "Source",
+      render: (v) => {
+        const source = String(v ?? "");
+
+        return (
+          <StatusBadge
+            status={source === "api" ? "valid" : "warning"}
+            customLabel={
+              source === "api" ? "Automated API Sync" : "Manual Override"
+            }
+          />
+        );
+      },
     },
     {
-      key: 'lastUpdated', label: 'Last Updated',
-      render: (v) => <span style={{ color: 'var(--ink-light)' }}>{timeAgo(v)}</span>
+      key: "effectiveDate",
+      label: "Last Updated",
+      render: (v) => {
+        if (!v) {
+          return <span style={{ color: "var(--ink-faint)" }}>N/A</span>;
+        }
+
+        return <span style={{ color: "var(--ink-light)" }}>{timeAgo(v)}</span>;
+      },
     },
     {
-      key: 'actions', label: '', width: 140,
-      render: (_, row) => (
-        editing === row.fuelType ? (
-          <div style={{ display: 'flex', gap: 8 }}>
-            <Button size="sm" variant="primary" loading={loading} onClick={() => handleSave(row.fuelType)}>Save</Button>
-            <Button size="sm" variant="ghost" disabled={loading} onClick={() => setEditing(null)}>Cancel</Button>
+      key: "actions",
+      label: "",
+      width: 140,
+      render: (_, row) =>
+        editing === row.id ? (
+          <div style={{ display: "flex", gap: 8 }}>
+            <Button
+              size="sm"
+              variant="primary"
+              loading={loading}
+              onClick={() => handleSave(row.id)}
+            >
+              Save
+            </Button>
+
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={loading}
+              onClick={() => setEditing(null)}
+            >
+              Cancel
+            </Button>
           </div>
         ) : (
-          <Button size="sm" variant="outline" onClick={() => { setEditing(row.fuelType); setEditPrice(String(row.pricePerLitre)); }}>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setEditing(row.id);
+              setEditPrice(String(row.pricePerLitre));
+            }}
+          >
             Override Price
           </Button>
-        )
-      )
-    }
+        ),
+    },
   ];
 
   const handleForceSync = async () => {
     setLoading(true);
     try {
       // Simulate/trigger Edge Function sync
-      await new Promise(r => setTimeout(r, 800));
+      await new Promise((r) => setTimeout(r, 800));
       await fetchRates();
-      alert('SAPIA Retail fuel rates successfully synchronized from Coastal 01A price feed.');
+      alert(
+        "SAPIA Retail fuel rates successfully synchronized from Coastal 01A price feed.",
+      );
     } catch {
-      alert('Failed to sync rates.');
+      alert("Failed to sync rates.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div style={{ animation: 'fadeIn 0.3s ease' }}>
+    <div style={{ animation: "fadeIn 0.3s ease" }}>
       <Card padding={0}>
-        <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--divider)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div
+          style={{
+            padding: "20px 24px",
+            borderBottom: "1px solid var(--divider)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
           <div>
-            <h3 style={{ fontSize: 16, fontWeight: 600 }}>Fuel Pricing & SAPIA Retail Rates</h3>
-            <p style={{ fontSize: 13, color: 'var(--ink-faint)', marginTop: 4 }}>Regulated South African retail rates per litre (Durban Coastal Zone 01A).</p>
+            <h3 style={{ fontSize: 16, fontWeight: 600 }}>
+              Fuel Pricing & SAPIA Retail Rates
+            </h3>
+            <p
+              style={{ fontSize: 13, color: "var(--ink-faint)", marginTop: 4 }}
+            >
+              Regulated South African retail rates per litre (Durban Coastal
+              Zone 01A).
+            </p>
           </div>
-          <Button variant="secondary" icon="🔄" loading={loading} onClick={handleForceSync}>
+          <Button
+            variant="secondary"
+            icon="🔄"
+            loading={loading}
+            onClick={handleForceSync}
+          >
             Force API Sync
           </Button>
         </div>
-        <DataTable columns={columns} data={rates} rowKey="fuelType" />
+        <DataTable columns={columns} data={rates} rowKey="type" />
       </Card>
     </div>
   );

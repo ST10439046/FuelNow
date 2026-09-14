@@ -5,7 +5,7 @@ import { Feather } from '@expo/vector-icons';
 import { useDesignMode } from '../../context/DesignModeContext';
 import { FontSizes, Spacing, Radius } from '../../theme/tokens';
 import Button from '../../components/Button';
-import { confirmDelivery } from '../../services/mockApi';
+import { driverRepository } from '../../repositories/DriverRepository';
 
 interface Props { navigation: any; route?: any }
 

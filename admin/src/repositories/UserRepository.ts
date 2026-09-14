@@ -1,6 +1,6 @@
 import { CustomerApiClient } from '../services/apiClient';
 import { supabase } from '../services/supabase';
-import {
+import type{
   User,
   Customer,
   Address,
@@ -90,33 +90,145 @@ export class UserRepository {
     console.log('User creation should be handled via a secure edge function', payload);
   }
 
-  public async adminLogin(email: string, password: string): Promise<{ token: string }> {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
 
-    if (error) {
-      console.error('Login error:', error);
-      throw new Error(error.message);
-    }
+public async adminLogin(
+  email: string,
+  password: string
+): Promise<{ token: string; role: string }> {
+  // 1. Authenticate against Supabase Auth
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: email.trim().toLowerCase(),
+    password,
+  });
 
-    if (!data.session) {
-      throw new Error('No session returned from login');
-    }
+  if (error) {
+    console.error("Admin login authentication error:", error);
 
-    const { data: adminProfile, error: profileError } = await supabase
-      .from('admin_users')
-      .select('*')
-      .eq('id', data.user.id)
-      .single();
-
-    if (profileError || !adminProfile) {
-      // Not handling strict enforcement here to keep it simple, just fetching
-    }
-
-    return { token: data.session.access_token };
+    throw new Error("Invalid email or password.");
   }
+
+  // 2. Make sure Supabase returned both the user and session
+  if (!data.user) {
+    throw new Error(
+      "Login failed. No authenticated user was returned."
+    );
+  }
+
+  if (!data.session) {
+    throw new Error(
+      "Login failed. No authentication session was created."
+    );
+  }
+
+  const authId = data.user.id;
+
+  console.log("ADMIN AUTH ID:", authId);
+  console.log(
+    "ADMIN JWT RECEIVED:",
+    Boolean(data.session.access_token)
+  );
+
+  // 3. Find the FuelNow application user
+  const {
+    data: appUser,
+    error: userError,
+  } = await supabase
+    .from("users")
+    .select(`
+      user_id,
+      auth_id,
+      full_name,
+      email,
+      status
+    `)
+    .eq("auth_id", authId)
+    .single();
+
+  if (userError || !appUser) {
+    console.error(
+      "ADMIN APPLICATION USER LOOKUP ERROR:",
+      userError
+    );
+
+    await supabase.auth.signOut();
+
+    throw new Error(
+      "This account is not registered in FuelNow."
+    );
+  }
+
+  console.log(
+    "ADMIN APPLICATION USER:",
+    JSON.stringify(appUser, null, 2)
+  );
+
+  // 4. Make sure the FuelNow user account is active
+  if (appUser.status !== "active") {
+    await supabase.auth.signOut();
+
+    throw new Error(
+      "This account is not active. Please contact support."
+    );
+  }
+
+  // 5. Make sure the FuelNow user has a valid user ID
+  if (!appUser.user_id) {
+    await supabase.auth.signOut();
+
+    throw new Error(
+      "Login succeeded, but no FuelNow user ID was found."
+    );
+  }
+
+  // 6. Verify that this FuelNow user has an admin profile
+  //
+  // Relationship:
+  //
+  // auth.users.id
+  //      ↓
+  // users.auth_id
+  //      ↓
+  // users.user_id
+  //      ↓
+  // admin_users.admin_id
+  //
+  const {
+    data: adminProfile,
+    error: adminError,
+  } = await supabase
+    .from("admin_users")
+    .select(`
+      admin_id,
+      role
+    `)
+    .eq("admin_id", appUser.user_id)
+    .single();
+
+  if (adminError || !adminProfile) {
+    console.error(
+      "ADMIN PROFILE LOOKUP ERROR:",
+      adminError
+    );
+
+    await supabase.auth.signOut();
+
+    throw new Error(
+      "This account does not have administrator access."
+    );
+  }
+
+  console.log(
+    "ADMIN PROFILE:",
+    JSON.stringify(adminProfile, null, 2)
+  );
+
+  // 7. Return the Supabase access token and admin role
+  return {
+    token: data.session.access_token,
+    role: adminProfile.role,
+  };
+}
+
 
   /**
    * Gets the currently authenticated user's ID.

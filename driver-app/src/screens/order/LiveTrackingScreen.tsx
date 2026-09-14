@@ -9,7 +9,8 @@ import { useDesignMode } from '../../context/DesignModeContext';
 import { FontSizes, Spacing, Radius, Shadow } from '../../theme/tokens';
 import Card from '../../components/Card';
 import FuelGaugeArc from '../../components/FuelGaugeArc';
-import { trackOrder, MOCK_DRIVER } from '../../services/mockApi';
+import { orderRepository } from '../../repositories/OrderRepository';
+import { driverRepository } from '../../repositories/DriverRepository';
 
 interface Props { navigation: any; route?: any }
 

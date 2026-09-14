@@ -1,3 +1,5 @@
+
+import { supabase } from '../services/supabase';
 import { realtimeHub } from '../patterns/realtimeObserver';
 
 export interface SOSAlertModel {
@@ -15,28 +17,12 @@ export interface SOSAlertModel {
   notes?: string;
   createdAt: string;
   resolvedAt?: string;
+  severity: string;
+  suburb: string;
 }
 
 export class SOSRepository {
   private static instance: SOSRepository;
-
-  private alerts: SOSAlertModel[] = [
-    {
-      id: 'sos_001',
-      referenceNumber: 'SOS-849201',
-      driverId: 'drv_003',
-      driverName: 'Sipho Mthembu',
-      driverPhone: '083 555 1290',
-      vehicleReg: 'ND 619-332',
-      lat: -29.8256,
-      lng: 30.9312,
-      locationAddress: '45 Jan Hofmeyr Rd, Westville, Durban',
-      orderId: 'ord_7756',
-      status: 'active',
-      notes: 'Vehicle breakdown - Engine overheating on steep incline.',
-      createdAt: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
-    },
-  ];
 
   private constructor() {}
 
@@ -44,11 +30,71 @@ export class SOSRepository {
     if (!SOSRepository.instance) {
       SOSRepository.instance = new SOSRepository();
     }
+
     return SOSRepository.instance;
   }
 
   public async getAlerts(): Promise<SOSAlertModel[]> {
-    return [...this.alerts];
+    const { data, error } = await supabase
+      .from('sos_alerts')
+      .select(`
+        *,
+        drivers (
+          driver_id,
+          users (
+            user_id,
+            full_name,
+            phone_number
+          )
+        )
+      `)
+      .order('reported_at', { ascending: false });
+
+    if (error) {
+      console.error('Failed to fetch SOS alerts:', error);
+      return [];
+    }
+
+    return (data || []).map((a: any) => {
+      const driver = a.drivers;
+      const user = driver?.users;
+
+      return {
+        id: a.alert_id,
+
+        referenceNumber: `SOS-${String(a.alert_id)
+          .substring(0, 6)
+          .toUpperCase()}`,
+
+        driverId: a.driver_id,
+
+        driverName: user?.full_name || 'Unknown Driver',
+
+        driverPhone: user?.phone_number || '',
+
+        vehicleReg: 'N/A',
+
+        lat: Number(a.latitude ?? 0),
+
+        lng: Number(a.longitude ?? 0),
+
+        locationAddress: 'Unknown Location',
+
+        orderId: a.order_id || undefined,
+
+        status: a.status as SOSAlertModel['status'],
+
+        notes: a.note || '',
+
+        createdAt: a.reported_at,
+
+        resolvedAt: a.resolved_at || undefined,
+
+        severity: a.severity || 'high',
+
+        suburb: 'Unknown',
+      };
+    });
   }
 
   public async triggerSOS(payload: {
@@ -62,50 +108,101 @@ export class SOSRepository {
     orderId?: string;
     notes?: string;
   }): Promise<SOSAlertModel> {
+    const { data, error } = await supabase
+      .from('sos_alerts')
+      .insert({
+        driver_id: payload.driverId,
+        order_id: payload.orderId || null,
+        latitude: payload.lat,
+        longitude: payload.lng,
+        note:
+          payload.notes ||
+          'Emergency assistance requested via Driver App SOS trigger.',
+        severity: 'high',
+        status: 'active',
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Failed to trigger SOS:', error);
+      throw error;
+    }
+
     const newAlert: SOSAlertModel = {
-      id: `sos_${Date.now().toString().slice(-6)}`,
-      referenceNumber: `SOS-${Math.floor(100000 + Math.random() * 900000)}`,
-      driverId: payload.driverId,
+      id: data.alert_id,
+
+      referenceNumber: `SOS-${String(data.alert_id)
+        .substring(0, 6)
+        .toUpperCase()}`,
+
+      driverId: data.driver_id,
+
       driverName: payload.driverName,
+
       driverPhone: payload.driverPhone,
+
       vehicleReg: payload.vehicleReg,
-      lat: payload.lat,
-      lng: payload.lng,
+
+      lat: Number(data.latitude ?? 0),
+
+      lng: Number(data.longitude ?? 0),
+
       locationAddress: payload.locationAddress,
-      orderId: payload.orderId,
-      status: 'active',
-      notes: payload.notes || 'Emergency assistance requested via Driver App SOS trigger.',
-      createdAt: new Date().toISOString(),
+
+      orderId: data.order_id || undefined,
+
+      status: data.status as SOSAlertModel['status'],
+
+      notes: data.note || '',
+
+      createdAt: data.reported_at,
+
+      resolvedAt: data.resolved_at || undefined,
+
+      severity: data.severity || 'high',
+
+      suburb: 'Unknown',
     };
 
-    this.alerts.unshift(newAlert);
-
-    // Broadcast to Admin Realtime Observer
     realtimeHub.getSOSAlertChannel().notify(newAlert);
+
     return newAlert;
   }
 
-  public async markAsResolved(id: string): Promise<SOSAlertModel | null> {
-    const alert = this.alerts.find((a) => a.id === id);
-    if (alert) {
-      alert.status = 'resolved';
-      alert.resolvedAt = new Date().toISOString();
-      realtimeHub.getSOSAlertChannel().notify(alert);
-      return { ...alert };
+  public async markAsResolved(id: string): Promise<void> {
+    const { error } = await supabase
+      .from('sos_alerts')
+      .update({
+        status: 'resolved',
+        resolved_at: new Date().toISOString(),
+      })
+      .eq('alert_id', id);
+
+    if (error) {
+      console.error('Failed to resolve SOS alert:', error);
+      throw error;
     }
-    return null;
   }
 
-  public async dispatchSupport(id: string, notes: string): Promise<SOSAlertModel | null> {
-    const alert = this.alerts.find((a) => a.id === id);
-    if (alert) {
-      alert.status = 'dispatched';
-      alert.notes = notes;
-      realtimeHub.getSOSAlertChannel().notify(alert);
-      return { ...alert };
+  public async dispatchSupport(
+    id: string,
+    notes: string
+  ): Promise<void> {
+    const { error } = await supabase
+      .from('sos_alerts')
+      .update({
+        status: 'dispatched',
+        note: notes,
+      })
+      .eq('alert_id', id);
+
+    if (error) {
+      console.error('Failed to dispatch support for SOS alert:', error);
+      throw error;
     }
-    return null;
   }
 }
 
 export const sosRepository = SOSRepository.getInstance();
+

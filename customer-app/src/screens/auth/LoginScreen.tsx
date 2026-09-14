@@ -71,48 +71,25 @@ export default function LoginScreen({ navigation }: Props) {
       // =====================================================
       // 2. FIND THE APPLICATION USER
       // =====================================================
-      //
-      // auth.users.id != public.users.user_id
-      //
-      // Your relationship is:
-      //
-      // auth.users.id
-      //       ↓
-      // public.users.auth_id
-      //       ↓
-      // public.users.user_id
-      //
-      // =====================================================
 
       const { data: appUser, error: userError } = await supabase
         .from("users")
         .select(
           `
-          user_id,
-          auth_id,
-          full_name,
-          email,
-          phone_number,
-          
-          status
-        `,
+        user_id,
+        auth_id,
+        full_name,
+        email,
+        phone_number,
+        status
+      `,
         )
         .eq("auth_id", authId)
         .single();
 
-      if (userError) {
+      if (userError || !appUser) {
         console.error("APPLICATION USER LOOKUP ERROR:", userError);
 
-        // Sign out because authentication succeeded but
-        // there is no matching application user.
-        await supabase.auth.signOut();
-
-        throw new Error(
-          "Your authentication account was found, but your FuelNow user profile could not be found.",
-        );
-      }
-
-      if (!appUser) {
         await supabase.auth.signOut();
 
         throw new Error(
@@ -145,39 +122,73 @@ export default function LoginScreen({ navigation }: Props) {
       }
 
       // =====================================================
-      // 5. SAVE THE APPLICATION USER ID
+      // 5. CHECK CUSTOMER PROFILE
       // =====================================================
       //
-      // IMPORTANT:
+      // Relationship:
       //
-      // We intentionally save public.users.user_id here,
-      // NOT auth.users.id.
+      // auth.users.id
+      //       ↓
+      // users.auth_id
+      //       ↓
+      // users.user_id
+      //       ↓
+      // customers.customer_id
       //
-      // Your existing FuelNow repositories use user_id /
-      // customer_id when querying application tables.
-      //
+      // =====================================================
+
+      const { data: customerProfile, error: customerError } = await supabase
+        .from("customers")
+        .select(
+          `
+        customer_id,
+        loyalty_tier,
+        fuel_points_balance
+      `,
+        )
+        .eq("customer_id", appUser.user_id)
+        .single();
+
+      if (customerError || !customerProfile) {
+        console.error("CUSTOMER PROFILE LOOKUP ERROR:", customerError);
+
+        await supabase.auth.signOut();
+
+        throw new Error(
+          "This account does not have a FuelNow customer profile.",
+        );
+      }
+
+      console.log(
+        "CUSTOMER PROFILE:",
+        JSON.stringify(customerProfile, null, 2),
+      );
+
+      // =====================================================
+      // 6. SAVE THE FUELNOW USER ID
       // =====================================================
 
       await userRepository.setAuthenticatedUserId(appUser.user_id);
 
       console.log("FUELNOW USER ID SAVED:", appUser.user_id);
 
+      console.log("CUSTOMER ID:", customerProfile.customer_id);
+
       console.log("AUTH ID:", appUser.auth_id);
 
       // =====================================================
-      // 6. LOGIN COMPLETE
+      // 7. LOGIN COMPLETE
       // =====================================================
 
       navigation.replace("MainTabs");
     } catch (e: any) {
       console.error("Login error:", e);
 
-      // Convert common Supabase authentication errors
-      // into friendlier messages.
+      const message = e?.message?.toLowerCase() || "";
 
-      if (e?.message?.toLowerCase().includes("invalid login credentials")) {
+      if (message.includes("invalid login credentials")) {
         setError("Invalid email or password.");
-      } else if (e?.message?.toLowerCase().includes("email not confirmed")) {
+      } else if (message.includes("email not confirmed")) {
         setError("Please confirm your email address before signing in.");
       } else {
         setError(e?.message || "Unable to sign in. Please try again.");
