@@ -1,5 +1,4 @@
 import { CustomerApiClient } from '../services/apiClient';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../services/supabase';
 import {
   User,
@@ -89,7 +88,7 @@ public async setAuthenticatedUserId(
 
   this.currentUserId = userId;
 
-  await AsyncStorage.setItem(
+  localStorage.setItem(
     this.USER_ID_KEY,
     userId
   );
@@ -110,8 +109,8 @@ private async getAuthenticatedUserId(): Promise<string> {
     return this.currentUserId;
   }
 
-  // Restore from AsyncStorage
-  const storedUserId = await AsyncStorage.getItem(
+  // Restore from localStorage
+  const storedUserId = localStorage.getItem(
     this.USER_ID_KEY
   );
 
@@ -136,7 +135,7 @@ private async getAuthenticatedUserId(): Promise<string> {
 }
   public async clearAuthenticatedUser(): Promise<void> {
   this.currentUserId = null;
-  await AsyncStorage.removeItem(this.USER_ID_KEY);
+  localStorage.removeItem(this.USER_ID_KEY);
 }
 
   /**

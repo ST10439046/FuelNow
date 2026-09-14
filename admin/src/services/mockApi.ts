@@ -1,374 +1,707 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// FuelNow Admin — Mock API Service
-// Endpoint naming mirrors the mobile app conventions.
+// FuelNow Mock API Service
+// Functions are named after real REST endpoints to reflect realistic API calls.
+// All functions include an artificial delay (600–1200ms) so loading states look
+// real during UI demonstrations.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const delay = (ms = 400) => new Promise(res => setTimeout(res, ms));
+const delay = (ms: number) => new Promise((res) => setTimeout(res, ms));
+const rand = (min: number, max: number) =>
+  Math.floor(Math.random() * (max - min + 1)) + min;
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+// ── Mock data stores ─────────────────────────────────────────────────────────
 
-export type OrderStatus = 'pending' | 'accepted' | 'en_route' | 'delivered' | 'cancelled';
-export type FuelType = 'Petrol 95' | 'Petrol 93' | 'Diesel 50ppm' | 'Diesel 500ppm';
-export type DriverStatus = 'active' | 'offline' | 'on_delivery';
-export type ComplianceStatus = 'valid' | 'expiring_soon' | 'expired';
-export type AlertSeverity = 'critical' | 'warning';
+export interface FuelRate {
+  type: 'Petrol 93' | 'Petrol 95' | 'Diesel 50ppm' | 'Diesel 500ppm';
+  pricePerLitre: number; // ZAR
+  change: number; // cents change from yesterday
+  trend: 'up' | 'down' | 'flat';
+}
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  loyaltyPoints: number;
+  avatar?: string;
+  savedAddresses: Address[];
+  paymentMethods: PaymentMethod[];
+}
+
+export interface Address {
+  id: string;
+  label: 'Home' | 'Work' | 'Other';
+  street: string;
+  suburb: string;
+  city: string;
+  province: string;
+  postalCode: string;
+  coordinates: { lat: number; lng: number };
+}
+
+export interface PaymentMethod {
+  id: string;
+  type: 'card' | 'eft' | 'mobile_money';
+  label: string;
+  last4?: string;
+  brand?: 'visa' | 'mastercard';
+  isDefault: boolean;
+}
+
+export interface OrderItem {
+  fuelType: FuelRate['type'];
+  litres: number;
+  pricePerLitre: number;
+  subtotal: number;
+}
 
 export interface Order {
   id: string;
-  customerName: string;
-  phone: string;
-  fuelType: FuelType;
-  litres: number;
-  totalZAR: number;
-  status: OrderStatus;
-  driverName: string | null;
-  address: string;
-  suburb: string;
-  province: string;
-  placedAt: string;
-  deliveredAt: string | null;
-  deliveryMinutes: number | null;
-}
-
-export interface ComplianceDoc {
-  name: string;
-  expiryDate: string;
-  status: ComplianceStatus;
+  status:
+    | 'pending'
+    | 'finding_driver'
+    | 'driver_assigned'
+    | 'en_route'
+    | 'arriving'
+    | 'delivered'
+    | 'cancelled';
+  item: OrderItem;
+  deliveryAddress: Address;
+  scheduledAt: string | null; // ISO string or null for "now"
+  paymentMethod: PaymentMethod;
+  deliveryFee: number;
+  totalAmount: number;
+  driver?: Driver;
+  pin: string;
+  createdAt: string;
+  deliveredAt?: string;
+  estimatedArrivalMinutes: number;
+  distanceKm: number;
+  rating?: number;
+  ratingComment?: string;
 }
 
 export interface Driver {
   id: string;
   name: string;
   phone: string;
-  email: string;
-  status: DriverStatus;
-  zone: string;
-  province: string;
-  truck: string;
   rating: number;
   totalDeliveries: number;
-  joinedDate: string;
-  compliance: ComplianceDoc[];
-  avatar: string; // initials
+  vehicleReg: string;
+  vehicleModel: string;
+  vehicleColor: string;
+  photo?: string;
+  coordinates: { lat: number; lng: number };
+  stationName: string;
 }
 
-export interface FuelRate {
-  fuelType: FuelType;
-  pricePerLitre: number;
-  lastUpdated: string;
-  source: 'manual' | 'api';
-}
+// ── Static mock data ──────────────────────────────────────────────────────────
 
-export interface Review {
-  id: string;
-  customerName: string;
-  driverName: string;
-  orderId: string;
-  rating: number;
-  comment: string;
-  date: string;
-  flagged: boolean;
-}
-
-export interface SOSAlert {
-  id: string;
-  driverName: string;
-  location: string;
-  suburb: string;
-  province: string;
-  raisedAt: string;
-  severity: AlertSeverity;
-  resolved: boolean;
-  note: string;
-}
-
-export interface AdminUser {
-  id: string;
-  name: string;
-  email: string;
-  role: 'Super Admin' | 'Ops Manager' | 'Support Agent';
-  lastLogin: string;
-  active: boolean;
-}
-
-export interface KPISummary {
-  todayOrders: number;
-  todayRevenue: number;
-  activeDrivers: number;
-  avgDeliveryMinutes: number;
-  ordersChange: number;   // % vs yesterday
-  revenueChange: number;
-  driversChange: number;
-  avgTimeChange: number;
-}
-
-// ─── Seed Data ───────────────────────────────────────────────────────────────
-
-const ORDERS_DATA: Order[] = [
-  { id: 'ORD-8821', customerName: 'Thabo Nkosi', phone: '+27 82 111 2233', fuelType: 'Petrol 95', litres: 40, totalZAR: 987.00, status: 'delivered', driverName: 'France Sizwe', address: '18 Kenneth Kaunda Rd', suburb: 'Durban North', province: 'KwaZulu-Natal', placedAt: new Date(Date.now() - 2 * 3600000).toISOString(), deliveredAt: new Date(Date.now() - 1.5 * 3600000).toISOString(), deliveryMinutes: 28 },
-  { id: 'ORD-8820', customerName: 'Zanele Dlamini', phone: '+27 71 555 6677', fuelType: 'Diesel 50ppm', litres: 60, totalZAR: 1348.80, status: 'en_route', driverName: 'Sipho Mthembu', address: '45 Jan Hofmeyr Rd', suburb: 'Westville', province: 'KwaZulu-Natal', placedAt: new Date(Date.now() - 45 * 60000).toISOString(), deliveredAt: null, deliveryMinutes: null },
-  { id: 'ORD-8819', customerName: 'Pieter van der Berg', phone: '+27 83 222 3344', fuelType: 'Petrol 93', litres: 30, totalZAR: 735.10, status: 'delivered', driverName: 'Bongani Zulu', address: '12 Umgeni Rd', suburb: 'Durban Central', province: 'KwaZulu-Natal', placedAt: new Date(Date.now() - 4 * 3600000).toISOString(), deliveredAt: new Date(Date.now() - 3.4 * 3600000).toISOString(), deliveryMinutes: 35 },
-  { id: 'ORD-8818', customerName: 'Nomvula Sithole', phone: '+27 79 333 4455', fuelType: 'Petrol 95', litres: 50, totalZAR: 1221.50, status: 'accepted', driverName: 'France Sizwe', address: '8 Windermere Rd', suburb: 'Morningside', province: 'KwaZulu-Natal', placedAt: new Date(Date.now() - 20 * 60000).toISOString(), deliveredAt: null, deliveryMinutes: null },
-  { id: 'ORD-8817', customerName: 'Ayanda Mkhize', phone: '+27 63 444 5566', fuelType: 'Diesel 500ppm', litres: 80, totalZAR: 1750.40, status: 'delivered', driverName: 'Lungelo Cele', address: '3 Broad St', suburb: 'Pinetown', province: 'KwaZulu-Natal', placedAt: new Date(Date.now() - 6 * 3600000).toISOString(), deliveredAt: new Date(Date.now() - 5.4 * 3600000).toISOString(), deliveryMinutes: 22 },
-  { id: 'ORD-8816', customerName: 'Riana Botha', phone: '+27 82 777 8899', fuelType: 'Petrol 95', litres: 35, totalZAR: 864.25, status: 'pending', driverName: null, address: '22 Long Street', suburb: 'Cape Town City Bowl', province: 'Western Cape', placedAt: new Date(Date.now() - 5 * 60000).toISOString(), deliveredAt: null, deliveryMinutes: null },
-  { id: 'ORD-8815', customerName: 'Mandla Khumalo', phone: '+27 76 888 9900', fuelType: 'Diesel 50ppm', litres: 45, totalZAR: 1011.60, status: 'cancelled', driverName: null, address: '5 Sandton Drive', suburb: 'Sandton', province: 'Gauteng', placedAt: new Date(Date.now() - 3 * 3600000).toISOString(), deliveredAt: null, deliveryMinutes: null },
-  { id: 'ORD-8814', customerName: 'Fatima Moosa', phone: '+27 82 000 1122', fuelType: 'Petrol 93', litres: 25, totalZAR: 612.75, status: 'delivered', driverName: 'Sibusiso Hadebe', address: '77 Musgrave Rd', suburb: 'Berea', province: 'KwaZulu-Natal', placedAt: new Date(Date.now() - 8 * 3600000).toISOString(), deliveredAt: new Date(Date.now() - 7.5 * 3600000).toISOString(), deliveryMinutes: 30 },
-  { id: 'ORD-8813', customerName: 'Heinrich Erasmus', phone: '+27 71 111 2200', fuelType: 'Petrol 95', litres: 55, totalZAR: 1344.65, status: 'delivered', driverName: 'France Sizwe', address: '9 Stellenbosch Ave', suburb: 'Tygervalley', province: 'Western Cape', placedAt: new Date(Date.now() - 10 * 3600000).toISOString(), deliveredAt: new Date(Date.now() - 9.3 * 3600000).toISOString(), deliveryMinutes: 42 },
-  { id: 'ORD-8812', customerName: 'Lwazi Ngcobo', phone: '+27 73 222 3300', fuelType: 'Diesel 500ppm', litres: 100, totalZAR: 2188.00, status: 'delivered', driverName: 'Bongani Zulu', address: '14 Ridge Road', suburb: 'Windermere', province: 'KwaZulu-Natal', placedAt: new Date(Date.now() - 12 * 3600000).toISOString(), deliveredAt: new Date(Date.now() - 11.2 * 3600000).toISOString(), deliveryMinutes: 48 },
-  { id: 'ORD-8811', customerName: 'Siphelele Dube', phone: '+27 83 555 6600', fuelType: 'Petrol 95', litres: 20, totalZAR: 493.00, status: 'en_route', driverName: 'Lungelo Cele', address: '3 Steve Biko Rd', suburb: 'Umlazi', province: 'KwaZulu-Natal', placedAt: new Date(Date.now() - 30 * 60000).toISOString(), deliveredAt: null, deliveryMinutes: null },
-  { id: 'ORD-8810', customerName: 'Priya Naidoo', phone: '+27 81 777 8800', fuelType: 'Petrol 93', litres: 40, totalZAR: 980.20, status: 'delivered', driverName: 'Sibusiso Hadebe', address: '101 Chatsworth Rd', suburb: 'Chatsworth', province: 'KwaZulu-Natal', placedAt: new Date(Date.now() - 14 * 3600000).toISOString(), deliveredAt: new Date(Date.now() - 13.4 * 3600000).toISOString(), deliveryMinutes: 36 },
-];
-
-const DRIVERS_DATA: Driver[] = [
-  {
-    id: 'DRV-001', name: 'France Sizwe', phone: '+27 82 100 2200', email: 'france.sizwe@fuelnow.co.za',
-    status: 'on_delivery', zone: 'Durban North & Morningside', province: 'KwaZulu-Natal',
-    truck: 'FN-TRK-004 (Isuzu NMR)', rating: 4.9, totalDeliveries: 1247, joinedDate: '2023-03-15', avatar: 'FS',
-    compliance: [
-      { name: 'PrDP Licence', expiryDate: '2026-11-30', status: 'valid' },
-      { name: 'Hazmat Certificate', expiryDate: '2025-08-31', status: 'expiring_soon' },
-      { name: 'Vehicle Roadworthy', expiryDate: '2026-04-01', status: 'valid' },
-      { name: 'Criminal Clearance', expiryDate: '2026-02-28', status: 'valid' },
-    ],
-  },
-  {
-    id: 'DRV-002', name: 'Sipho Mthembu', phone: '+27 71 200 3300', email: 'sipho.mthembu@fuelnow.co.za',
-    status: 'on_delivery', zone: 'Westville & Pinetown', province: 'KwaZulu-Natal',
-    truck: 'FN-TRK-007 (Isuzu NMR)', rating: 4.7, totalDeliveries: 892, joinedDate: '2023-07-01', avatar: 'SM',
-    compliance: [
-      { name: 'PrDP Licence', expiryDate: '2025-09-15', status: 'expiring_soon' },
-      { name: 'Hazmat Certificate', expiryDate: '2026-06-30', status: 'valid' },
-      { name: 'Vehicle Roadworthy', expiryDate: '2026-01-15', status: 'valid' },
-      { name: 'Criminal Clearance', expiryDate: '2025-07-31', status: 'expired' },
-    ],
-  },
-  {
-    id: 'DRV-003', name: 'Bongani Zulu', phone: '+27 63 300 4400', email: 'bongani.zulu@fuelnow.co.za',
-    status: 'active', zone: 'Durban Central & Berea', province: 'KwaZulu-Natal',
-    truck: 'FN-TRK-002 (Mercedes Atego)', rating: 4.8, totalDeliveries: 1034, joinedDate: '2022-11-20', avatar: 'BZ',
-    compliance: [
-      { name: 'PrDP Licence', expiryDate: '2027-01-31', status: 'valid' },
-      { name: 'Hazmat Certificate', expiryDate: '2026-09-30', status: 'valid' },
-      { name: 'Vehicle Roadworthy', expiryDate: '2026-03-28', status: 'valid' },
-      { name: 'Criminal Clearance', expiryDate: '2026-01-31', status: 'valid' },
-    ],
-  },
-  {
-    id: 'DRV-004', name: 'Lungelo Cele', phone: '+27 83 400 5500', email: 'lungelo.cele@fuelnow.co.za',
-    status: 'on_delivery', zone: 'Umlazi & Chatsworth', province: 'KwaZulu-Natal',
-    truck: 'FN-TRK-009 (Isuzu NMR)', rating: 4.6, totalDeliveries: 621, joinedDate: '2024-01-10', avatar: 'LC',
-    compliance: [
-      { name: 'PrDP Licence', expiryDate: '2026-05-31', status: 'valid' },
-      { name: 'Hazmat Certificate', expiryDate: '2025-08-01', status: 'expiring_soon' },
-      { name: 'Vehicle Roadworthy', expiryDate: '2026-07-31', status: 'valid' },
-      { name: 'Criminal Clearance', expiryDate: '2026-06-30', status: 'valid' },
-    ],
-  },
-  {
-    id: 'DRV-005', name: 'Sibusiso Hadebe', phone: '+27 79 500 6600', email: 'sibusiso.hadebe@fuelnow.co.za',
-    status: 'offline', zone: 'Berea & Musgrave', province: 'KwaZulu-Natal',
-    truck: 'FN-TRK-003 (Isuzu NMR)', rating: 4.5, totalDeliveries: 458, joinedDate: '2024-04-05', avatar: 'SH',
-    compliance: [
-      { name: 'PrDP Licence', expiryDate: '2025-06-30', status: 'expired' },
-      { name: 'Hazmat Certificate', expiryDate: '2026-12-31', status: 'valid' },
-      { name: 'Vehicle Roadworthy', expiryDate: '2025-09-30', status: 'expiring_soon' },
-      { name: 'Criminal Clearance', expiryDate: '2026-05-31', status: 'valid' },
-    ],
-  },
-  {
-    id: 'DRV-006', name: 'Lindiwe Mokoena', phone: '+27 82 600 7700', email: 'lindiwe.mokoena@fuelnow.co.za',
-    status: 'active', zone: 'Sandton & Rosebank', province: 'Gauteng',
-    truck: 'FN-TRK-011 (Mercedes Atego)', rating: 4.9, totalDeliveries: 312, joinedDate: '2024-06-20', avatar: 'LM',
-    compliance: [
-      { name: 'PrDP Licence', expiryDate: '2027-03-31', status: 'valid' },
-      { name: 'Hazmat Certificate', expiryDate: '2026-11-30', status: 'valid' },
-      { name: 'Vehicle Roadworthy', expiryDate: '2026-09-30', status: 'valid' },
-      { name: 'Criminal Clearance', expiryDate: '2026-12-31', status: 'valid' },
-    ],
-  },
-];
-
-const RATES_DATA: FuelRate[] = [
-  { fuelType: 'Petrol 95', pricePerLitre: 24.67, lastUpdated: new Date(Date.now() - 3600000).toISOString(), source: 'api' },
-  { fuelType: 'Petrol 93', pricePerLitre: 24.15, lastUpdated: new Date(Date.now() - 3600000).toISOString(), source: 'api' },
-  { fuelType: 'Diesel 50ppm', pricePerLitre: 22.48, lastUpdated: new Date(Date.now() - 7200000).toISOString(), source: 'manual' },
-  { fuelType: 'Diesel 500ppm', pricePerLitre: 21.88, lastUpdated: new Date(Date.now() - 7200000).toISOString(), source: 'manual' },
-];
-
-const REVIEWS_DATA: Review[] = [
-  { id: 'REV-001', customerName: 'Thabo Nkosi', driverName: 'France Sizwe', orderId: 'ORD-8821', rating: 5, comment: 'Excellent service! France was punctual and professional. Will definitely use FuelNow again.', date: new Date(Date.now() - 1.5 * 3600000).toISOString(), flagged: false },
-  { id: 'REV-002', customerName: 'Pieter van der Berg', driverName: 'Bongani Zulu', orderId: 'ORD-8819', rating: 4, comment: 'Good delivery, arrived within the estimated time. Truck was clean and professional.', date: new Date(Date.now() - 3.4 * 3600000).toISOString(), flagged: false },
-  { id: 'REV-003', customerName: 'Ayanda Mkhize', driverName: 'Lungelo Cele', orderId: 'ORD-8817', rating: 5, comment: 'Fantastic experience! Quick delivery and the driver was very friendly.', date: new Date(Date.now() - 5.4 * 3600000).toISOString(), flagged: false },
-  { id: 'REV-004', customerName: 'Fatima Moosa', driverName: 'Sibusiso Hadebe', orderId: 'ORD-8814', rating: 2, comment: 'Driver was late and rude when I asked about the delay. Not happy at all.', date: new Date(Date.now() - 7.5 * 3600000).toISOString(), flagged: true },
-  { id: 'REV-005', customerName: 'Heinrich Erasmus', driverName: 'France Sizwe', orderId: 'ORD-8813', rating: 5, comment: 'Always a pleasure using FuelNow! France is the best driver — always on time.', date: new Date(Date.now() - 9.3 * 3600000).toISOString(), flagged: false },
-  { id: 'REV-006', customerName: 'Priya Naidoo', driverName: 'Sibusiso Hadebe', orderId: 'ORD-8810', rating: 3, comment: 'Delivery was okay but took longer than expected. Communication could be better.', date: new Date(Date.now() - 13.4 * 3600000).toISOString(), flagged: false },
-];
-
-const SOS_DATA: SOSAlert[] = [
-  { id: 'SOS-021', driverName: 'Sipho Mthembu', location: '45 Jan Hofmeyr Rd', suburb: 'Westville', province: 'KwaZulu-Natal', raisedAt: new Date(Date.now() - 8 * 60000).toISOString(), severity: 'critical', resolved: false, note: 'Driver reported a vehicle breakdown on active delivery. Customer waiting.' },
-  { id: 'SOS-020', driverName: 'Lungelo Cele', location: '3 Steve Biko Rd', suburb: 'Umlazi', province: 'KwaZulu-Natal', raisedAt: new Date(Date.now() - 35 * 60000).toISOString(), severity: 'warning', resolved: false, note: 'Fuel spill reported near delivery point. Area cordoned off, awaiting hazmat team.' },
-  { id: 'SOS-019', driverName: 'France Sizwe', location: '22 Ridge Rd', suburb: 'Morningside', province: 'KwaZulu-Natal', raisedAt: new Date(Date.now() - 2 * 3600000).toISOString(), severity: 'warning', resolved: true, note: 'Minor road accident — no injuries. Vehicle damage assessed.' },
-];
-
-const ADMIN_USERS: AdminUser[] = [
-  { id: 'ADM-001', name: 'Muhammed Safwaan', email: 'safwaan@fuelnow.co.za', role: 'Super Admin', lastLogin: new Date(Date.now() - 30 * 60000).toISOString(), active: true },
-  { id: 'ADM-002', name: 'Rohan Pillay', email: 'rohan.pillay@fuelnow.co.za', role: 'Ops Manager', lastLogin: new Date(Date.now() - 2 * 3600000).toISOString(), active: true },
-  { id: 'ADM-003', name: 'Karabo Sithole', email: 'karabo.sithole@fuelnow.co.za', role: 'Support Agent', lastLogin: new Date(Date.now() - 5 * 3600000).toISOString(), active: true },
-  { id: 'ADM-004', name: 'Aisha Cassim', email: 'aisha.cassim@fuelnow.co.za', role: 'Support Agent', lastLogin: new Date(Date.now() - 24 * 3600000).toISOString(), active: false },
-];
-
-const KPI_SUMMARY: KPISummary = {
-  todayOrders: 47,
-  todayRevenue: 108450.60,
-  activeDrivers: 4,
-  avgDeliveryMinutes: 31,
-  ordersChange: +12.4,
-  revenueChange: +8.7,
-  driversChange: 0,
-  avgTimeChange: -3.2,
+const MOCK_USER: User = {
+  id: 'usr_001',
+  name: 'Muhammed',
+  email: 'muhammedkhan@impactdurban.co.za',
+  phone: '082 456 7890',
+  loyaltyPoints: 340,
+  savedAddresses: [
+    {
+      id: 'addr_001',
+      label: 'Home',
+      street: '18 Kenneth Kaunda Road',
+      suburb: 'Durban North',
+      city: 'Durban',
+      province: 'KwaZulu-Natal',
+      postalCode: '4051',
+      coordinates: { lat: -29.8000, lng: 31.0333 },
+    },
+    {
+      id: 'addr_002',
+      label: 'Work',
+      street: '45 Jan Hofmeyr Road',
+      suburb: 'Westville',
+      city: 'Durban',
+      province: 'KwaZulu-Natal',
+      postalCode: '3629',
+      coordinates: { lat: -29.8256, lng: 30.9312 },
+    },
+  ],
+  paymentMethods: [
+    {
+      id: 'pm_001',
+      type: 'card',
+      label: 'FNB Cheque ••• 4821',
+      last4: '4821',
+      brand: 'visa',
+      isDefault: true,
+    },
+    {
+      id: 'pm_002',
+      type: 'card',
+      label: 'Nedbank Credit ••• 9934',
+      last4: '9934',
+      brand: 'mastercard',
+      isDefault: false,
+    },
+    {
+      id: 'pm_003',
+      type: 'mobile_money',
+      label: 'SnapScan',
+      isDefault: false,
+    },
+  ],
 };
 
-// ─── API Functions ────────────────────────────────────────────────────────────
-
-// POST /auth/login
-export async function adminLogin(email: string, password: string) {
-  await delay(600);
-  if (email && password.length >= 4) {
-    const user = ADMIN_USERS.find(u => u.email === email) ?? ADMIN_USERS[0];
-    return { token: 'mock-admin-jwt-token', user };
-  }
-  throw new Error('Invalid credentials. Please try again.');
-}
-
-// GET /kpi/summary
-export async function getKPISummary(): Promise<KPISummary> {
-  await delay(300);
-  return KPI_SUMMARY;
-}
-
-// GET /orders
-export async function getOrders(): Promise<Order[]> {
-  await delay(400);
-  return ORDERS_DATA;
-}
-
-// GET /drivers
-export async function getDrivers(): Promise<Driver[]> {
-  await delay(400);
-  return DRIVERS_DATA;
-}
-
-// GET /drivers/:id/compliance
-export async function getDriverCompliance(id: string): Promise<ComplianceDoc[]> {
-  await delay(300);
-  const driver = DRIVERS_DATA.find(d => d.id === id);
-  return driver?.compliance ?? [];
-}
-
-// PATCH /rates
-export async function updateRate(fuelType: FuelType, pricePerLitre: number): Promise<FuelRate> {
-  await delay(500);
-  const idx = RATES_DATA.findIndex(r => r.fuelType === fuelType);
-  if (idx !== -1) {
-    RATES_DATA[idx] = { ...RATES_DATA[idx], pricePerLitre, lastUpdated: new Date().toISOString(), source: 'manual' };
-    return RATES_DATA[idx];
-  }
-  throw new Error('Fuel type not found');
-}
-
-// GET /rates/current
-export async function getRates(): Promise<FuelRate[]> {
-  await delay(300);
-  return [...RATES_DATA];
-}
-
-// GET /reviews
-export async function getReviews(): Promise<Review[]> {
-  await delay(350);
-  return REVIEWS_DATA;
-}
-
-// GET /sos/alerts
-export async function getSOSAlerts(): Promise<SOSAlert[]> {
-  await delay(300);
-  return SOS_DATA;
-}
-
-// PATCH /sos/:id/resolve
-export async function resolveSOSAlert(id: string): Promise<void> {
-  await delay(500);
-  const alert = SOS_DATA.find(a => a.id === id);
-  if (alert) alert.resolved = true;
-}
-
-// GET /reports/export
-export async function exportReport(_from: string, _to: string): Promise<void> {
-  await delay(800);
-  // Mock: would trigger CSV/Excel download in production
-}
-
-// GET /admin/users
-export async function getAdminUsers(): Promise<AdminUser[]> {
-  await delay(300);
-  return ADMIN_USERS;
-}
-
-export const PROVINCES = [
-  'Gauteng', 'KwaZulu-Natal', 'Western Cape', 'Eastern Cape',
-  'Limpopo', 'Mpumalanga', 'North West', 'Free State', 'Northern Cape',
+const MOCK_RATES: FuelRate[] = [
+  { type: 'Petrol 93', pricePerLitre: 22.87, change: -8, trend: 'down' },
+  { type: 'Petrol 95', pricePerLitre: 23.45, change: -8, trend: 'down' },
+  { type: 'Diesel 50ppm', pricePerLitre: 21.63, change: +12, trend: 'up' },
+  { type: 'Diesel 500ppm', pricePerLitre: 21.38, change: +12, trend: 'up' },
 ];
 
-export const FUEL_TYPES: FuelType[] = ['Petrol 95', 'Petrol 93', 'Diesel 50ppm', 'Diesel 500ppm'];
+export const MOCK_DRIVER: Driver = {
+  id: 'drv_001',
+  name: 'France Sizwe',
+  phone: '060 123 4567',
+  rating: 4.8,
+  totalDeliveries: 1247,
+  vehicleReg: 'ND 456-789',
+  vehicleModel: 'Toyota Hilux',
+  vehicleColor: 'White',
+  stationName: 'Engen Durban North',
+  coordinates: { lat: -29.7990, lng: 31.0340 },
+};
 
-// POST /drivers
-export async function createDriver(data: Partial<Driver>): Promise<Driver> {
-  await delay(500);
-  const newDriver: Driver = {
-    id: `DRV-00${DRIVERS_DATA.length + 1}`,
-    name: data.name || 'New Driver',
-    phone: data.phone || '+27 00 000 0000',
-    email: data.email || 'driver@fuelnow.co.za',
-    status: 'offline',
-    zone: data.zone || 'Unassigned',
-    province: data.province || 'KwaZulu-Natal',
-    truck: data.truck || 'Unassigned',
-    rating: 0,
-    totalDeliveries: 0,
-    joinedDate: new Date().toISOString().split('T')[0],
-    avatar: (data.name || 'N D').split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase(),
-    compliance: [],
+const MOCK_ORDERS: Order[] = [
+  {
+    id: 'ord_7821',
+    status: 'delivered',
+    item: {
+      fuelType: 'Petrol 95',
+      litres: 40,
+      pricePerLitre: 23.45,
+      subtotal: 938.0,
+    },
+    deliveryAddress: MOCK_USER.savedAddresses[0],
+    scheduledAt: null,
+    paymentMethod: MOCK_USER.paymentMethods[0],
+    deliveryFee: 49.0,
+    totalAmount: 987.0,
+    driver: MOCK_DRIVER,
+    pin: '5821',
+    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+    deliveredAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000 + 25 * 60 * 1000).toISOString(),
+    estimatedArrivalMinutes: 25,
+    distanceKm: 3.2,
+    rating: 5,
+    ratingComment: 'Super fast, France was professional!',
+  },
+  {
+    id: 'ord_7756',
+    status: 'delivered',
+    item: {
+      fuelType: 'Diesel 50ppm',
+      litres: 60,
+      pricePerLitre: 21.63,
+      subtotal: 1297.8,
+    },
+    deliveryAddress: MOCK_USER.savedAddresses[1],
+    scheduledAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+    paymentMethod: MOCK_USER.paymentMethods[1],
+    deliveryFee: 49.0,
+    totalAmount: 1346.8,
+    driver: {
+      ...MOCK_DRIVER,
+      id: 'drv_002',
+      name: 'Ruan van der Merwe',
+      phone: '072 987 6543',
+      rating: 4.6,
+      totalDeliveries: 834,
+      stationName: 'Total Westville',
+    },
+    pin: '3394',
+    createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+    deliveredAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000 + 18 * 60 * 1000).toISOString(),
+    estimatedArrivalMinutes: 18,
+    distanceKm: 2.1,
+    rating: 4,
+    ratingComment: 'On time, good service.',
+  },
+  {
+    id: 'ord_7634',
+    status: 'delivered',
+    item: {
+      fuelType: 'Petrol 95',
+      litres: 25,
+      pricePerLitre: 23.45,
+      subtotal: 586.25,
+    },
+    deliveryAddress: MOCK_USER.savedAddresses[0],
+    scheduledAt: null,
+    paymentMethod: MOCK_USER.paymentMethods[0],
+    deliveryFee: 49.0,
+    totalAmount: 635.25,
+    driver: MOCK_DRIVER,
+    pin: '1172',
+    createdAt: new Date(Date.now() - 12 * 24 * 60 * 60 * 1000).toISOString(),
+    deliveredAt: new Date(Date.now() - 12 * 24 * 60 * 60 * 1000 + 22 * 60 * 1000).toISOString(),
+    estimatedArrivalMinutes: 22,
+    distanceKm: 3.2,
+    rating: 5,
+  },
+];
+
+// In-memory "active" order state for tracking simulation
+let activeOrder: Order | null = null;
+
+// ── API Functions ──────────────────────────────────────────────────────────────
+
+/** POST /auth/signup */
+export async function signUp(data: {
+  name: string;
+  email: string;
+  phone: string;
+  password: string;
+}): Promise<{ success: boolean; user: User; token: string }> {
+  await delay(rand(800, 1200));
+  if (!data.email.includes('@')) {
+    throw new Error('Please enter a valid email address.');
+  }
+  return {
+    success: true,
+    user: { ...MOCK_USER, name: data.name, email: data.email, phone: data.phone },
+    token: 'mock_jwt_token_' + Date.now(),
   };
-  DRIVERS_DATA.push(newDriver);
-  return newDriver;
 }
 
-// PUT /drivers/:id
-export async function updateDriver(id: string, data: Partial<Driver>): Promise<Driver> {
-  await delay(500);
-  const idx = DRIVERS_DATA.findIndex(d => d.id === id);
-  if (idx === -1) throw new Error('Driver not found');
-  DRIVERS_DATA[idx] = { ...DRIVERS_DATA[idx], ...data };
-  return DRIVERS_DATA[idx];
-}
-
-// DELETE /drivers/:id
-export async function deleteDriver(id: string): Promise<void> {
-  await delay(500);
-  const idx = DRIVERS_DATA.findIndex(d => d.id === id);
-  if (idx !== -1) DRIVERS_DATA.splice(idx, 1);
-}
-
-// POST /admin/users
-export async function createAdminUser(data: Partial<AdminUser>): Promise<AdminUser> {
-  await delay(500);
-  const newUser: AdminUser = {
-    id: `ADM-00${ADMIN_USERS.length + 1}`,
-    name: data.name || 'New Admin',
-    email: data.email || 'admin@fuelnow.co.za',
-    role: data.role as any || 'Support Agent',
-    lastLogin: new Date().toISOString(),
-    active: true,
+/** POST /auth/login */
+export async function login(data: {
+  email: string;
+  password: string;
+}): Promise<{ success: boolean; user: User; token: string }> {
+  await delay(rand(600, 1000));
+  if (data.password.length < 6) {
+    throw new Error('Incorrect email or password. Please try again.');
+  }
+  return {
+    success: true,
+    user: MOCK_USER,
+    token: 'mock_jwt_token_' + Date.now(),
   };
-  ADMIN_USERS.push(newUser);
-  return newUser;
+}
+
+/** POST /auth/verify-otp */
+export async function verifyOtp(data: {
+  phone: string;
+  otp: string;
+}): Promise<{ success: boolean }> {
+  await delay(rand(700, 1100));
+  // Accept any 6-digit OTP for demo
+  if (data.otp.length !== 6) throw new Error('Invalid OTP. Please try again.');
+  return { success: true };
+}
+
+/** POST /auth/forgot-password */
+export async function forgotPassword(data: {
+  email: string;
+}): Promise<{ success: boolean; message: string }> {
+  await delay(rand(600, 900));
+  return {
+    success: true,
+    message: `A reset link has been sent to ${data.email}.`,
+  };
+}
+
+/** GET /rates/current */
+export async function getCurrentRates(): Promise<FuelRate[]> {
+  await delay(rand(400, 700));
+  // Simulate slight price fluctuations for realism
+  return MOCK_RATES.map((r) => ({
+    ...r,
+    pricePerLitre: +(r.pricePerLitre + (Math.random() - 0.5) * 0.02).toFixed(2),
+  }));
+}
+
+/** GET /auth/me */
+export async function getMe(): Promise<User> {
+  await delay(rand(300, 600));
+  return MOCK_USER;
+}
+
+/** POST /orders */
+export async function createOrder(data: {
+  fuelType: FuelRate['type'];
+  litres: number;
+  deliveryAddressId: string;
+  scheduledAt: string | null;
+  paymentMethodId: string;
+}): Promise<Order> {
+  await delay(rand(900, 1400));
+  const rate = MOCK_RATES.find((r) => r.type === data.fuelType) ?? MOCK_RATES[1];
+  const subtotal = +(rate.pricePerLitre * data.litres).toFixed(2);
+  const deliveryFee = 49.0;
+  const address =
+    MOCK_USER.savedAddresses.find((a) => a.id === data.deliveryAddressId) ??
+    MOCK_USER.savedAddresses[0];
+  const pm =
+    MOCK_USER.paymentMethods.find((p) => p.id === data.paymentMethodId) ??
+    MOCK_USER.paymentMethods[0];
+
+  activeOrder = {
+    id: 'ord_' + rand(8000, 9999),
+    status: 'finding_driver',
+    item: {
+      fuelType: data.fuelType,
+      litres: data.litres,
+      pricePerLitre: rate.pricePerLitre,
+      subtotal,
+    },
+    deliveryAddress: address,
+    scheduledAt: data.scheduledAt,
+    paymentMethod: pm,
+    deliveryFee,
+    totalAmount: +(subtotal + deliveryFee).toFixed(2),
+    driver: undefined,
+    pin: String(rand(1000, 9999)),
+    createdAt: new Date().toISOString(),
+    estimatedArrivalMinutes: rand(18, 35),
+    distanceKm: +(Math.random() * 4 + 1.5).toFixed(1),
+  };
+  return activeOrder;
+}
+
+/** GET /orders/:id/track */
+export async function trackOrder(id: string): Promise<Order> {
+  await delay(rand(400, 700));
+  if (activeOrder && activeOrder.id === id) {
+    // Simulate progression
+    if (activeOrder.status === 'finding_driver') {
+      activeOrder = { ...activeOrder, status: 'driver_assigned', driver: MOCK_DRIVER };
+    } else if (activeOrder.status === 'driver_assigned') {
+      activeOrder = { ...activeOrder, status: 'en_route' };
+    }
+    return activeOrder;
+  }
+  const hist = MOCK_ORDERS.find((o) => o.id === id);
+  if (hist) return hist;
+  throw new Error(`Order ${id} not found.`);
+}
+
+/** POST /orders/:id/confirm-delivery */
+export async function confirmDelivery(
+  id: string,
+  pin: string,
+): Promise<{ success: boolean; order: Order }> {
+  await delay(rand(600, 1000));
+  const order = activeOrder?.id === id ? activeOrder : MOCK_ORDERS.find((o) => o.id === id);
+  if (!order) throw new Error('Order not found.');
+  // Mock: accept any 4-digit PIN — this is a demo app
+  if (activeOrder?.id === id) {
+    activeOrder = {
+      ...activeOrder,
+      status: 'delivered',
+      deliveredAt: new Date().toISOString(),
+    };
+    return { success: true, order: activeOrder };
+  }
+  return { success: true, order: { ...order, status: 'delivered' } };
+}
+
+/** GET /orders */
+export async function getOrderHistory(): Promise<Order[]> {
+  await delay(rand(500, 800));
+  return [...MOCK_ORDERS];
+}
+
+/** POST /orders/:id/rate */
+export async function rateOrder(
+  id: string,
+  data: { rating: number; comment?: string },
+): Promise<{ success: boolean }> {
+  await delay(rand(400, 700));
+  const order = MOCK_ORDERS.find((o) => o.id === id);
+  if (order) {
+    order.rating = data.rating;
+    order.ratingComment = data.comment;
+  }
+  return { success: true };
+}
+
+/** GET /rewards/balance */
+export async function getRewardsBalance(): Promise<{
+  points: number;
+  pointsToNextReward: number;
+  nextRewardValue: number;
+  tier: 'Bronze' | 'Silver' | 'Gold' | 'Platinum';
+  history: Array<{ date: string; description: string; points: number }>;
+}> {
+  await delay(rand(400, 700));
+  return {
+    points: MOCK_USER.loyaltyPoints,
+    pointsToNextReward: 500 - MOCK_USER.loyaltyPoints,
+    nextRewardValue: 49.0, // free delivery
+    tier: 'Silver',
+    history: [
+      { date: '2026-07-26', description: 'Order ord_7821', points: +80 },
+      { date: '2026-07-23', description: 'Order ord_7756', points: +120 },
+      { date: '2026-07-17', description: 'Order ord_7634', points: +50 },
+      { date: '2026-07-10', description: 'Referral bonus — Thabo M.', points: +100 },
+    ],
+  };
+}
+
+/** GET /notifications */
+export async function getNotifications(): Promise<
+  Array<{
+    id: string;
+    title: string;
+    body: string;
+    type: 'order' | 'promo' | 'system';
+    isRead: boolean;
+    createdAt: string;
+  }>
+> {
+  await delay(rand(300, 600));
+  return [
+    {
+      id: 'notif_001',
+      title: 'Driver on the way! 🚛',
+      body: 'France Sizwe is heading to 18 Kenneth Kaunda Road. ETA 23 min.',
+      type: 'order',
+      isRead: false,
+      createdAt: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+    },
+    {
+      id: 'notif_002',
+      title: 'Petrol price update',
+      body: 'Petrol 95 dropped by 8c/L from midnight tonight. Save on your next fill!',
+      type: 'promo',
+      isRead: false,
+      createdAt: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+    },
+    {
+      id: 'notif_003',
+      title: 'Order #7756 delivered ✅',
+      body: 'Your 60L diesel was delivered successfully to 45 Jan Hofmeyr Road, Westville.',
+      type: 'order',
+      isRead: true,
+      createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+    },
+    {
+      id: 'notif_004',
+      title: "You've earned 80 FuelPoints!",
+      body: 'Keep ordering to reach Silver tier and unlock a free delivery.',
+      type: 'promo',
+      isRead: true,
+      createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+    },
+    {
+      id: 'notif_005',
+      title: 'Scheduled delivery tomorrow ⏰',
+      body: 'Your 40L Petrol 95 delivery is scheduled for tomorrow at 08:00.',
+      type: 'order',
+      isRead: true,
+      createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+    },
+  ];
+}
+
+/** POST /payment-methods */
+export async function addPaymentMethod(pm: Omit<PaymentMethod, 'id'>): Promise<PaymentMethod> {
+  await delay(rand(400, 700));
+  const newMethod: PaymentMethod = {
+    ...pm,
+    id: `pm_${Date.now()}`,
+  };
+  MOCK_USER.paymentMethods.push(newMethod);
+  return newMethod;
+}
+
+/** Expose mock user for pre-population in forms */
+export { MOCK_USER, MOCK_RATES };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PART 2 — Driver-side interfaces & mock data
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface DriverDocument {
+  id: string;
+  type: "Driver's Licence" | 'Professional Driver Permit' | 'Hazmat Certificate' | 'Vehicle Permit';
+  number: string;
+  expiryDate: string; // ISO date string
+  isExpired: boolean;
+  isExpiringSoon: boolean; // within 30 days
+}
+
+export interface DriverEarningsEntry {
+  id: string;
+  date: string;
+  fuelType: string;
+  litres: number;
+  amount: number;
+  address: string;
+  status: 'completed' | 'cancelled';
+}
+
+export interface DriverEarnings {
+  today: number;
+  thisWeek: number;
+  thisMonth: number;
+  totalDeliveries: number;
+  rating: number;
+  dailyTarget: number;
+  deliveryHistory: DriverEarningsEntry[];
+}
+
+export interface AvailableOrder {
+  id: string;
+  customerInitials: string;
+  fuelType: FuelRate['type'];
+  litres: number;
+  totalZAR: number;
+  address: string;
+  suburb: string;
+  distanceKm: number;
+  estimatedMinutes: number;
+  coordinates: { lat: number; lng: number };
+}
+
+// ── Driver static mock data ────────────────────────────────────────────────────
+
+const DRIVER_DOCUMENTS: DriverDocument[] = [
+  {
+    id: 'doc_001',
+    type: "Driver's Licence",
+    number: 'DL-KZN-20456',
+    expiryDate: '2027-08-15',
+    isExpired: false,
+    isExpiringSoon: false,
+  },
+  {
+    id: 'doc_002',
+    type: 'Professional Driver Permit',
+    number: 'PDP-KZN-89012',
+    expiryDate: '2025-09-01',
+    isExpired: false,
+    isExpiringSoon: true,
+  },
+  {
+    id: 'doc_003',
+    type: 'Hazmat Certificate',
+    number: 'HAZ-001-2024',
+    expiryDate: '2024-12-31',
+    isExpired: true,
+    isExpiringSoon: false,
+  },
+  {
+    id: 'doc_004',
+    type: 'Vehicle Permit',
+    number: 'VP-ND456789-25',
+    expiryDate: '2026-03-20',
+    isExpired: false,
+    isExpiringSoon: false,
+  },
+];
+
+const DRIVER_EARNINGS_DATA: DriverEarnings = {
+  today: 892.50,
+  thisWeek: 4310.00,
+  thisMonth: 16840.00,
+  totalDeliveries: 1247,
+  rating: 4.8,
+  dailyTarget: 1500,
+  deliveryHistory: [
+    { id: 'ord_7821', date: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), fuelType: 'Petrol 95', litres: 40, amount: 987.00, address: '18 Kenneth Kaunda Rd, Durban North', status: 'completed' },
+    { id: 'ord_7756', date: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(), fuelType: 'Diesel 50ppm', litres: 60, amount: 1348.80, address: '45 Jan Hofmeyr Rd, Westville', status: 'completed' },
+    { id: 'ord_7690', date: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), fuelType: 'Petrol 93', litres: 30, amount: 735.10, address: '12 Umgeni Rd, Durban Central', status: 'completed' },
+  ],
+};
+
+const AVAILABLE_ORDERS_DATA: AvailableOrder[] = [
+  {
+    id: 'avl_001',
+    customerInitials: 'T.N.',
+    fuelType: 'Petrol 95',
+    litres: 50,
+    totalZAR: 1221.50,
+    address: '8 Windermere Road',
+    suburb: 'Morningside',
+    distanceKm: 2.4,
+    estimatedMinutes: 12,
+    coordinates: { lat: -29.8150, lng: 31.0280 },
+  },
+  {
+    id: 'avl_002',
+    customerInitials: 'S.M.',
+    fuelType: 'Diesel 50ppm',
+    litres: 80,
+    totalZAR: 1779.40,
+    address: '3 Broad Street',
+    suburb: 'Pinetown',
+    distanceKm: 5.7,
+    estimatedMinutes: 24,
+    coordinates: { lat: -29.8180, lng: 30.8670 },
+  },
+  {
+    id: 'avl_003',
+    customerInitials: 'P.D.',
+    fuelType: 'Petrol 93',
+    litres: 35,
+    totalZAR: 849.45,
+    address: '22 Ridge Road',
+    suburb: 'Berea',
+    distanceKm: 3.1,
+    estimatedMinutes: 17,
+    coordinates: { lat: -29.8450, lng: 31.0130 },
+  },
+];
+
+// ── Driver-side API functions ─────────────────────────────────────────────────
+
+/** GET /orders/available */
+export async function getAvailableOrders(): Promise<AvailableOrder[]> {
+  await delay(rand(400, 800));
+  return AVAILABLE_ORDERS_DATA;
+}
+
+/** POST /orders/:id/accept */
+export async function acceptOrder(orderId: string): Promise<{ success: boolean; order: AvailableOrder }> {
+  await delay(rand(600, 1000));
+  const order = AVAILABLE_ORDERS_DATA.find(o => o.id === orderId);
+  if (!order) throw new Error('Order not found');
+  return { success: true, order };
+}
+
+/** PATCH /orders/:id/status */
+export async function updateOrderStatus(
+  orderId: string,
+  status: 'en_route' | 'arrived' | 'dispensing' | 'completed'
+): Promise<{ success: boolean; status: string }> {
+  await delay(rand(400, 700));
+  return { success: true, status };
+}
+
+/** POST /sos */
+export async function postSOS(
+  driverId: string,
+  location: { lat: number; lng: number }
+): Promise<{ success: boolean; referenceNumber: string; message: string }> {
+  await delay(rand(800, 1200));
+  return {
+    success: true,
+    referenceNumber: `SOS-${Date.now().toString().slice(-6)}`,
+    message: 'Emergency services and FuelNow dispatch have been notified. Stay calm.',
+  };
+}
+
+/** GET /driver/earnings */
+export async function getDriverEarnings(): Promise<DriverEarnings> {
+  await delay(rand(400, 800));
+  return DRIVER_EARNINGS_DATA;
+}
+
+/** GET /driver/documents */
+export async function getDriverDocuments(): Promise<DriverDocument[]> {
+  await delay(rand(400, 700));
+  return DRIVER_DOCUMENTS;
 }

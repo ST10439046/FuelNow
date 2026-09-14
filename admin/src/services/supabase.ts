@@ -1,12 +1,14 @@
 import { createClient } from '@supabase/supabase-js';
 
+declare const process: { env: Record<string, string | undefined> };
+
 // Supabase Configuration — loaded from .env (VITE_ prefix)
-export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-export const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL!;
+export const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY!;
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
   throw new Error(
-    'Missing Supabase env vars. Ensure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set in admin/.env'
+    'Missing Supabase env vars. Ensure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set in .env'
   );
 }
 
