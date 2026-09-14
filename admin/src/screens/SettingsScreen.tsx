@@ -1,5 +1,14 @@
 import { useEffect, useState } from 'react';
-import { getAdminUsers, createAdminUser, type AdminUser } from '../services/mockApi';
+import { userRepository } from '../repositories/UserRepository';
+
+export interface AdminUser {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  lastLogin: string;
+  active: boolean;
+}
 import Card from '../components/Card';
 import DataTable, { type Column } from '../components/DataTable';
 import StatusBadge from '../components/StatusBadge';
@@ -17,7 +26,7 @@ export default function SettingsScreen() {
     role: 'Support Agent',
   });
 
-  const fetchUsers = () => getAdminUsers().then(setUsers);
+  const fetchUsers = () => userRepository.getAdminUsers().then(setUsers);
 
   useEffect(() => {
     fetchUsers();
@@ -27,7 +36,7 @@ export default function SettingsScreen() {
     e.preventDefault();
     setLoading(true);
     try {
-      await createAdminUser(formData);
+      await userRepository.createAdminUser(formData);
       await fetchUsers();
       setIsModalOpen(false);
       setFormData({ name: '', email: '', role: 'Support Agent' });

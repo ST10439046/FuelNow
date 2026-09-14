@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
-import { getKPISummary, getOrders, getSOSAlerts, type KPISummary, type Order, type SOSAlert } from '../services/mockApi';
+import { orderRepository, type KPISummary } from '../repositories/OrderRepository';
+import { sosRepository, type SOSAlertModel } from '../repositories/SOSRepository';
+import { type OrderModel } from '../repositories/OrderRepository';
 import Card from '../components/Card';
 import StatusBadge from '../components/StatusBadge';
 import MockMap from '../components/MockMap';
@@ -36,13 +38,13 @@ function fmtTime(iso: string) {
 
 export default function DashboardScreen() {
   const [kpi, setKpi] = useState<KPISummary | null>(null);
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [alerts, setAlerts] = useState<SOSAlert[]>([]);
+  const [orders, setOrders] = useState<OrderModel[]>([]);
+  const [alerts, setAlerts] = useState<SOSAlertModel[]>([]);
 
   useEffect(() => {
-    getKPISummary().then(setKpi);
-    getOrders().then(o => setOrders(o.slice(0, 6)));
-    getSOSAlerts().then(a => setAlerts(a.filter(x => !x.resolved)));
+    orderRepository.getKPISummary().then(setKpi);
+    orderRepository.getAllAdminOrders().then(o => setOrders(o.slice(0, 6)));
+    sosRepository.getAlerts().then(a => setAlerts(a.filter(x => x.status !== 'resolved')));
   }, []);
 
   return (

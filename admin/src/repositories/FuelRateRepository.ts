@@ -58,6 +58,18 @@ export class FuelRateRepository {
       effectiveDate: undefined,
     }));
   }
+
+  public async updateRate(id: string, pricePerLitre: number): Promise<void> {
+    const { error } = await supabase.rpc('update_fuel_rate', {
+      p_rate_id: id,
+      p_price_per_litre: pricePerLitre
+    });
+    
+    if (error) {
+      console.error('Failed to update fuel rate:', error);
+      throw error;
+    }
+  }
 }
 
 export const fuelRateRepository =

@@ -1,5 +1,10 @@
 import { useEffect, useState } from 'react';
-import { getDrivers, createDriver, updateDriver, deleteDriver, type Driver, PROVINCES } from '../services/mockApi';
+import { driverRepository, type DriverModel as Driver } from '../repositories/DriverRepository';
+
+const PROVINCES = [
+  'Eastern Cape', 'Free State', 'Gauteng', 'KwaZulu-Natal', 'Limpopo',
+  'Mpumalanga', 'Northern Cape', 'North West', 'Western Cape'
+];
 import Card from '../components/Card';
 import DataTable, { type Column } from '../components/DataTable';
 import StatusBadge from '../components/StatusBadge';
@@ -25,7 +30,7 @@ export default function DriversScreen() {
     truck: ''
   });
 
-  const fetchDrivers = () => getDrivers().then(setDrivers);
+  const fetchDrivers = () => driverRepository.getAllDrivers().then(setDrivers);
 
   useEffect(() => {
     fetchDrivers();
@@ -56,9 +61,9 @@ export default function DriversScreen() {
     setLoading(true);
     try {
       if (editingDriver) {
-        await updateDriver(editingDriver.id, formData);
+        await driverRepository.updateDriver(editingDriver.id, formData);
       } else {
-        await createDriver(formData);
+        await driverRepository.addDriver(formData as any);
       }
       await fetchDrivers();
       closeModal();
@@ -75,7 +80,7 @@ export default function DriversScreen() {
     if (confirm('Are you sure you want to delete this driver?')) {
       setLoading(true);
       try {
-        await deleteDriver(editingDriver.id);
+        await driverRepository.deleteDriver(editingDriver.id);
         await fetchDrivers();
         closeModal();
       } catch (err) {
@@ -114,6 +119,7 @@ export default function DriversScreen() {
     {
       key: 'compliance', label: 'Compliance Status',
       render: (docs) => {
+        if (!docs || docs.length === 0) return <StatusBadge status="valid" customLabel="N/A" />;
         const expired = docs.filter((d: any) => d.status === 'expired').length;
         const soon = docs.filter((d: any) => d.status === 'expiring_soon').length;
         if (expired > 0) return <StatusBadge status="expired" customLabel={`${expired} Expired`} />;

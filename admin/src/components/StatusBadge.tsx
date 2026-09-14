@@ -1,5 +1,8 @@
 
-import type { OrderStatus, ComplianceStatus, DriverStatus, AlertSeverity } from '../services/mockApi';
+type OrderStatus = 'pending' | 'assigned' | 'in_transit' | 'arriving' | 'delivered' | 'cancelled';
+type ComplianceStatus = 'valid' | 'expiring_soon' | 'expired';
+type DriverStatus = 'active' | 'offline' | 'suspended';
+type AlertSeverity = 'critical' | 'high' | 'medium' | 'resolved';
 
 type BadgeVariant = OrderStatus | ComplianceStatus | DriverStatus | AlertSeverity | 'flagged' | 'resolved';
 

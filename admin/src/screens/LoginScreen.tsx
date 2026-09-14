@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { adminLogin } from '../services/mockApi';
+import { userRepository } from '../repositories/UserRepository';
 import Button from '../components/Button';
 
 export default function LoginScreen() {
@@ -15,7 +15,7 @@ export default function LoginScreen() {
     setError('');
     setLoading(true);
     try {
-      const { token } = await adminLogin(email, password);
+      const { token } = await userRepository.adminLogin(email, password);
       localStorage.setItem('admin_token', token);
       navigate('/dashboard');
     } catch (err: any) {

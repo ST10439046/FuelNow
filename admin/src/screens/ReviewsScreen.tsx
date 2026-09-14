@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getReviews, type Review } from '../services/mockApi';
+import { reviewRepository, type ReviewModel as Review } from '../repositories/ReviewRepository';
 import Card from '../components/Card';
 import DataTable, { type Column } from '../components/DataTable';
 import StatusBadge from '../components/StatusBadge';
@@ -10,18 +10,19 @@ export default function ReviewsScreen() {
   const [filter, setFilter] = useState<'all' | 'flagged'>('all');
 
   useEffect(() => {
-    getReviews().then(setReviews);
+    const fetchReviews = () => reviewRepository.getReviews().then(setReviews);
+    fetchReviews();
   }, []);
 
   const filtered = filter === 'flagged' ? reviews.filter(r => r.flagged) : reviews;
 
-  const handleAction = (id: string, action: 'approve' | 'remove') => {
-    // mock action
+  const handleAction = async (id: string, action: 'approve' | 'remove') => {
     if (action === 'remove') {
-      setReviews(r => r.filter(x => x.id !== id));
+      await reviewRepository.deleteReview(id);
     } else {
-      setReviews(r => r.map(x => x.id === id ? { ...x, flagged: false } : x));
+      await reviewRepository.setReviewStatus(id, 'published');
     }
+    await reviewRepository.getReviews().then(setReviews);
   };
 
   const columns: Column<Review>[] = [

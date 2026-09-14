@@ -68,9 +68,21 @@ export interface OrderModel {
 
   distanceKm: number;
 
-  rating?: number;
-
   ratingComment?: string;
+  customerName?: string;
+  phone?: string;
+  driverName?: string;
+}
+
+export interface KPISummary {
+  todayOrders: number;
+  ordersChange: number;
+  todayRevenue: number;
+  revenueChange: number;
+  activeDrivers: number;
+  driversChange: number;
+  avgDeliveryMinutes: number;
+  avgTimeChange: number;
 }
 
 
@@ -534,6 +546,51 @@ public async getRecentOrders(days: number = 14): Promise<OrderModel[]> {
 
   return [...orders];
 }
+
+  public async getAllAdminOrders(): Promise<OrderModel[]> {
+    const { data, error } = await supabase.rpc('get_all_admin_orders');
+    if (error) {
+      console.error('Failed to fetch admin orders:', error);
+      throw error;
+    }
+    
+    // Map minimal data for admin orders screen
+    const orders = (data || []).map((row: any) => ({
+      id: row.id,
+      orderNumber: row.id,
+      status: row.status,
+      item: {
+        fuelType: row.fuelType,
+        litres: row.litres,
+        pricePerLitre: 0,
+        subtotal: row.totalZAR
+      },
+      deliveryAddress: {} as any,
+      scheduledAt: null,
+      paymentMethod: {} as any,
+      deliveryFee: 0,
+      vatAmount: 0,
+      totalAmount: row.totalZAR,
+      driverName: row.driverName,
+      customerName: row.customerName,
+      phone: row.phone,
+      pin: '',
+      createdAt: row.placedAt,
+      placedAt: row.placedAt,
+      estimatedArrivalMinutes: 0,
+      distanceKm: 0,
+    }));
+    return orders;
+  }
+
+  public async getKPISummary(): Promise<KPISummary | null> {
+    const { data, error } = await supabase.rpc('get_kpi_summary');
+    if (error) {
+      console.error('Failed to fetch KPI summary:', error);
+      return null;
+    }
+    return data as KPISummary;
+  }
 
 
   // ==========================================================================

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getSOSAlerts, resolveSOSAlert, type SOSAlert } from '../services/mockApi';
+import { sosRepository, type SOSAlertModel as SOSAlert } from '../repositories/SOSRepository';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import StatusBadge from '../components/StatusBadge';
@@ -18,26 +18,26 @@ export default function SOSScreen() {
     fetchAlerts();
   }, []);
 
-  const fetchAlerts = () => getSOSAlerts().then(setAlerts);
+  const fetchAlerts = () => sosRepository.getAlerts().then(setAlerts);
 
   const handleResolve = async (id: string) => {
     setResolving(id);
-    await resolveSOSAlert(id);
+    await sosRepository.markAsResolved(id);
     await fetchAlerts();
     setResolving(null);
   };
 
-  const handleDispatchSupport = (alert: SOSAlert) => {
-    const dispatchTeam = window.prompt(`Dispatch emergency roadside / hazmat team to ${alert.driverName} at ${alert.location}? Enter dispatch unit notes:`, 'Southgate Durban Rapid Response Unit #4 Dispatched with mobile fuel tanker.');
+  const handleDispatchSupport = async (alert: SOSAlert) => {
+    const dispatchTeam = window.prompt(`Dispatch emergency roadside / hazmat team to ${alert.driverName} at ${alert.locationAddress}? Enter dispatch unit notes:`, 'Southgate Durban Rapid Response Unit #4 Dispatched with mobile fuel tanker.');
     if (dispatchTeam) {
-      alert.note = `[DISPATCHED: ${dispatchTeam}] ${alert.note}`;
-      setAlerts([...alerts]);
-      window.alert(`Emergency response dispatched to ${alert.location}. Driver ${alert.driverName} notified via SMS.`);
+      await sosRepository.dispatchSupport(alert.id, `[DISPATCHED: ${dispatchTeam}] ${alert.notes}`);
+      await fetchAlerts();
+      window.alert(`Emergency response dispatched. Driver ${alert.driverName} notified via SMS.`);
     }
   };
 
-  const activeAlerts = alerts.filter(a => !a.resolved);
-  const resolvedAlerts = alerts.filter(a => a.resolved);
+  const activeAlerts = alerts.filter(a => a.status !== 'resolved');
+  const resolvedAlerts = alerts.filter(a => a.status === 'resolved');
 
   return (
     <div style={{ display: 'flex', gap: 24, animation: 'fadeIn 0.3s ease' }}>
@@ -60,14 +60,14 @@ export default function SOSScreen() {
                 <div key={alert.id} style={{ border: '1px solid var(--divider)', borderRadius: 'var(--radius-md)', padding: 16, background: '#fff' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
                     <div>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-light)', marginBottom: 4 }}>{alert.id} · {timeAgoMin(alert.raisedAt)}</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-light)', marginBottom: 4 }}>{alert.id} · {timeAgoMin(alert.createdAt)}</div>
                       <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--charcoal-ink)' }}>{alert.driverName}</div>
-                      <div style={{ fontSize: 13, color: 'var(--ink-light)', marginTop: 2 }}>📍 {alert.location}, {alert.suburb}</div>
+                      <div style={{ fontSize: 13, color: 'var(--ink-light)', marginTop: 2 }}>📍 {alert.locationAddress}, {alert.suburb}</div>
                     </div>
                     <StatusBadge status={alert.severity} />
                   </div>
                   <div style={{ padding: 12, background: 'var(--warm-ash)', borderRadius: 'var(--radius-sm)', fontSize: 13, color: 'var(--charcoal-ink)', marginBottom: 16 }}>
-                    <strong>Note:</strong> {alert.note}
+                    <strong>Note:</strong> {alert.notes}
                   </div>
                   <div style={{ display: 'flex', gap: 12 }}>
                     <Button variant="primary" loading={resolving === alert.id} onClick={() => handleResolve(alert.id)}>Mark as Resolved</Button>
@@ -89,7 +89,7 @@ export default function SOSScreen() {
               <div key={alert.id} style={{ padding: '16px 24px', borderBottom: '1px solid var(--divider)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                   <div style={{ fontWeight: 600, fontSize: 14 }}>{alert.driverName}</div>
-                  <div style={{ fontSize: 12, color: 'var(--ink-light)' }}>{alert.note}</div>
+                  <div style={{ fontSize: 12, color: 'var(--ink-light)' }}>{alert.notes}</div>
                 </div>
                 <StatusBadge status="resolved" />
               </div>

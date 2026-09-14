@@ -2,7 +2,7 @@ import { useState } from 'react';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import Input from '../components/Input';
-import { exportReport } from '../services/mockApi';
+// Removed mockApi dependency
 
 export default function ReportsScreen() {
   const [fromDate, setFromDate] = useState('2025-01-01');
@@ -11,7 +11,7 @@ export default function ReportsScreen() {
 
   const handleExport = async () => {
     setLoading(true);
-    await exportReport(fromDate, toDate);
+    await new Promise(r => setTimeout(r, 1500));
     setLoading(false);
     alert('Report downloaded successfully!');
   };

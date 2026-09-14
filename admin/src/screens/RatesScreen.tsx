@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getRates, updateRate, type FuelRate } from '../services/mockApi';
+import { fuelRateRepository, type FuelRateModel as FuelRate } from '../repositories/FuelRateRepository';
 import Card from '../components/Card';
 import DataTable, { type Column } from '../components/DataTable';
 import StatusBadge from '../components/StatusBadge';
@@ -27,14 +27,14 @@ export default function RatesScreen() {
     fetchRates();
   }, []);
 
-  const fetchRates = () => getRates().then(setRates);
+  const fetchRates = () => fuelRateRepository.getRates().then(setRates);
 
   const handleSave = async (fuelType: any) => {
     const num = parseFloat(editPrice);
     if (isNaN(num) || num <= 0) return alert('Invalid price');
     setLoading(true);
     try {
-      await updateRate(fuelType, num);
+      await fuelRateRepository.updateRate(fuelType, num);
       await fetchRates();
       setEditing(null);
     } finally {

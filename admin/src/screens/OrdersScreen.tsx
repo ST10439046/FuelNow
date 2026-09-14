@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getOrders, type Order } from '../services/mockApi';
+import { orderRepository, type OrderModel as Order } from '../repositories/OrderRepository';
 import Card from '../components/Card';
 import DataTable, { type Column } from '../components/DataTable';
 import StatusBadge from '../components/StatusBadge';
@@ -20,17 +20,17 @@ export default function OrdersScreen() {
   const [statusFilter, setStatusFilter] = useState('all');
 
   useEffect(() => {
-    getOrders().then(setOrders);
+    orderRepository.getAllAdminOrders().then(setOrders);
   }, []);
 
   const filtered = orders.filter(o => {
-    const matchesSearch = o.id.toLowerCase().includes(search.toLowerCase()) || o.customerName.toLowerCase().includes(search.toLowerCase());
+    const matchesSearch = o.orderNumber.toLowerCase().includes(search.toLowerCase()) || (o.customerName && o.customerName.toLowerCase().includes(search.toLowerCase()));
     const matchesStatus = statusFilter === 'all' || o.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
   const columns: Column<Order>[] = [
-    { key: 'id', label: 'Order ID', sortable: true },
+    { key: 'orderNumber', label: 'Order ID', sortable: true },
     {
       key: 'customerName', label: 'Customer', sortable: true,
       render: (_, row) => (
@@ -40,7 +40,7 @@ export default function OrdersScreen() {
         </div>
       ),
     },
-    { key: 'fuelType', label: 'Fuel & Vol', render: (_, row) => `${row.fuelType} (${row.litres}L)` },
+    { key: 'fuelType', label: 'Fuel & Vol', render: (_, row) => `${row.item.fuelType} (${row.item.litres}L)` },
     { key: 'totalZAR', label: 'Amount', sortable: true, render: (v) => <span style={{ fontWeight: 600 }}>{fmtZAR(v)}</span> },
     { key: 'status', label: 'Status', render: (v) => <StatusBadge status={v} /> },
     { key: 'driverName', label: 'Driver', render: (v) => v ?? <span style={{ color: 'var(--ink-faint)' }}>Unassigned</span> },
@@ -50,12 +50,12 @@ export default function OrdersScreen() {
   const handleExport = () => {
     const headers = ['Order ID', 'Customer Name', 'Phone', 'Fuel Type', 'Litres', 'Total (ZAR)', 'Status', 'Driver', 'Placed At'];
     const rows = filtered.map(o => [
-      o.id,
+      o.orderNumber,
       `"${o.customerName}"`,
       `"${o.phone}"`,
-      o.fuelType,
-      o.litres,
-      o.totalZAR.toFixed(2),
+      o.item.fuelType,
+      o.item.litres,
+      o.totalAmount.toFixed(2),
       o.status,
       `"${o.driverName || 'Unassigned'}"`,
       o.placedAt
