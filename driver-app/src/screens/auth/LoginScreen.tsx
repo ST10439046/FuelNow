@@ -14,7 +14,7 @@ import { useDesignMode } from '../../context/DesignModeContext';
 import { FontSizes, Spacing, Radius } from '../../theme/tokens';
 import Button from '../../components/Button';
 import Input from '../../components/Input';
-import { login } from '../../services/mockApi';
+import { userRepository } from '../../repositories/UserRepository';
 
 interface Props {
   navigation: any;
@@ -35,7 +35,7 @@ export default function LoginScreen({ navigation }: Props) {
     setError('');
     setLoading(true);
     try {
-      await login({ email, password });
+      await userRepository.login(email, password);
       navigation.replace('MainTabs');
     } catch (e: any) {
       setError(e.message ?? 'Login failed. Please try again.');

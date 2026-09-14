@@ -6,7 +6,7 @@ import { useDesignMode } from '../../context/DesignModeContext';
 import { FontSizes, Spacing } from '../../theme/tokens';
 import Button from '../../components/Button';
 import Input from '../../components/Input';
-import { forgotPassword } from '../../services/mockApi';
+import { userRepository } from '../../repositories/UserRepository';
 
 interface Props { navigation: any }
 
@@ -22,7 +22,7 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
     setError('');
     setLoading(true);
     try {
-      await forgotPassword({ email });
+      await userRepository.forgotPassword(email);
       setSent(true);
     } catch (e: any) {
       setError(e.message ?? 'Something went wrong. Please try again.');

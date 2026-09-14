@@ -135,9 +135,46 @@ private async getAuthenticatedUserId(): Promise<string> {
   );
 }
   public async clearAuthenticatedUser(): Promise<void> {
-  this.currentUserId = null;
-  await AsyncStorage.removeItem(this.USER_ID_KEY);
-}
+    this.currentUserId = null;
+    await AsyncStorage.removeItem(this.USER_ID_KEY);
+    await supabase.auth.signOut();
+  }
+
+  public async forgotPassword(email: string): Promise<void> {
+    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    if (error) {
+      throw new Error(error.message);
+    }
+  }
+
+  public async signUp(params: { name: string, email: string, phone: string, password: string }): Promise<void> {
+    const { data, error } = await supabase.auth.signUp({
+      email: params.email,
+      password: params.password,
+      options: {
+        data: {
+          full_name: params.name,
+          phone_number: params.phone,
+        }
+      }
+    });
+    if (error) {
+      throw new Error(error.message);
+    }
+  }
+
+  public async login(email: string, password: string): Promise<void> {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    if (error) {
+      throw new Error(error.message);
+    }
+    if (data.user) {
+      await this.setAuthenticatedUserId(data.user.id);
+    }
+  }
 
   /**
    * Gets the complete customer profile from Supabase.
