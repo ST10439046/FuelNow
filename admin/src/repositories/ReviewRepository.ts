@@ -20,60 +20,83 @@ export class ReviewRepository {
     if (!ReviewRepository.instance) {
       ReviewRepository.instance = new ReviewRepository();
     }
+
     return ReviewRepository.instance;
   }
 
   public async getReviews(): Promise<ReviewModel[]> {
-    const { data, error } = await supabase
-      .from('reviews')
-      .select(`
-        *,
-        orders(placed_at),
-        customer:customer_id(full_name),
-        driver:driver_id(full_name)
-      `)
-      .order('id', { ascending: false });
+    const { data, error } = await supabase.rpc(
+      'get_admin_reviews'
+    );
 
     if (error) {
-      console.error('Error fetching reviews', error);
+      console.error(
+        'Error fetching reviews:',
+        error
+      );
+
       return [];
     }
 
     return (data || []).map((r: any) => ({
-      id: r.id,
+      id: r.review_id,
       orderId: r.order_id,
-      date: r.orders?.placed_at || new Date().toISOString(),
-      rating: r.rating,
+      date:
+        r.placed_at ||
+        r.created_at ||
+        new Date().toISOString(),
+      rating: Number(r.rating ?? 0),
       comment: r.comment || '',
-      customerName: r.customer?.full_name || 'Unknown',
-      driverName: r.driver?.full_name || 'Unknown',
-      flagged: r.status === 'flagged',
+      customerName:
+        r.customer_name ||
+        'Unknown',
+      driverName:
+        r.driver_name ||
+        'Unknown',
+      flagged:
+        r.status === 'flagged',
     }));
   }
 
-  public async setReviewStatus(id: string, status: string): Promise<void> {
+  public async setReviewStatus(
+    id: string,
+    status: string
+  ): Promise<void> {
     const { error } = await supabase
       .from('reviews')
-      .update({ status })
-      .eq('id', id);
+      .update({
+        status,
+      })
+      .eq('review_id', id);
 
     if (error) {
-      console.error('Error updating review status', error);
+      console.error(
+        'Error updating review status:',
+        error
+      );
+
       throw error;
     }
   }
 
-  public async deleteReview(id: string): Promise<void> {
+  public async deleteReview(
+    id: string
+  ): Promise<void> {
     const { error } = await supabase
       .from('reviews')
       .delete()
-      .eq('id', id);
+      .eq('review_id', id);
 
     if (error) {
-      console.error('Error deleting review', error);
+      console.error(
+        'Error deleting review:',
+        error
+      );
+
       throw error;
     }
   }
 }
 
-export const reviewRepository = ReviewRepository.getInstance();
+export const reviewRepository =
+  ReviewRepository.getInstance();

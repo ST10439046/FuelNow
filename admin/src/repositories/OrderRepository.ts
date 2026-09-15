@@ -569,117 +569,239 @@ public async getAllAdminOrders(): Promise<OrderModel[]> {
   }
 
   const orders: OrderModel[] = (data || []).map(
-    (row: any) => ({
-      id: row.id,
+    (row: any) => {
+      const latitude =
+        row.latitude !== null &&
+        row.latitude !== undefined
+          ? Number(row.latitude)
+          : undefined;
 
-      orderNumber:
-        row.orderNumber ??
-        row.order_number ??
-        row.id,
+      const longitude =
+        row.longitude !== null &&
+        row.longitude !== undefined
+          ? Number(row.longitude)
+          : undefined;
 
-      status: this.mapOrderStatus(
-        row.status
-      ),
+      const litres = Number(
+        row.litres ??
+        row.volume_litres ??
+        0
+      );
 
-      item: {
-        fuelType:
-          row.fuelType ??
-          row.fuel_type ??
-          'Unknown Fuel',
+      const totalAmount = Number(
+        row.totalZAR ??
+        row.totalAmount ??
+        row.total_amount ??
+        row.rand_amount ??
+        0
+      );
 
-        litres:
-          Number(
-            row.litres ??
-            row.volume_litres ??
-            0
+      const deliveryFee = Number(
+        row.deliveryFee ??
+        row.delivery_fee ??
+        0
+      );
+
+      const vatAmount = Number(
+        row.vatAmount ??
+        row.vat_amount ??
+        0
+      );
+
+      const pricePerLitre =
+        litres > 0
+          ? Number(
+              (
+                Number(
+                  row.pricePerLitre ??
+                  row.price_per_litre ??
+                  0
+                )
+              ).toFixed(2)
+            )
+          : 0;
+
+      const deliveryAddress: AddressModel = {
+        id:
+          row.addressId ??
+          row.address_id ??
+          '',
+
+        label:
+          this.mapAddressLabel(
+            row.addressLabel ??
+            row.address_label
           ),
 
-        pricePerLitre: 0,
+        unitNumber:
+          row.unitNumber ??
+          row.unit_number ??
+          undefined,
 
-        subtotal:
-          Number(
-            row.totalZAR ??
-            row.total_amount ??
-            row.rand_amount ??
-            0
+        streetNumber:
+          row.streetNumber ??
+          row.street_number ??
+          undefined,
+
+        streetName:
+          row.streetName ??
+          row.street_name ??
+          undefined,
+
+        street:
+          row.addressText ??
+          row.address_text ??
+          '',
+
+        suburb:
+          row.suburb ??
+          '',
+
+        city:
+          row.city ??
+          '',
+
+        province:
+          row.province ??
+          '',
+
+        postalCode:
+          row.postalCode ??
+          row.postal_code ??
+          '',
+
+        coordinates:
+          latitude !== undefined &&
+          longitude !== undefined
+            ? {
+                lat: latitude,
+                lng: longitude,
+              }
+            : undefined,
+      };
+
+      const paymentMethod: PaymentMethodModel = {
+        id:
+          row.paymentId ??
+          row.payment_id ??
+          'unknown',
+
+        type: 'card',
+
+        label:
+          row.paymentStatus ??
+          row.payment_status ??
+          'Payment',
+
+        isDefault: false,
+      };
+
+      return {
+        id:
+          row.id ??
+          row.order_id,
+
+        orderNumber:
+          row.orderNumber ??
+          row.order_number ??
+          row.id ??
+          row.order_id,
+
+        status:
+          this.mapOrderStatus(
+            row.status
           ),
 
-          latitude:
-  row.latitude !== null && row.latitude !== undefined
-    ? Number(row.latitude)
-    : undefined,
+        item: {
+          fuelType:
+            (
+              row.fuelType ??
+              row.fuel_type ??
+              'Unknown Fuel'
+            ) as FuelRateModel['type'],
 
-longitude:
-  row.longitude !== null && row.longitude !== undefined
-    ? Number(row.longitude)
-    : undefined,
-      },
+          litres,
 
-      deliveryAddress: {} as AddressModel,
+          pricePerLitre,
 
-      scheduledAt:
-        row.scheduledAt ??
-        row.scheduled_at ??
-        row.scheduled_date_time ??
-        null,
+          subtotal:
+            Number(
+              row.totalZAR ??
+              row.total_amount ??
+              row.rand_amount ??
+              0
+            ),
+        },
 
-      paymentMethod:
-        {} as PaymentMethodModel,
+        // IMPORTANT:
+        // Coordinates belong directly on OrderModel.
+        latitude,
+        longitude,
 
-      deliveryFee:
-        Number(
-          row.deliveryFee ??
-          row.delivery_fee ??
-          0
-        ),
+        deliveryAddress,
 
-      vatAmount:
-        Number(
-          row.vatAmount ??
-          row.vat_amount ??
-          0
-        ),
+        scheduledAt:
+          row.scheduledAt ??
+          row.scheduled_at ??
+          row.scheduled_date_time ??
+          null,
 
-      totalAmount:
-        Number(
-          row.totalZAR ??
-          row.totalAmount ??
-          row.total_amount ??
-          row.rand_amount ??
-          0
-        ),
+        paymentMethod,
 
-      driverName:
-        row.driverName ??
-        row.driver_name ??
-        undefined,
+        deliveryFee,
 
-      customerName:
-        row.customerName ??
-        row.customer_name ??
-        undefined,
+        vatAmount,
 
-      phone:
-        row.phone ??
-        row.phone_number ??
-        undefined,
+        totalAmount,
 
-      pin:
-        row.deliveryPin ??
-        row.delivery_pin ??
-        '',
+        driverName:
+          row.driverName ??
+          row.driver_name ??
+          undefined,
 
-      createdAt:
-        row.placedAt ??
-        row.placed_at ??
-        row.createdAt ??
-        row.created_at ??
-        new Date().toISOString(),
+        customerName:
+          row.customerName ??
+          row.customer_name ??
+          undefined,
 
-      estimatedArrivalMinutes: 0,
+        phone:
+          row.phone ??
+          row.phone_number ??
+          undefined,
 
-      distanceKm: 0,
-    })
+        pin:
+          row.deliveryPin ??
+          row.delivery_pin ??
+          '',
+
+        createdAt:
+          row.createdAt ??
+          row.created_at ??
+          row.placedAt ??
+          row.placed_at ??
+          new Date().toISOString(),
+
+        deliveredAt:
+          row.deliveredAt ??
+          row.delivered_at ??
+          undefined,
+
+        estimatedArrivalMinutes: 0,
+
+        distanceKm: 0,
+
+        rating:
+          row.rating ??
+          row.review_rating ??
+          undefined,
+
+        ratingComment:
+          row.ratingComment ??
+          row.rating_comment ??
+          row.review_comment ??
+          undefined,
+      };
+    }
   );
 
   return orders;

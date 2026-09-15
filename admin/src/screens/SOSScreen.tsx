@@ -60,7 +60,7 @@ export default function SOSScreen() {
                 <div key={alert.id} style={{ border: '1px solid var(--divider)', borderRadius: 'var(--radius-md)', padding: 16, background: '#fff' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
                     <div>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-light)', marginBottom: 4 }}>{alert.id} · {timeAgoMin(alert.createdAt)}</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-light)', marginBottom: 4 }}>{alert.id} · {timeAgoMin(alert.reported_at)}</div>
                       <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--charcoal-ink)' }}>{alert.driverName}</div>
                       <div style={{ fontSize: 13, color: 'var(--ink-light)', marginTop: 2 }}>📍 {alert.locationAddress}, {alert.suburb}</div>
                     </div>

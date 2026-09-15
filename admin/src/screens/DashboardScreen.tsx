@@ -26,6 +26,7 @@ function KPICard({
   accent: string;
 }) {
   const positive = change >= 0;
+
   return (
     <Card style={{ flex: 1, minWidth: 200 }}>
       <div
@@ -50,6 +51,7 @@ function KPICard({
         >
           {icon}
         </div>
+
         <span
           style={{
             fontSize: 12,
@@ -63,6 +65,7 @@ function KPICard({
           {positive ? "↑" : "↓"} {Math.abs(change)}%
         </span>
       </div>
+
       <div
         style={{
           fontSize: 30,
@@ -74,7 +77,14 @@ function KPICard({
       >
         {value}
       </div>
-      <div style={{ fontSize: 13, color: "var(--ink-faint)", fontWeight: 500 }}>
+
+      <div
+        style={{
+          fontSize: 13,
+          color: "var(--ink-faint)",
+          fontWeight: 500,
+        }}
+      >
         {label}
       </div>
     </Card>
@@ -98,6 +108,25 @@ function fmtTime(iso: string) {
   });
 }
 
+function isWithinLastTwoWeeks(createdAt: string | undefined) {
+  if (!createdAt) {
+    return false;
+  }
+
+  const orderDate = new Date(createdAt);
+
+  if (Number.isNaN(orderDate.getTime())) {
+    return false;
+  }
+
+  const now = new Date();
+
+  const twoWeeksAgo = new Date(now);
+  twoWeeksAgo.setDate(now.getDate() - 14);
+
+  return orderDate >= twoWeeksAgo && orderDate <= now;
+}
+
 export default function DashboardScreen() {
   const [kpi, setKpi] = useState<KPISummary | null>(null);
   const [orders, setOrders] = useState<OrderModel[]>([]);
@@ -105,9 +134,42 @@ export default function DashboardScreen() {
 
   useEffect(() => {
     orderRepository.getKPISummary().then(setKpi);
-    orderRepository
-  .getAllAdminOrders()
-  .then(setOrders);
+
+    orderRepository.getAllAdminOrders().then(setOrders);
+
+    sosRepository
+      .getAlerts()
+      .then((a) => setAlerts(a.filter((x) => x.status !== "resolved")));
+  }, []);
+
+  /*
+   * Orders used specifically for the demand heatmap.
+   *
+   * This includes orders created within the
+   * previous 14 days.
+   */
+  const mapOrders = orders.filter((order) =>
+    isWithinLastTwoWeeks(order.createdAt),
+  );
+
+  useEffect(() => {
+    orderRepository.getKPISummary().then(setKpi);
+
+    orderRepository.getAllAdminOrders().then((data) => {
+      console.log("ADMIN ORDERS:", data);
+      console.log(
+        "ORDER COORDINATES:",
+        data.map((order) => ({
+          id: order.id,
+          customer: order.customerName,
+          latitude: order.latitude,
+          longitude: order.longitude,
+        })),
+      );
+
+      setOrders(data);
+    });
+
     sosRepository
       .getAlerts()
       .then((a) => setAlerts(a.filter((x) => x.status !== "resolved")));
@@ -136,10 +198,18 @@ export default function DashboardScreen() {
           }}
         >
           <span style={{ fontSize: 20 }}>🚨</span>
-          <span style={{ fontWeight: 600, color: "#991B1B", fontSize: 14 }}>
-            {alerts.length} active SOS alert{alerts.length > 1 ? "s" : ""}{" "}
-            require attention
+
+          <span
+            style={{
+              fontWeight: 600,
+              color: "#991B1B",
+              fontSize: 14,
+            }}
+          >
+            {alerts.length} active SOS alert
+            {alerts.length > 1 ? "s" : ""} require attention
           </span>
+
           <a
             href="/sos"
             style={{
@@ -157,7 +227,12 @@ export default function DashboardScreen() {
 
       {/* KPI Strip */}
       {kpi && (
-        <div style={{ display: "flex", gap: 20 }}>
+        <div
+          style={{
+            display: "flex",
+            gap: 20,
+          }}
+        >
           <KPICard
             label="Today's Orders"
             value={String(kpi.todayOrders)}
@@ -165,6 +240,7 @@ export default function DashboardScreen() {
             icon="📋"
             accent="#F97316"
           />
+
           <KPICard
             label="Today's Revenue"
             value={fmtZAR(kpi.todayRevenue)}
@@ -172,6 +248,7 @@ export default function DashboardScreen() {
             icon="💰"
             accent="#22C55E"
           />
+
           <KPICard
             label="Active Drivers"
             value={String(kpi.activeDrivers)}
@@ -179,6 +256,7 @@ export default function DashboardScreen() {
             icon="🚛"
             accent="#2563EB"
           />
+
           <KPICard
             label="Avg Delivery Time"
             value={`${kpi.avgDeliveryMinutes} min`}
@@ -191,10 +269,19 @@ export default function DashboardScreen() {
 
       {/* Map + Recent Orders */}
       <div
-        style={{ display: "grid", gridTemplateColumns: "1fr 420px", gap: 20 }}
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 420px",
+          gap: 20,
+        }}
       >
         {/* Demand Heatmap */}
-        <Card padding={0} style={{ overflow: "hidden" }}>
+        <Card
+          padding={0}
+          style={{
+            overflow: "hidden",
+          }}
+        >
           <div
             style={{
               padding: "20px 24px 16px",
@@ -214,6 +301,7 @@ export default function DashboardScreen() {
               >
                 Demand Heatmap
               </h3>
+
               <p
                 style={{
                   fontSize: 12,
@@ -221,9 +309,10 @@ export default function DashboardScreen() {
                   marginTop: 2,
                 }}
               >
-                Real-time order density · Durban Metro
+                Order density over the last 14 days · Durban Metro
               </p>
             </div>
+
             <div
               style={{
                 display: "flex",
@@ -237,10 +326,8 @@ export default function DashboardScreen() {
               <span>🔵 Medium</span>
             </div>
           </div>
-          <OrderDensityMap
-  orders={orders}
-  height={310}
-/>
+
+          <OrderDensityMap orders={mapOrders} height={310} />
         </Card>
 
         {/* Recent Orders */}
@@ -260,14 +347,25 @@ export default function DashboardScreen() {
             >
               Recent Orders
             </h3>
+
             <p
-              style={{ fontSize: 12, color: "var(--ink-faint)", marginTop: 2 }}
+              style={{
+                fontSize: 12,
+                color: "var(--ink-faint)",
+                marginTop: 2,
+              }}
             >
               Last 6 orders · today
             </p>
           </div>
-          <div style={{ overflow: "auto", maxHeight: 350 }}>
-          {orders.slice(0, 6).map((order, i) => (
+
+          <div
+            style={{
+              overflow: "auto",
+              maxHeight: 350,
+            }}
+          >
+            {orders.slice(0, 6).map((order, i) => (
               <div
                 key={order.id}
                 style={{
@@ -279,7 +377,12 @@ export default function DashboardScreen() {
                     i < orders.length - 1 ? "1px solid var(--divider)" : "none",
                 }}
               >
-                <div style={{ flex: 1, minWidth: 0 }}>
+                <div
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                  }}
+                >
                   <div
                     style={{
                       fontSize: 13,
@@ -292,6 +395,7 @@ export default function DashboardScreen() {
                   >
                     {order.customerName}
                   </div>
+
                   <div
                     style={{
                       fontSize: 11,
@@ -303,8 +407,15 @@ export default function DashboardScreen() {
                     {order.createdAt ? fmtTime(order.createdAt) : "No date"}
                   </div>
                 </div>
-                <div style={{ textAlign: "right", flexShrink: 0 }}>
+
+                <div
+                  style={{
+                    textAlign: "right",
+                    flexShrink: 0,
+                  }}
+                >
                   <StatusBadge status={order.status} />
+
                   <div
                     style={{
                       fontSize: 12,

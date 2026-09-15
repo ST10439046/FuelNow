@@ -66,11 +66,108 @@ function isValidCoordinate(
   );
 }
 
-function formatCurrency(value: number) {
+function formatCurrency(value: number | null | undefined) {
   return `R ${Number(value ?? 0).toLocaleString("en-ZA", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
+}
+
+function getFuelName(item: OrderModel["item"]): string {
+  if (!item) {
+    return "Unknown";
+  }
+
+  if (typeof item === "string") {
+    return item;
+  }
+
+  /*
+   * OrderItemModel is a typed object, so access its known
+   * properties through the actual object type instead of
+   * casting it directly to Record<string, unknown>.
+   */
+  if (typeof item === "object") {
+    const fuelItem = item as unknown as {
+      name?: unknown;
+      fuelType?: unknown;
+      fuel_type?: unknown;
+      type?: unknown;
+      label?: unknown;
+    };
+
+    if (typeof fuelItem.name === "string") {
+      return fuelItem.name;
+    }
+
+    if (typeof fuelItem.fuelType === "string") {
+      return fuelItem.fuelType;
+    }
+
+    if (typeof fuelItem.fuel_type === "string") {
+      return fuelItem.fuel_type;
+    }
+
+    if (typeof fuelItem.type === "string") {
+      return fuelItem.type;
+    }
+
+    if (typeof fuelItem.label === "string") {
+      return fuelItem.label;
+    }
+  }
+
+  return "Unknown";
+}
+
+function getAddressText(address: OrderModel["deliveryAddress"]): string {
+  if (!address) {
+    return "Unknown";
+  }
+
+  if (typeof address === "string") {
+    return address;
+  }
+
+  /*
+   * AddressModel is an object. Extract the available
+   * address fields instead of rendering the object.
+   */
+  const addressData = address as unknown as {
+    addressLine1?: unknown;
+    addressLine2?: unknown;
+    streetAddress?: unknown;
+    suburb?: unknown;
+    city?: unknown;
+    province?: unknown;
+    postalCode?: unknown;
+    postal_code?: unknown;
+    label?: unknown;
+  };
+
+  const parts: string[] = [];
+
+  const addPart = (value: unknown) => {
+    if (typeof value === "string" && value.trim().length > 0) {
+      parts.push(value.trim());
+    }
+  };
+
+  addPart(addressData.label);
+  addPart(addressData.addressLine1);
+  addPart(addressData.addressLine2);
+  addPart(addressData.streetAddress);
+  addPart(addressData.suburb);
+  addPart(addressData.city);
+  addPart(addressData.province);
+  addPart(addressData.postalCode);
+  addPart(addressData.postal_code);
+
+  if (parts.length > 0) {
+    return parts.join(", ");
+  }
+
+  return "Address unavailable";
 }
 
 export default function OrderDensityMap({
@@ -109,9 +206,7 @@ export default function OrderDensityMap({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
-        {heatPoints.length > 0 && (
-          <HeatmapLayer points={heatPoints} />
-        )}
+        {heatPoints.length > 0 && <HeatmapLayer points={heatPoints} />}
 
         {validOrders.map((order) => (
           <CircleMarker
@@ -126,33 +221,45 @@ export default function OrderDensityMap({
             }}
           >
             <Popup>
-              <div style={{ minWidth: 180 }}>
+              <div
+                style={{
+                  minWidth: 200,
+                  fontSize: 13,
+                  lineHeight: 1.5,
+                }}
+              >
                 <strong>FuelNow Order</strong>
 
                 <div style={{ marginTop: 6 }}>
-                  <strong>Order:</strong>{" "}
-                  {order.orderNumber || order.id}
+                  <strong>Order:</strong> {order.orderNumber || order.id}
                 </div>
 
                 <div>
-                  <strong>Customer:</strong>{" "}
-                  {order.customerName || "Unknown"}
+                  <strong>Customer:</strong> {order.customerName || "Unknown"}
                 </div>
 
                 <div>
-                  <strong>Fuel:</strong>{" "}
-                  {order.item || "Unknown"}
+                  <strong>Fuel:</strong> {getFuelName(order.item)}
                 </div>
 
                 <div>
-                  <strong>Total:</strong>{" "}
-                  {formatCurrency(order.totalAmount)}
+                  <strong>Total:</strong> {formatCurrency(order.totalAmount)}
                 </div>
 
                 <div>
-                  <strong>Status:</strong>{" "}
-                  {order.status}
+                  <strong>Status:</strong> {String(order.status ?? "Unknown")}
                 </div>
+
+                <div>
+                  <strong>Address:</strong>{" "}
+                  {getAddressText(order.deliveryAddress)}
+                </div>
+
+                {order.driverName && (
+                  <div>
+                    <strong>Driver:</strong> {order.driverName}
+                  </div>
+                )}
               </div>
             </Popup>
           </CircleMarker>
