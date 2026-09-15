@@ -20,6 +20,25 @@ import SOSScreen from "./screens/SOSScreen";
 import ReportsScreen from "./screens/ReportsScreen";
 import SettingsScreen from "./screens/SettingsScreen";
 
+/*
+ * Force a fresh login when a new browser tab/session starts.
+ *
+ * sessionStorage survives page refreshes but is cleared when
+ * the browser tab is closed.
+ */
+const SESSION_KEY = "fuelnow_admin_session";
+
+function initialiseAdminSession() {
+  const existingSession = sessionStorage.getItem(SESSION_KEY);
+
+  if (!existingSession) {
+    localStorage.removeItem("admin_token");
+    sessionStorage.setItem(SESSION_KEY, "active");
+  }
+}
+
+initialiseAdminSession();
+
 function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
     <div
@@ -57,6 +76,7 @@ function AdminLayout({ children }: { children: React.ReactNode }) {
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const location = useLocation();
+
   const isAuthenticated = Boolean(localStorage.getItem("admin_token"));
 
   if (!isAuthenticated) {

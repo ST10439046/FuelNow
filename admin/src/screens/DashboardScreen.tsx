@@ -135,26 +135,6 @@ export default function DashboardScreen() {
   useEffect(() => {
     orderRepository.getKPISummary().then(setKpi);
 
-    orderRepository.getAllAdminOrders().then(setOrders);
-
-    sosRepository
-      .getAlerts()
-      .then((a) => setAlerts(a.filter((x) => x.status !== "resolved")));
-  }, []);
-
-  /*
-   * Orders used specifically for the demand heatmap.
-   *
-   * This includes orders created within the
-   * previous 14 days.
-   */
-  const mapOrders = orders.filter((order) =>
-    isWithinLastTwoWeeks(order.createdAt),
-  );
-
-  useEffect(() => {
-    orderRepository.getKPISummary().then(setKpi);
-
     orderRepository.getAllAdminOrders().then((data) => {
       console.log("ADMIN ORDERS:", data);
       console.log(
@@ -174,6 +154,16 @@ export default function DashboardScreen() {
       .getAlerts()
       .then((a) => setAlerts(a.filter((x) => x.status !== "resolved")));
   }, []);
+
+  /*
+   * Orders used specifically for the demand heatmap.
+   *
+   * This includes orders created within the
+   * previous 14 days.
+   */
+  const mapOrders = orders.filter((order) =>
+    isWithinLastTwoWeeks(order.createdAt),
+  );
 
   return (
     <div
