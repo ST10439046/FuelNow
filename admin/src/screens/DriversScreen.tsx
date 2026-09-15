@@ -15,6 +15,7 @@ const PROVINCES = [
   "North West",
   "Western Cape",
 ];
+
 import Card from "../components/Card";
 import DataTable, { type Column } from "../components/DataTable";
 import StatusBadge from "../components/StatusBadge";
@@ -48,6 +49,7 @@ export default function DriversScreen() {
 
   const openAddModal = () => {
     setEditingDriver(null);
+
     setFormData({
       name: "",
       phone: "",
@@ -56,11 +58,13 @@ export default function DriversScreen() {
       province: "KwaZulu-Natal",
       truck: "",
     });
+
     setIsModalOpen(true);
   };
 
   const openEditModal = (driver: Driver) => {
     setEditingDriver(driver);
+
     setFormData({
       name: driver.name,
       phone: driver.phone,
@@ -69,6 +73,7 @@ export default function DriversScreen() {
       province: driver.province,
       truck: driver.truck,
     });
+
     setIsModalOpen(true);
   };
 
@@ -96,13 +101,10 @@ export default function DriversScreen() {
           province: formData.province,
 
           rating: 0,
-          totalDeliveries: 0,
 
           vehicleReg: formData.truck,
           vehicleModel: "",
-          vehicleColor: "",
 
-          stationName: "",
           isOnDuty: false,
           isApproved: true,
 
@@ -117,8 +119,16 @@ export default function DriversScreen() {
           licence_number: "",
 
           truck: formData.truck,
-          truck_type: "",
-          truck_color: "",
+          total_deliveries: 0,
+          latitude: 0,
+          longitude: 0,
+          vehicleId: "",
+          vehicleMake: "",
+          vehicleColor: "",
+          stationName: "",
+          vehicleCapacity: 0,
+          avatar: "",
+          compliance: [],
         });
       }
 
@@ -135,10 +145,13 @@ export default function DriversScreen() {
 
   const handleDelete = async () => {
     if (!editingDriver) return;
+
     if (confirm("Are you sure you want to delete this driver?")) {
       setLoading(true);
+
       try {
         await driverRepository.deleteDriver(editingDriver.id);
+
         await fetchDrivers();
         closeModal();
       } catch (err) {
@@ -179,10 +192,16 @@ export default function DriversScreen() {
           >
             {row.avatar}
           </div>
+
           <div>
             <div style={{ fontWeight: 600 }}>{row.name}</div>
+
             <div
-              style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 2 }}
+              style={{
+                fontSize: 11,
+                color: "var(--ink-faint)",
+                marginTop: 2,
+              }}
             >
               {row.id} · {row.phone}
             </div>
@@ -190,63 +209,125 @@ export default function DriversScreen() {
         </div>
       ),
     },
+
     {
       key: "status",
       label: "Status",
       render: (v) => <StatusBadge status={v} />,
     },
+
     {
       key: "zone",
       label: "Zone & Province",
       render: (_, row) => (
         <>
           {row.zone}
+
           <br />
-          <span style={{ fontSize: 11, color: "var(--ink-faint)" }}>
+
+          <span
+            style={{
+              fontSize: 11,
+              color: "var(--ink-faint)",
+            }}
+          >
             {row.province}
           </span>
         </>
       ),
     },
+
     {
       key: "truck",
-      label: "Assigned Truck",
-      render: (v) => <span style={{ fontSize: 13 }}>{v}</span>,
+      label: "Assigned Vehicle",
+      render: (_, row) => (
+        <div>
+          {row.vehicleId ? (
+            <>
+              <div
+                style={{
+                  fontWeight: 600,
+                  fontSize: 13,
+                }}
+              >
+                {row.vehicleMake} {row.vehicleModel}
+              </div>
+
+              <div
+                style={{
+                  fontSize: 11,
+                  color: "var(--ink-faint)",
+                  marginTop: 3,
+                }}
+              >
+                {row.vehicleReg}
+
+                {row.vehicleCapacity > 0 && ` · ${row.vehicleCapacity} L`}
+              </div>
+            </>
+          ) : (
+            <span
+              style={{
+                fontSize: 12,
+                color: "var(--ink-faint)",
+              }}
+            >
+              No Vehicle Assigned
+            </span>
+          )}
+        </div>
+      ),
     },
+
     {
       key: "rating",
       label: "Rating",
       sortable: true,
       render: (v) => (
-        <span style={{ fontWeight: 600, color: "var(--ignition-amber)" }}>
+        <span
+          style={{
+            fontWeight: 600,
+            color: "var(--ignition-amber)",
+          }}
+        >
           ⭐ {v.toFixed(1)}
         </span>
       ),
     },
+
     {
       key: "compliance",
       label: "Compliance Status",
       render: (docs) => {
-        if (!docs || docs.length === 0)
+        if (!docs || docs.length === 0) {
           return <StatusBadge status="valid" customLabel="N/A" />;
+        }
+
         const expired = docs.filter((d: any) => d.status === "expired").length;
+
         const soon = docs.filter(
           (d: any) => d.status === "expiring_soon",
         ).length;
-        if (expired > 0)
+
+        if (expired > 0) {
           return (
             <StatusBadge status="expired" customLabel={`${expired} Expired`} />
           );
-        if (soon > 0)
+        }
+
+        if (soon > 0) {
           return (
             <StatusBadge
               status="expiring_soon"
               customLabel={`${soon} Expiring Soon`}
             />
           );
+        }
+
         return <StatusBadge status="valid" customLabel="All Valid" />;
       },
     },
+
     {
       key: "actions",
       label: "",
@@ -260,7 +341,12 @@ export default function DriversScreen() {
   ];
 
   return (
-    <div style={{ animation: "fadeIn 0.3s ease", position: "relative" }}>
+    <div
+      style={{
+        animation: "fadeIn 0.3s ease",
+        position: "relative",
+      }}
+    >
       <Card padding={0}>
         <div
           style={{
@@ -279,6 +365,7 @@ export default function DriversScreen() {
             icon="🔍"
             style={{ width: 320 }}
           />
+
           <Button icon="➕" onClick={openAddModal}>
             Add New Driver
           </Button>
@@ -312,55 +399,92 @@ export default function DriversScreen() {
               boxShadow: "var(--shadow-lg)",
             }}
           >
-            <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 24 }}>
+            <h2
+              style={{
+                fontSize: 20,
+                fontWeight: 700,
+                marginBottom: 24,
+              }}
+            >
               {editingDriver ? "Manage Driver" : "Add New Driver"}
             </h2>
+
             <form
               onSubmit={handleSubmit}
-              style={{ display: "flex", flexDirection: "column", gap: 16 }}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 16,
+              }}
             >
               <Input
                 label="Full Name"
                 value={formData.name}
                 onChange={(e) =>
-                  setFormData({ ...formData, name: e.target.value })
+                  setFormData({
+                    ...formData,
+                    name: e.target.value,
+                  })
                 }
                 required
               />
-              <div style={{ display: "flex", gap: 16 }}>
+
+              <div
+                style={{
+                  display: "flex",
+                  gap: 16,
+                }}
+              >
                 <div style={{ flex: 1 }}>
                   <Input
                     label="Phone Number"
                     value={formData.phone}
                     onChange={(e) =>
-                      setFormData({ ...formData, phone: e.target.value })
+                      setFormData({
+                        ...formData,
+                        phone: e.target.value,
+                      })
                     }
                     required
                   />
                 </div>
+
                 <div style={{ flex: 1 }}>
                   <Input
                     label="Email Address"
                     type="email"
                     value={formData.email}
                     onChange={(e) =>
-                      setFormData({ ...formData, email: e.target.value })
+                      setFormData({
+                        ...formData,
+                        email: e.target.value,
+                      })
                     }
                     required
                   />
                 </div>
               </div>
+
               <Input
                 label="Assigned Zone"
                 value={formData.zone}
                 onChange={(e) =>
-                  setFormData({ ...formData, zone: e.target.value })
+                  setFormData({
+                    ...formData,
+                    zone: e.target.value,
+                  })
                 }
                 placeholder="e.g. Durban North"
                 required
               />
 
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 6,
+                }}
+              >
                 <label
                   style={{
                     fontSize: 13,
@@ -370,10 +494,14 @@ export default function DriversScreen() {
                 >
                   Province
                 </label>
+
                 <select
                   value={formData.province}
                   onChange={(e) =>
-                    setFormData({ ...formData, province: e.target.value })
+                    setFormData({
+                      ...formData,
+                      province: e.target.value,
+                    })
                   }
                   style={{
                     width: "100%",
@@ -397,7 +525,10 @@ export default function DriversScreen() {
                 label="Assigned Truck"
                 value={formData.truck}
                 onChange={(e) =>
-                  setFormData({ ...formData, truck: e.target.value })
+                  setFormData({
+                    ...formData,
+                    truck: e.target.value,
+                  })
                 }
                 placeholder="e.g. FN-TRK-001 (Isuzu NMR)"
               />
@@ -421,6 +552,7 @@ export default function DriversScreen() {
                     Delete
                   </Button>
                 )}
+
                 <Button
                   type="button"
                   variant="ghost"
@@ -429,6 +561,7 @@ export default function DriversScreen() {
                 >
                   Cancel
                 </Button>
+
                 <Button type="submit" variant="primary" loading={loading}>
                   {editingDriver ? "Save Changes" : "Add Driver"}
                 </Button>

@@ -14,54 +14,90 @@ export interface DriverModel {
   id: string;
   name: string;
   phone: string;
+  email: string;
   rating: number;
-  totalDeliveries: number;
+  licence_number: string;
+  zone: string;
+  province: string;
+  status: string;
+total_deliveries: number;
+isOnDuty: boolean;
+isApproved: boolean;
+latitude: number;
+longitude: number;
+coordinates: { lat: number; lng: number };
+dailyTarget: number;
+todayEarnings: number;
+weekEarnings: number;
+monthEarnings: number;
+documents: DriverDocumentModel[];
+
+
+  vehicleId: string;
   vehicleReg: string;
+  vehicleMake: string;
   vehicleModel: string;
   vehicleColor: string;
   stationName: string;
-  isOnDuty: boolean;
-  isApproved: boolean;
-  coordinates: { lat: number; lng: number };
-  dailyTarget: number;
-  todayEarnings: number;
-  weekEarnings: number;
-  monthEarnings: number;
-  documents: DriverDocumentModel[];
-  zone?: string;
-  province?: string;
-  status?: string;
-  licence_number?: string;
-  avatar?: string;
-  truck?: string;
-  email?: string;
-  truck_type?: string;
-  truck_color?: string;
+  vehicleCapacity: number;
+
+  truck: string;
+  avatar: string;
+  compliance: any[];
 }
 
 export class DriverRepository {
   private static instance: DriverRepository;
   
   // Minimal active driver for dashboard testing purposes until full auth logic is linked.
-  private activeDriver: DriverModel = {
-    id: 'drv_001',
-    name: 'Admin Driver',
-    phone: '',
-    rating: 5,
-    totalDeliveries: 0,
-    vehicleReg: '',
-    vehicleModel: '',
-    vehicleColor: '',
-    stationName: '',
-    isOnDuty: true,
-    isApproved: true,
-    coordinates: { lat: -29.7990, lng: 31.0340 },
-    dailyTarget: 1500.0,
-    todayEarnings: 0,
-    weekEarnings: 0,
-    monthEarnings: 0,
-    documents: [],
-  };
+private activeDriver: DriverModel = {
+  id: 'drv_001',
+  name: 'Admin Driver',
+  phone: '',
+  email: '',
+
+  rating: 5,
+  licence_number: '',
+
+  zone: '',
+  province: 'KwaZulu-Natal',
+  status: 'active',
+
+  total_deliveries: 0,
+
+  isOnDuty: true,
+  isApproved: true,
+
+  latitude: -29.7990,
+  longitude: 31.0340,
+
+  coordinates: {
+    lat: -29.7990,
+    lng: 31.0340,
+  },
+
+  dailyTarget: 1500.0,
+
+  todayEarnings: 0,
+  weekEarnings: 0,
+  monthEarnings: 0,
+
+  documents: [],
+
+  vehicleId: '',
+  vehicleReg: '',
+  vehicleMake: '',
+  vehicleModel: '',
+  vehicleColor: '',
+  stationName: '',
+  vehicleCapacity: 0,
+
+  truck: 'No Vehicle Assigned',
+
+  avatar: 'AD',
+
+  compliance: [],
+};
 
   private constructor() {}
 
@@ -77,44 +113,47 @@ export class DriverRepository {
   }
 
 public async getAllDrivers(): Promise<DriverModel[]> {
-  const { data, error } = await supabase.rpc('get_all_drivers');
+  const { data, error } = await supabase.rpc(
+    "get_all_drivers",
+  );
 
   if (error) {
-    console.error('Failed to fetch drivers:', error);
+    console.error("Error fetching drivers:", error);
     throw error;
   }
 
-  return (data || []).map((d: any) => ({
-    id: d.id,
-    name: d.name || 'Unknown Driver',
-    phone: d.phone || '',
-    rating: Number(d.rating ?? 0),
-    totalDeliveries: 0,
-    vehicleReg: d.licence_number || '',
-    vehicleModel: '',
-    vehicleColor: '',
-    stationName: '',
-    isOnDuty: ['active', 'online'].includes(
-      String(d.status ?? '').toLowerCase()
-    ),
-    isApproved: true,
-    coordinates: {
-      lat: 0,
-      lng: 0,
-    },
-    dailyTarget: 0,
-    todayEarnings: 0,
-    weekEarnings: 0,
-    monthEarnings: 0,
-    documents: [],
-    zone: d.zone || '',
-    province: d.province || '',
-    status: d.status || '',
-    licence_number: d.licence_number || '',
-    avatar: d.name
-      ? d.name.substring(0, 2).toUpperCase()
-      : 'DR',
-    truck: 'N/A',
+  return (data ?? []).map((driver: any) => ({
+    id: driver.id,
+    name: driver.name ?? "",
+    phone: driver.phone ?? "",
+    email: driver.email ?? "",
+    rating: Number(driver.rating ?? 0),
+    licence_number: driver.licence_number ?? "",
+    zone: driver.zone ?? "",
+    province: driver.province ?? "",
+    status: driver.status ?? "",
+
+    vehicleId: driver.vehicle_id ?? "",
+    vehicleReg: driver.registration_number ?? "",
+    vehicleMake: driver.vehicle_make ?? "",
+    vehicleModel: driver.vehicle_model ?? "",
+    vehicleCapacity: Number(driver.capacity_litres ?? 0),
+
+    truck:
+      driver.registration_number ||
+      [driver.vehicle_make, driver.vehicle_model]
+        .filter(Boolean)
+        .join(" ") ||
+      "No Vehicle Assigned",
+
+    avatar: (driver.name ?? "?")
+      .split(" ")
+      .map((part: string) => part[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase(),
+
+    compliance: [],
   }));
 }
 
