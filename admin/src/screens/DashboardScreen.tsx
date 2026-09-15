@@ -10,7 +10,7 @@ import {
 import { type OrderModel } from "../repositories/OrderRepository";
 import Card from "../components/Card";
 import StatusBadge from "../components/StatusBadge";
-import MockMap from "../components/MockMap";
+import OrderDensityMap from "../components/OrderDensityMap";
 
 function KPICard({
   label,
@@ -105,7 +105,9 @@ export default function DashboardScreen() {
 
   useEffect(() => {
     orderRepository.getKPISummary().then(setKpi);
-    orderRepository.getAllAdminOrders().then((o) => setOrders(o.slice(0, 6)));
+    orderRepository
+  .getAllAdminOrders()
+  .then(setOrders);
     sosRepository
       .getAlerts()
       .then((a) => setAlerts(a.filter((x) => x.status !== "resolved")));
@@ -235,40 +237,10 @@ export default function DashboardScreen() {
               <span>🔵 Medium</span>
             </div>
           </div>
-          <MockMap
-            height={310}
-            showHeatmap
-            pins={[
-              {
-                x: 35,
-                y: 35,
-                color: "#F97316",
-                label: "Morningside",
-                pulse: true,
-              },
-              {
-                x: 58,
-                y: 55,
-                color: "#F97316",
-                label: "Westville",
-                pulse: true,
-              },
-              {
-                x: 18,
-                y: 65,
-                color: "#2563EB",
-                label: "Durban CBD",
-                pulse: false,
-              },
-              {
-                x: 76,
-                y: 28,
-                color: "#2563EB",
-                label: "Umhlanga",
-                pulse: false,
-              },
-            ]}
-          />
+          <OrderDensityMap
+  orders={orders}
+  height={310}
+/>
         </Card>
 
         {/* Recent Orders */}
@@ -295,7 +267,7 @@ export default function DashboardScreen() {
             </p>
           </div>
           <div style={{ overflow: "auto", maxHeight: 350 }}>
-            {orders.map((order, i) => (
+          {orders.slice(0, 6).map((order, i) => (
               <div
                 key={order.id}
                 style={{

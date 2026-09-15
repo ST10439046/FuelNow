@@ -77,6 +77,8 @@ export interface OrderModel {
   customerName?: string;
   phone?: string;
   driverName?: string;
+  latitude?: number;
+longitude?: number;
 }
 
 export interface KPISummary {
@@ -601,6 +603,16 @@ public async getAllAdminOrders(): Promise<OrderModel[]> {
             row.rand_amount ??
             0
           ),
+
+          latitude:
+  row.latitude !== null && row.latitude !== undefined
+    ? Number(row.latitude)
+    : undefined,
+
+longitude:
+  row.longitude !== null && row.longitude !== undefined
+    ? Number(row.longitude)
+    : undefined,
       },
 
       deliveryAddress: {} as AddressModel,
