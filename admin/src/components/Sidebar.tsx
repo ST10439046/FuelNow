@@ -25,6 +25,11 @@ const navItems = [
     icon: "🚛",
   },
   {
+    label: "Vehicles",
+    path: "/vehicles",
+    icon: "🚐",
+  },
+  {
     label: "Rates",
     path: "/rates",
     icon: "💰",

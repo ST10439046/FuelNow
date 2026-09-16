@@ -19,7 +19,7 @@ import ReviewsScreen from "./screens/ReviewsScreen";
 import SOSScreen from "./screens/SOSScreen";
 import ReportsScreen from "./screens/ReportsScreen";
 import SettingsScreen from "./screens/SettingsScreen";
-
+import VehiclesScreen from "./screens/VehiclesScreen";
 /*
  * Force a fresh login when a new browser tab/session starts.
  *
@@ -111,6 +111,15 @@ export default function App() {
               <DashboardScreen />
             </ProtectedRoute>
           }
+        />
+
+        <Route
+          path="/vehicles"
+          element={
+            <ProtectedRoute>
+              <VehiclesScreen />
+            </ProtectedRoute>
+            }
         />
 
         <Route
