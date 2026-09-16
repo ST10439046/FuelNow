@@ -41,20 +41,26 @@ export class ReviewRepository {
     return (data || []).map((r: any) => ({
       id: r.review_id,
       orderId: r.order_id,
+
       date:
         r.placed_at ||
         r.created_at ||
         new Date().toISOString(),
+
       rating: Number(r.rating ?? 0),
+
       comment: r.comment || '',
+
       customerName:
         r.customer_name ||
         'Unknown',
+
       driverName:
         r.driver_name ||
         'Unknown',
+
       flagged:
-        r.status === 'flagged',
+        r.is_flagged === true,
     }));
   }
 
@@ -76,6 +82,34 @@ export class ReviewRepository {
       );
 
       throw error;
+    }
+  }
+
+  public async setReviewFlag(
+    id: string,
+    flagged: boolean
+  ): Promise<void> {
+    const { data, error } = await supabase.rpc(
+      'set_review_flag',
+      {
+        p_review_id: id,
+        p_is_flagged: flagged,
+      }
+    );
+
+    if (error) {
+      console.error(
+        'Error updating review flag:',
+        error
+      );
+
+      throw error;
+    }
+
+    if (!data) {
+      throw new Error(
+        'Review was not found.'
+      );
     }
   }
 
