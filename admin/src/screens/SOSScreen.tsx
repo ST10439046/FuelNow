@@ -20,9 +20,9 @@ export default function SOSScreen() {
 
   const fetchAlerts = () => sosRepository.getAlerts().then(setAlerts);
 
-  const handleResolve = async (id: string) => {
-    setResolving(id);
-    await sosRepository.markAsResolved(id);
+  const handleResolve = async (alert: SOSAlert) => {
+    setResolving(alert.alert_id);
+    await sosRepository.markAsResolved(alert.alert_id);
     await fetchAlerts();
     setResolving(null);
   };
@@ -30,7 +30,7 @@ export default function SOSScreen() {
   const handleDispatchSupport = async (alert: SOSAlert) => {
     const dispatchTeam = window.prompt(`Dispatch emergency roadside / hazmat team to ${alert.driverName} at ${alert.locationAddress}? Enter dispatch unit notes:`, 'Southgate Durban Rapid Response Unit #4 Dispatched with mobile fuel tanker.');
     if (dispatchTeam) {
-      await sosRepository.dispatchSupport(alert.id, `[DISPATCHED: ${dispatchTeam}] ${alert.notes}`);
+      await sosRepository.dispatchSupport(alert.alert_id, `[DISPATCHED: ${dispatchTeam}] ${alert.notes}`);
       await fetchAlerts();
       window.alert(`Emergency response dispatched. Driver ${alert.driverName} notified via SMS.`);
     }
@@ -57,10 +57,10 @@ export default function SOSScreen() {
               <div style={{ color: 'var(--ink-faint)', textAlign: 'center', padding: 40 }}>No active alerts. All clear.</div>
             ) : (
               activeAlerts.map(alert => (
-                <div key={alert.id} style={{ border: '1px solid var(--divider)', borderRadius: 'var(--radius-md)', padding: 16, background: '#fff' }}>
+                <div key={alert.alert_id} style={{ border: '1px solid var(--divider)', borderRadius: 'var(--radius-md)', padding: 16, background: '#fff' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
                     <div>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-light)', marginBottom: 4 }}>{alert.id} · {timeAgoMin(alert.reported_at)}</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-light)', marginBottom: 4 }}>{alert.alert_id} · {timeAgoMin(alert.reported_at)}</div>
                       <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--charcoal-ink)' }}>{alert.driverName}</div>
                       <div style={{ fontSize: 13, color: 'var(--ink-light)', marginTop: 2 }}>📍 {alert.locationAddress}, {alert.suburb}</div>
                     </div>
@@ -70,7 +70,7 @@ export default function SOSScreen() {
                     <strong>Note:</strong> {alert.notes}
                   </div>
                   <div style={{ display: 'flex', gap: 12 }}>
-                    <Button variant="primary" loading={resolving === alert.id} onClick={() => handleResolve(alert.id)}>Mark as Resolved</Button>
+                    <Button variant="primary" loading={resolving === alert.alert_id} onClick={() => handleResolve(alert)}>Mark as Resolved</Button>
                     <Button variant="outline" onClick={() => handleDispatchSupport(alert)}>Dispatch Support</Button>
                   </div>
                 </div>
@@ -86,7 +86,7 @@ export default function SOSScreen() {
           </div>
           <div>
             {resolvedAlerts.map(alert => (
-              <div key={alert.id} style={{ padding: '16px 24px', borderBottom: '1px solid var(--divider)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div key={alert.alert_id} style={{ padding: '16px 24px', borderBottom: '1px solid var(--divider)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                   <div style={{ fontWeight: 600, fontSize: 14 }}>{alert.driverName}</div>
                   <div style={{ fontSize: 12, color: 'var(--ink-light)' }}>{alert.notes}</div>

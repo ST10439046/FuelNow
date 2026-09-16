@@ -5,8 +5,8 @@ import Button from "../components/Button";
 
 export default function LoginScreen() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState("safwaan@fuelnow.co.za");
-  const [password, setPassword] = useState("admin1234");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 

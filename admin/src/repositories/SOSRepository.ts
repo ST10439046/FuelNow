@@ -1,8 +1,8 @@
-import { supabase } from '../services/supabase';
-import { realtimeHub } from '../patterns/realtimeObserver';
+import { supabase } from "../services/supabase";
+import { realtimeHub } from "../patterns/realtimeObserver";
 
 export interface SOSAlertModel {
-  id: string;
+  alert_id: string;
   referenceNumber: string;
   driverId: string;
   driverName: string;
@@ -12,7 +12,7 @@ export interface SOSAlertModel {
   lng: number;
   locationAddress: string;
   orderId?: string;
-  status: 'active' | 'dispatched' | 'resolved';
+  status: "active" | "dispatched" | "resolved";
   notes?: string;
   reported_at: string;
   resolvedAt?: string;
@@ -35,7 +35,7 @@ export class SOSRepository {
 
   public async getAlerts(): Promise<SOSAlertModel[]> {
     const { data, error } = await supabase
-      .from('sos_alerts')
+      .from("sos_alerts")
       .select(`
         *,
         drivers (
@@ -45,24 +45,21 @@ export class SOSRepository {
           )
         )
       `)
-      .order('reported_at', {
+      .order("reported_at", {
         ascending: false,
       });
 
     if (error) {
-      console.error(
-        'Failed to fetch SOS alerts:',
-        error
-      );
+      console.error("Failed to fetch SOS alerts:", error);
 
       return [];
     }
 
-    return (data || []).map((a: any) => ({
-      id: a.id,
+    return (data || []).map((a: any): SOSAlertModel => ({
+      alert_id: a.alert_id,
 
       referenceNumber:
-        `SOS-${String(a.id)
+        `SOS-${String(a.alert_id)
           .substring(0, 6)
           .toUpperCase()}`,
 
@@ -71,14 +68,14 @@ export class SOSRepository {
 
       driverName:
         a.drivers?.users?.full_name ||
-        'Unknown Driver',
+        "Unknown Driver",
 
       driverPhone:
         a.drivers?.users?.phone_number ||
-        '',
+        "",
 
       vehicleReg:
-        'N/A',
+        "N/A",
 
       lat:
         a.latitude !== null &&
@@ -93,7 +90,7 @@ export class SOSRepository {
           : 0,
 
       locationAddress:
-        'Unknown Location',
+        "Unknown Location",
 
       orderId:
         a.order_id ||
@@ -101,13 +98,13 @@ export class SOSRepository {
 
       status:
         a.status as
-          | 'active'
-          | 'dispatched'
-          | 'resolved',
+          | "active"
+          | "dispatched"
+          | "resolved",
 
       notes:
         a.note ||
-        '',
+        "",
 
       reported_at:
         a.reported_at,
@@ -118,10 +115,10 @@ export class SOSRepository {
 
       severity:
         a.severity ||
-        'high',
+        "high",
 
       suburb:
-        'Unknown',
+        "Unknown",
     }));
   }
 
@@ -137,7 +134,7 @@ export class SOSRepository {
     notes?: string;
   }): Promise<SOSAlertModel> {
     const { data, error } = await supabase
-      .from('sos_alerts')
+      .from("sos_alerts")
       .insert({
         driver_id:
           payload.driverId,
@@ -154,20 +151,20 @@ export class SOSRepository {
 
         note:
           payload.notes ||
-          'Emergency assistance requested via Driver App SOS trigger.',
+          "Emergency assistance requested via Driver App SOS trigger.",
 
         severity:
-          'high',
+          "high",
 
         status:
-          'active',
+          "active",
       })
       .select()
       .single();
 
     if (error) {
       console.error(
-        'Failed to trigger SOS:',
+        "Failed to trigger SOS:",
         error
       );
 
@@ -175,11 +172,11 @@ export class SOSRepository {
     }
 
     const newAlert: SOSAlertModel = {
-      id:
-        data.id,
+      alert_id:
+        data.alert_id,
 
       referenceNumber:
-        `SOS-${String(data.id)
+        `SOS-${String(data.alert_id)
           .substring(0, 6)
           .toUpperCase()}`,
 
@@ -216,23 +213,23 @@ export class SOSRepository {
 
       status:
         data.status as
-          | 'active'
-          | 'dispatched'
-          | 'resolved',
+          | "active"
+          | "dispatched"
+          | "resolved",
 
       notes:
         data.note ||
-        '',
+        "",
 
       reported_at:
         data.reported_at,
 
       severity:
         data.severity ||
-        'high',
+        "high",
 
       suburb:
-        'Unknown',
+        "Unknown",
     };
 
     realtimeHub
@@ -242,49 +239,49 @@ export class SOSRepository {
     return newAlert;
   }
 
-  public async markAsResolved(
-    id: string
-  ): Promise<void> {
-    const { error } = await supabase
-      .from('sos_alerts')
-      .update({
-        status: 'resolved',
-        resolved_at:
-          new Date().toISOString(),
-      })
-      .eq('id', id);
+public async markAsResolved(
+  id: string
+): Promise<void> {
+  const { error } = await supabase
+    .from("sos_alerts")
+    .update({
+      status: "resolved",
+      resolved_at:
+        new Date().toISOString(),
+    })
+    .eq("alert_id", id);
 
-    if (error) {
-      console.error(
-        'Failed to resolve SOS alert:',
-        error
-      );
+  if (error) {
+    console.error(
+      "Failed to resolve SOS alert:",
+      error
+    );
 
-      throw error;
-    }
+    throw error;
   }
+}
 
-  public async dispatchSupport(
-    id: string,
-    notes: string
-  ): Promise<void> {
-    const { error } = await supabase
-      .from('sos_alerts')
-      .update({
-        status: 'dispatched',
-        note: notes,
-      })
-      .eq('id', id);
+public async dispatchSupport(
+  id: string,
+  notes: string
+): Promise<void> {
+  const { error } = await supabase
+    .from("sos_alerts")
+    .update({
+      status: "dispatched",
+      note: notes,
+    })
+    .eq("alert_id", id);
 
-    if (error) {
-      console.error(
-        'Failed to dispatch support for SOS alert:',
-        error
-      );
+  if (error) {
+    console.error(
+      "Failed to dispatch support for SOS alert:",
+      error
+    );
 
-      throw error;
-    }
+    throw error;
   }
+}
 }
 
 export const sosRepository =
