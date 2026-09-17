@@ -1,4 +1,5 @@
 import React from "react";
+
 import {
   View,
   Text,
@@ -6,11 +7,15 @@ import {
   ScrollView,
   TouchableOpacity,
 } from "react-native";
+
 import { SafeAreaView } from "react-native-safe-area-context";
+
 import { Feather } from "@expo/vector-icons";
 
 import { useDesignMode } from "../../context/DesignModeContext";
+
 import { FontSizes, Spacing, Radius } from "../../theme/tokens";
+
 import Button from "../../components/Button";
 
 interface Props {
@@ -24,6 +29,8 @@ export default function PaymentMethodScreen({ navigation, route }: Props) {
   const params = route?.params ?? {};
 
   const handleContinue = () => {
+    console.log("PaymentMethod forwarding params:", params);
+
     navigation.navigate("OrderReview", {
       ...params,
       paymentMethod: "payfast",
@@ -31,13 +38,24 @@ export default function PaymentMethodScreen({ navigation, route }: Props) {
   };
 
   const bg = isWF ? "#F0F0F0" : colors.warmAsh;
+
   const cardBg = isWF ? "#FFFFFF" : colors.white;
+
   const heading = isWF ? "#1A1A1A" : colors.charcoalInk;
+
   const sub = isWF ? "#666666" : colors.inkLight;
+
   const border = isWF ? "#CCCCCC" : colors.divider;
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: bg }]}>
+    <SafeAreaView
+      style={[
+        styles.container,
+        {
+          backgroundColor: bg,
+        },
+      ]}
+    >
       <View style={styles.topBar}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
@@ -85,7 +103,9 @@ export default function PaymentMethodScreen({ navigation, route }: Props) {
             styles.paymentCard,
             {
               backgroundColor: cardBg,
+
               borderColor: isWF ? "#555" : colors.petrolDeep,
+
               borderRadius: isWF ? Radius.sm : Radius.lg,
             },
           ]}
@@ -140,7 +160,9 @@ export default function PaymentMethodScreen({ navigation, route }: Props) {
               <Text
                 style={{
                   color: isWF ? "#444" : colors.petrolMid,
+
                   fontFamily: font("bodyMedium"),
+
                   fontSize: 10,
                 }}
               >
@@ -173,7 +195,9 @@ export default function PaymentMethodScreen({ navigation, route }: Props) {
             styles.infoCard,
             {
               backgroundColor: cardBg,
+
               borderColor: border,
+
               borderRadius: isWF ? Radius.sm : Radius.md,
             },
           ]}
@@ -216,6 +240,7 @@ export default function PaymentMethodScreen({ navigation, route }: Props) {
               styles.securityNote,
               {
                 backgroundColor: colors.greenLight,
+
                 borderRadius: Radius.md,
               },
             ]}
@@ -226,9 +251,13 @@ export default function PaymentMethodScreen({ navigation, route }: Props) {
               style={{
                 flex: 1,
                 marginLeft: Spacing.sm,
+
                 color: colors.dieselGreen,
+
                 fontFamily: font("body"),
+
                 fontSize: FontSizes.xs,
+
                 lineHeight: 17,
               }}
             >

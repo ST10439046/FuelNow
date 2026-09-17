@@ -26,6 +26,7 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
 
   const fuelType = route?.params?.fuelType ?? "Petrol 95";
+  const fuelTypeId = route?.params?.fuelTypeId ?? null;
   const litres = route?.params?.litres ?? 40;
   const pricePerLitre = route?.params?.pricePerLitre ?? 23.45;
   const deliveryAddressId = route?.params?.deliveryAddressId ?? "addr_001";
@@ -104,21 +105,14 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
           p_customer_id: userId,
           p_driver_id: null,
           p_address_id: addressId,
-          p_fuel_type_id: route?.params?.fuelTypeId ?? null,
+          p_fuel_type_id: fuelTypeId,
           p_order_method: "CUSTOMER_APP",
           p_volume_litres: litres,
-
-          // This is passed for compatibility.
-          // The database calculates the authoritative
-          // amount using the current fuel rate + delivery fee.
           p_rand_amount: total,
-
           p_delivery_type: scheduledAt ? "Scheduled" : "Deliver Now",
-
           p_scheduled_date_time:
             route?.params?.scheduledDateTime ??
             (scheduledAt ? new Date().toISOString() : null),
-
           p_status: "PENDING_PAYMENT",
           p_delivery_pin: deliveryPin,
         },

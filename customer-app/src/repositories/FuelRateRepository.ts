@@ -49,14 +49,14 @@ export class FuelRateRepository {
     const rates = Array.isArray(data) ? data : [];
 
     return rates.map((rate: any) => ({
-      id: rate.id,
-      type: rate.fuel_type_name,
-      pricePerLitre: Number(rate.price_per_litre),
-      change: 0,
-      trend: 'flat' as const,
-      changeSource: rate.source,
-      effectiveDate: undefined,
-    }));
+  id: rate.fuel_type_id,
+  type: rate.fuel_type_name,
+  pricePerLitre: Number(rate.price_per_litre),
+  change: 0,
+  trend: 'flat' as const,
+  changeSource: rate.source,
+  effectiveDate: undefined,
+}));
   }
 }
 

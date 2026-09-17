@@ -29,35 +29,22 @@ interface Props {
   route?: any;
 }
 
-/*
- * Default map location.
- * Used only if an address doesn't have coordinates yet.
- * Durban North.
- */
-
 export default function DeliveryLocationScreen({ navigation, route }: Props) {
   const { colors, font, isWireframe: isWF } = useDesignMode();
 
   const params = route?.params ?? {};
 
   const [allAddresses, setAllAddresses] = useState<AddressModel[]>([]);
+
   const [selectedAddr, setSelectedAddr] = useState<AddressModel | null>(null);
 
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
 
-  /*
-   * Load the customer's REAL saved addresses
-   * from Supabase through UserRepository.
-   */
   useEffect(() => {
     loadAddresses();
   }, []);
 
-  /*
-   * If the selected address does not yet have coordinates,
-   * geocode it in the background so the map displays the real pin.
-   */
   useEffect(() => {
     if (selectedAddr && !selectedAddr.coordinates) {
       const fullAddr = [
@@ -102,10 +89,6 @@ export default function DeliveryLocationScreen({ navigation, route }: Props) {
       setAllAddresses(addresses);
 
       if (addresses.length > 0) {
-        /*
-         * Prefer the customer's default address.
-         * Otherwise use the first address.
-         */
         const defaultAddress =
           addresses.find((address) => address.isDefault) ?? addresses[0];
 
@@ -118,36 +101,28 @@ export default function DeliveryLocationScreen({ navigation, route }: Props) {
     }
   };
 
-  /*
-   * Called whenever the customer selects
-   * a different saved address.
-   */
   const handleSelectAddress = (address: AddressModel) => {
     setSelectedAddr(address);
   };
 
-  /*
-   * Continue to delivery time while carrying
-   * the selected address ID forward.
-   */
   const handleContinue = () => {
     if (!selectedAddr) {
       return;
     }
 
+    if (!params.fuelTypeId) {
+      console.error("DeliveryLocation: fuelTypeId missing:", params);
+    }
+
+    console.log("DeliveryLocation forwarding params:", {
+      ...params,
+      deliveryAddressId: selectedAddr.id,
+    });
+
     navigation.navigate("DeliveryTime", {
       ...params,
 
-      /*
-       * This is the real address ID from
-       * public.addresses.address_id
-       */
       deliveryAddressId: selectedAddr.id,
-
-      /*
-       * Also pass the address itself in case
-       * the next screen needs to display it.
-       */
       deliveryAddress: selectedAddr,
     });
   };
@@ -158,9 +133,6 @@ export default function DeliveryLocationScreen({ navigation, route }: Props) {
     });
   };
 
-  /*
-   * Filter the customer's actual addresses.
-   */
   const filteredAddresses = allAddresses.filter((address) => {
     const query = search.toLowerCase().trim();
 
@@ -183,10 +155,6 @@ export default function DeliveryLocationScreen({ navigation, route }: Props) {
     return fullAddress.includes(query);
   });
 
-  /*
-   * Convert the selected address into a map region.
-   */
-
   return (
     <SafeAreaView
       style={[
@@ -196,10 +164,6 @@ export default function DeliveryLocationScreen({ navigation, route }: Props) {
         },
       ]}
     >
-      {/* =====================================================
-          HEADER
-      ===================================================== */}
-
       <View style={styles.topBar}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
@@ -227,10 +191,6 @@ export default function DeliveryLocationScreen({ navigation, route }: Props) {
 
         <View style={{ width: 40 }} />
       </View>
-
-      {/* =====================================================
-          REAL MAP
-      ===================================================== */}
 
       <View style={styles.mapContainer}>
         <DeliveryMap coordinates={selectedAddr?.coordinates ?? null} />
@@ -291,10 +251,6 @@ export default function DeliveryLocationScreen({ navigation, route }: Props) {
         )}
       </View>
 
-      {/* =====================================================
-          BOTTOM SHEET
-      ===================================================== */}
-
       <View
         style={[
           styles.sheet,
@@ -306,15 +262,11 @@ export default function DeliveryLocationScreen({ navigation, route }: Props) {
         <ScrollView
           style={styles.sheetScroll}
           contentContainerStyle={styles.sheetScrollContent}
-          showsVerticalScrollIndicator={true}
+          showsVerticalScrollIndicator
           keyboardShouldPersistTaps="handled"
-          nestedScrollEnabled={true}
-          scrollEnabled={true}
+          nestedScrollEnabled
+          scrollEnabled
         >
-          {/* =================================================
-              SEARCH
-          ================================================= */}
-
           <View
             style={[
               styles.searchBar,
@@ -346,10 +298,6 @@ export default function DeliveryLocationScreen({ navigation, route }: Props) {
               onChangeText={setSearch}
             />
           </View>
-
-          {/* =================================================
-              CURRENT LOCATION
-          ================================================= */}
 
           <TouchableOpacity
             style={[
@@ -396,10 +344,6 @@ export default function DeliveryLocationScreen({ navigation, route }: Props) {
               </Text>
             </View>
           </TouchableOpacity>
-
-          {/* =================================================
-              SAVED ADDRESSES
-          ================================================= */}
 
           <Text
             style={[
@@ -582,10 +526,6 @@ export default function DeliveryLocationScreen({ navigation, route }: Props) {
             })
           )}
 
-          {/* =================================================
-              ADD ADDRESS
-          ================================================= */}
-
           <TouchableOpacity
             style={[
               styles.addNewBtn,
@@ -612,10 +552,6 @@ export default function DeliveryLocationScreen({ navigation, route }: Props) {
               Add new address
             </Text>
           </TouchableOpacity>
-
-          {/* =================================================
-              CONTINUE
-          ================================================= */}
 
           <Button
             label="Deliver here"

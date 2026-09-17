@@ -20,18 +20,14 @@ interface Props {
 }
 
 function cleanPayFastData(
-  data: Record<string, string>
+  data: Record<string, string>,
 ): Record<string, string> {
   const cleaned: Record<string, string> = {};
 
   for (const key of Object.keys(data)) {
     const val = data[key];
 
-    if (
-      val !== undefined &&
-      val !== null &&
-      String(val).trim() !== ""
-    ) {
+    if (val !== undefined && val !== null && String(val).trim() !== "") {
       cleaned[key] = String(val).trim();
     }
   }
@@ -39,41 +35,28 @@ function cleanPayFastData(
   return cleaned;
 }
 
-export default function PayFastCheckoutScreen({
-  navigation,
-  route,
-}: Props) {
-  const { colors, font, isWireframe: isWF } =
-    useDesignMode();
+export default function PayFastCheckoutScreen({ navigation, route }: Props) {
+  const { colors, font, isWireframe: isWF } = useDesignMode();
 
   const {
-    paymentUrl =
-      "https://sandbox.payfast.co.za/eng/process",
+    paymentUrl = "https://sandbox.payfast.co.za/eng/process",
     paymentData: rawPaymentData = {},
     orderId,
   } = route.params || {};
 
-  const paymentData =
-    cleanPayFastData(rawPaymentData);
+  const paymentData = cleanPayFastData(rawPaymentData);
 
-  const paymentHandledRef =
-    useRef(false);
+  const paymentHandledRef = useRef(false);
 
-  const pollingRef =
-    useRef(false);
+  const pollingRef = useRef(false);
 
-  const [waitingForConfirmation, setWaitingForConfirmation] =
-    useState(false);
+  const [waitingForConfirmation, setWaitingForConfirmation] = useState(false);
 
-  const [confirmationError, setConfirmationError] =
-    useState("");
+  const [confirmationError, setConfirmationError] = useState("");
 
-  const [pollingSeconds, setPollingSeconds] =
-    useState(0);
+  const [pollingSeconds, setPollingSeconds] = useState(0);
 
-  const escapeHtml = (
-    value: string
-  ): string => {
+  const escapeHtml = (value: string): string => {
     return String(value || "")
       .replace(/&/g, "&amp;")
       .replace(/"/g, "&quot;")
@@ -155,10 +138,8 @@ export default function PayFastCheckoutScreen({
           `<input
             type="hidden"
             name="${escapeHtml(key)}"
-            value="${escapeHtml(
-              String(value)
-            )}"
-          />`
+            value="${escapeHtml(String(value))}"
+          />`,
       )
       .join("\n    ")}
   </form>
@@ -180,39 +161,28 @@ export default function PayFastCheckoutScreen({
 `;
 
   useEffect(() => {
-    if (
-      Platform.OS === "web" &&
-      paymentUrl &&
-      paymentData
-    ) {
+    if (Platform.OS === "web" && paymentUrl && paymentData) {
       try {
-        const form =
-          document.createElement("form");
+        const form = document.createElement("form");
 
         form.method = "POST";
         form.action = paymentUrl;
         form.target = "_self";
 
-        Object.entries(paymentData).forEach(
-          ([key, val]) => {
-            const input =
-              document.createElement("input");
+        Object.entries(paymentData).forEach(([key, val]) => {
+          const input = document.createElement("input");
 
-            input.type = "hidden";
-            input.name = key;
-            input.value = String(val);
+          input.type = "hidden";
+          input.name = key;
+          input.value = String(val);
 
-            form.appendChild(input);
-          }
-        );
+          form.appendChild(input);
+        });
 
         document.body.appendChild(form);
         form.submit();
       } catch (err) {
-        console.error(
-          "Web PayFast auto-submit error:",
-          err
-        );
+        console.error("Web PayFast auto-submit error:", err);
       }
     }
   }, [paymentUrl, paymentData]);
@@ -229,122 +199,81 @@ export default function PayFastCheckoutScreen({
    * Wait for the PayFast ITN to update
    * the actual Supabase order.
    */
-  const waitForPaymentConfirmation =
-    async () => {
-      if (
-        !orderId ||
-        pollingRef.current
-      ) {
-        return;
-      }
+  const waitForPaymentConfirmation = async () => {
+    if (!orderId || pollingRef.current) {
+      return;
+    }
 
-      pollingRef.current = true;
-      paymentHandledRef.current = true;
+    pollingRef.current = true;
+    paymentHandledRef.current = true;
 
-      setWaitingForConfirmation(true);
-      setConfirmationError("");
-      setPollingSeconds(0);
+    setWaitingForConfirmation(true);
+    setConfirmationError("");
+    setPollingSeconds(0);
 
-      console.log(
-        "PayFast returned successfully.",
-        "Waiting for Supabase payment confirmation:",
-        orderId
-      );
+    console.log(
+      "PayFast returned successfully.",
+      "Waiting for Supabase payment confirmation:",
+      orderId,
+    );
 
-      const maxAttempts = 30;
+    const maxAttempts = 30;
 
-      for (
-        let attempt = 0;
-        attempt < maxAttempts;
-        attempt++
-      ) {
-        try {
-          setPollingSeconds(
-            attempt + 1
-          );
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        setPollingSeconds(attempt + 1);
 
-          const {
-            data,
-            error,
-          } = await supabase.rpc(
-            "get_customer_order_payment_status",
-            {
-              p_order_id: orderId,
-            }
-          );
-
-          if (error) {
-            console.warn(
-              "Payment status check failed:",
-              error.message
-            );
-          } else {
-            console.log(
-              "Payment confirmation status:",
-              data
-            );
-
-            const orderStatus =
-              data?.order_status;
-
-            const paymentStatus =
-              data?.payment_status;
-
-            if (
-              orderStatus === "PAID" ||
-              paymentStatus === "COMPLETE"
-            ) {
-              console.log(
-                "Payment confirmed. Opening OrderPlaced."
-              );
-
-              navigation.replace(
-                "OrderPlaced",
-                {
-                  orderId,
-                }
-              );
-
-              pollingRef.current =
-                false;
-
-              return;
-            }
-          }
-        } catch (error) {
-          console.warn(
-            "Payment confirmation polling error:",
-            error
-          );
-        }
-
-        await new Promise(
-          (resolve) =>
-            setTimeout(
-              resolve,
-              1000
-            )
+        const { data, error } = await supabase.rpc(
+          "get_customer_order_payment_status",
+          {
+            p_order_id: orderId,
+          },
         );
+
+        if (error) {
+          console.warn("Payment status check failed:", error.message);
+        } else {
+          console.log("Payment confirmation status:", data);
+
+          const orderStatus = data?.order_status;
+
+          const paymentStatus = data?.payment_status;
+
+          if (orderStatus === "PAID" || paymentStatus === "COMPLETE") {
+            console.log("Payment confirmed. Opening OrderPlaced.");
+
+            navigation.replace("OrderPlaced", {
+              orderId,
+              orderCreated: true,
+            });
+
+            pollingRef.current = false;
+
+            return;
+          }
+        }
+      } catch (error) {
+        console.warn("Payment confirmation polling error:", error);
       }
 
-      pollingRef.current = false;
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
 
-      setWaitingForConfirmation(
-        false
-      );
+    pollingRef.current = false;
 
-      setConfirmationError(
-        "Your payment was returned successfully, but PayFast has not yet confirmed the payment with FuelNow. Please wait a moment and try again."
-      );
+    setWaitingForConfirmation(false);
 
-      /**
-       * Allow the user to retry the
-       * confirmation check without
-       * opening PayFast again.
-       */
-      paymentHandledRef.current =
-        false;
-    };
+    setConfirmationError(
+      "Your payment was returned successfully, but PayFast has not yet confirmed the payment with FuelNow. Please wait a moment and try again.",
+    );
+
+    /**
+     * Allow the user to retry the
+     * confirmation check without
+     * opening PayFast again.
+     */
+    paymentHandledRef.current = false;
+  };
 
   const handlePaymentCancel = () => {
     if (paymentHandledRef.current) {
@@ -353,9 +282,7 @@ export default function PayFastCheckoutScreen({
 
     paymentHandledRef.current = true;
 
-    console.log(
-      "PayFast payment cancelled."
-    );
+    console.log("PayFast payment cancelled.");
 
     navigation.goBack();
   };
@@ -367,32 +294,18 @@ export default function PayFastCheckoutScreen({
    * BEFORE Android WebView attempts
    * to load it.
    */
-  const handleShouldStartLoad = (
-    request: any
-  ) => {
-    const url =
-      request?.url || "";
+  const handleShouldStartLoad = (request: any) => {
+    const url = request?.url || "";
 
-    console.log(
-      "PayFast navigation request:",
-      url
-    );
+    console.log("PayFast navigation request:", url);
 
-    if (
-      url.startsWith(
-        "fuelnow://payment/success"
-      )
-    ) {
+    if (url.startsWith("fuelnow://payment/success")) {
       void waitForPaymentConfirmation();
 
       return false;
     }
 
-    if (
-      url.startsWith(
-        "fuelnow://payment/cancel"
-      )
-    ) {
+    if (url.startsWith("fuelnow://payment/cancel")) {
       handlePaymentCancel();
 
       return false;
@@ -401,16 +314,10 @@ export default function PayFastCheckoutScreen({
     return true;
   };
 
-  const handleNavigationChange = (
-    navState: any
-  ) => {
-    const url =
-      navState?.url || "";
+  const handleNavigationChange = (navState: any) => {
+    const url = navState?.url || "";
 
-    console.log(
-      "PayFast navigation URL:",
-      url
-    );
+    console.log("PayFast navigation URL:", url);
 
     /**
      * These are fallback checks.
@@ -419,20 +326,12 @@ export default function PayFastCheckoutScreen({
      * should already have been intercepted
      * by onShouldStartLoadWithRequest.
      */
-    if (
-      url.startsWith(
-        "fuelnow://payment/success"
-      )
-    ) {
+    if (url.startsWith("fuelnow://payment/success")) {
       void waitForPaymentConfirmation();
       return;
     }
 
-    if (
-      url.startsWith(
-        "fuelnow://payment/cancel"
-      )
-    ) {
+    if (url.startsWith("fuelnow://payment/cancel")) {
       handlePaymentCancel();
     }
   };
@@ -442,43 +341,26 @@ export default function PayFastCheckoutScreen({
       style={[
         styles.container,
         {
-          backgroundColor: isWF
-            ? "#F0F0F0"
-            : colors.warmAsh,
+          backgroundColor: isWF ? "#F0F0F0" : colors.warmAsh,
         },
       ]}
-      edges={[
-        "top",
-        "left",
-        "right",
-      ]}
+      edges={["top", "left", "right"]}
     >
       <View
         style={[
           styles.header,
           {
-            backgroundColor: isWF
-              ? "#FFFFFF"
-              : colors.white,
+            backgroundColor: isWF ? "#FFFFFF" : colors.white,
 
-            borderBottomColor: isWF
-              ? "#E0E0E0"
-              : colors.divider,
+            borderBottomColor: isWF ? "#E0E0E0" : colors.divider,
           },
         ]}
       >
-        <TouchableOpacity
-          onPress={handleClose}
-          style={styles.closeBtn}
-        >
+        <TouchableOpacity onPress={handleClose} style={styles.closeBtn}>
           <Feather
             name="x"
             size={22}
-            color={
-              isWF
-                ? "#333333"
-                : colors.charcoalInk
-            }
+            color={isWF ? "#333333" : colors.charcoalInk}
           />
         </TouchableOpacity>
 
@@ -486,12 +368,9 @@ export default function PayFastCheckoutScreen({
           style={[
             styles.title,
             {
-              color: isWF
-                ? "#1A1A1A"
-                : colors.charcoalInk,
+              color: isWF ? "#1A1A1A" : colors.charcoalInk,
 
-              fontFamily:
-                font("bodyMedium"),
+              fontFamily: font("bodyMedium"),
             },
           ]}
         >
@@ -506,10 +385,7 @@ export default function PayFastCheckoutScreen({
           style={[
             styles.confirmationContainer,
             {
-              backgroundColor:
-                isWF
-                  ? "#F0F0F0"
-                  : colors.warmAsh,
+              backgroundColor: isWF ? "#F0F0F0" : colors.warmAsh,
             },
           ]}
         >
@@ -517,26 +393,19 @@ export default function PayFastCheckoutScreen({
             style={[
               styles.confirmationIcon,
               {
-                backgroundColor:
-                  colors.petrolLight,
+                backgroundColor: colors.petrolLight,
               },
             ]}
           >
-            <Feather
-              name="check"
-              size={30}
-              color={colors.petrolDeep}
-            />
+            <Feather name="check" size={30} color={colors.petrolDeep} />
           </View>
 
           <Text
             style={[
               styles.confirmationTitle,
               {
-                color:
-                  colors.charcoalInk,
-                fontFamily:
-                  font("display"),
+                color: colors.charcoalInk,
+                fontFamily: font("display"),
               },
             ]}
           >
@@ -547,16 +416,13 @@ export default function PayFastCheckoutScreen({
             style={[
               styles.confirmationText,
               {
-                color:
-                  colors.inkLight,
-                fontFamily:
-                  font("body"),
+                color: colors.inkLight,
+                fontFamily: font("body"),
               },
             ]}
           >
-            PayFast has returned your
-            payment. We&apos;re confirming
-            the transaction with FuelNow.
+            PayFast has returned your payment. We&apos;re confirming the
+            transaction with FuelNow.
           </Text>
 
           <ActivityIndicator
@@ -571,16 +437,12 @@ export default function PayFastCheckoutScreen({
             style={[
               styles.confirmationSubtext,
               {
-                color:
-                  colors.inkLight,
-                fontFamily:
-                  font("body"),
+                color: colors.inkLight,
+                fontFamily: font("body"),
               },
             ]}
           >
-            Checking payment status...
-            {" "}
-            {pollingSeconds}s
+            Checking payment status... {pollingSeconds}s
           </Text>
         </View>
       ) : confirmationError ? (
@@ -588,10 +450,7 @@ export default function PayFastCheckoutScreen({
           style={[
             styles.confirmationContainer,
             {
-              backgroundColor:
-                isWF
-                  ? "#F0F0F0"
-                  : colors.warmAsh,
+              backgroundColor: isWF ? "#F0F0F0" : colors.warmAsh,
             },
           ]}
         >
@@ -599,21 +458,14 @@ export default function PayFastCheckoutScreen({
             style={[
               styles.errorIcon,
               {
-                backgroundColor:
-                  isWF
-                    ? "#EEEEEE"
-                    : "#FDECEC",
+                backgroundColor: isWF ? "#EEEEEE" : "#FDECEC",
               },
             ]}
           >
             <Feather
               name="clock"
               size={30}
-              color={
-                isWF
-                  ? "#555555"
-                  : colors.signalRed
-              }
+              color={isWF ? "#555555" : colors.signalRed}
             />
           </View>
 
@@ -621,10 +473,8 @@ export default function PayFastCheckoutScreen({
             style={[
               styles.confirmationTitle,
               {
-                color:
-                  colors.charcoalInk,
-                fontFamily:
-                  font("display"),
+                color: colors.charcoalInk,
+                fontFamily: font("display"),
               },
             ]}
           >
@@ -635,10 +485,8 @@ export default function PayFastCheckoutScreen({
             style={[
               styles.confirmationText,
               {
-                color:
-                  colors.inkLight,
-                fontFamily:
-                  font("body"),
+                color: colors.inkLight,
+                fontFamily: font("body"),
               },
             ]}
           >
@@ -649,10 +497,8 @@ export default function PayFastCheckoutScreen({
             style={[
               styles.retryButton,
               {
-                backgroundColor:
-                  colors.petrolDeep,
-                borderRadius:
-                  Radius.md,
+                backgroundColor: colors.petrolDeep,
+                borderRadius: Radius.md,
               },
             ]}
             onPress={() => {
@@ -663,8 +509,7 @@ export default function PayFastCheckoutScreen({
               style={[
                 styles.retryText,
                 {
-                  fontFamily:
-                    font("bodyMedium"),
+                  fontFamily: font("bodyMedium"),
                 },
               ]}
             >
@@ -673,89 +518,52 @@ export default function PayFastCheckoutScreen({
           </TouchableOpacity>
         </View>
       ) : Platform.OS === "web" ? (
-        <View
-          style={
-            styles.webContainer
-          }
-        >
-          <ActivityIndicator
-            size="large"
-            color={
-              colors.petrolDeep
-            }
-          />
+        <View style={styles.webContainer}>
+          <ActivityIndicator size="large" color={colors.petrolDeep} />
 
           <Text
             style={[
               styles.webText,
               {
-                color:
-                  colors.charcoalInk,
-                fontFamily:
-                  font("body"),
+                color: colors.charcoalInk,
+                fontFamily: font("body"),
               },
             ]}
           >
-            Redirecting to PayFast
-            Secure Checkout...
+            Redirecting to PayFast Secure Checkout...
           </Text>
 
           <TouchableOpacity
             style={[
               styles.manualBtn,
               {
-                backgroundColor:
-                  colors.petrolDeep,
-                borderRadius:
-                  Radius.md,
+                backgroundColor: colors.petrolDeep,
+                borderRadius: Radius.md,
               },
             ]}
             onPress={() => {
-              if (
-                paymentUrl &&
-                paymentData
-              ) {
-                const form =
-                  document.createElement(
-                    "form"
-                  );
+              if (paymentUrl && paymentData) {
+                const form = document.createElement("form");
 
-                form.method =
-                  "POST";
+                form.method = "POST";
 
-                form.action =
-                  paymentUrl;
+                form.action = paymentUrl;
 
-                form.target =
-                  "_self";
+                form.target = "_self";
 
-                Object.entries(
-                  paymentData
-                ).forEach(
-                  ([key, val]) => {
-                    const input =
-                      document.createElement(
-                        "input"
-                      );
+                Object.entries(paymentData).forEach(([key, val]) => {
+                  const input = document.createElement("input");
 
-                    input.type =
-                      "hidden";
+                  input.type = "hidden";
 
-                    input.name =
-                      key;
+                  input.name = key;
 
-                    input.value =
-                      String(val);
+                  input.value = String(val);
 
-                    form.appendChild(
-                      input
-                    );
-                  }
-                );
+                  form.appendChild(input);
+                });
 
-                document.body.appendChild(
-                  form
-                );
+                document.body.appendChild(form);
 
                 form.submit();
               }
@@ -764,15 +572,10 @@ export default function PayFastCheckoutScreen({
             <Text
               style={{
                 color: "#FFFFFF",
-                fontFamily:
-                  font(
-                    "bodyMedium"
-                  ),
+                fontFamily: font("bodyMedium"),
               }}
             >
-              Click here if you are
-              not redirected
-              automatically
+              Click here if you are not redirected automatically
             </Text>
           </TouchableOpacity>
         </View>
@@ -786,25 +589,12 @@ export default function PayFastCheckoutScreen({
             mixedContentMode="always"
             startInLoadingState
             renderLoading={() => (
-              <View
-                style={
-                  styles.loadingContainer
-                }
-              >
-                <ActivityIndicator
-                  size="large"
-                  color={
-                    colors.petrolDeep
-                  }
-                />
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={colors.petrolDeep} />
               </View>
             )}
-            onShouldStartLoadWithRequest={
-              handleShouldStartLoad
-            }
-            onNavigationStateChange={
-              handleNavigationChange
-            }
+            onShouldStartLoadWithRequest={handleShouldStartLoad}
+            onNavigationStateChange={handleNavigationChange}
           />
         </View>
       )}
