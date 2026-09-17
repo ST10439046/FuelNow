@@ -1,3 +1,4 @@
+
 import { supabase } from "../services/supabase";
 import { realtimeHub } from "../patterns/realtimeObserver";
 
@@ -12,6 +13,27 @@ export interface DriverDocumentModel {
   expiryDate: string;
   isExpired: boolean;
   isExpiringSoon: boolean;
+}
+
+export interface DriverVehicleModel {
+  vehicleId: string;
+  registrationNumber: string;
+  make: string;
+  model: string;
+  capacityLitres: number;
+  driverId: string | null;
+}
+
+export interface DriverAuthAccount {
+  // This is public.users.user_id, NOT auth.users.id.
+  // drivers.driver_id references this value.
+  userId: string;
+
+  // The email belonging to the Auth account.
+  email: string;
+
+  // The Supabase Auth UUID.
+  authId: string;
 }
 
 export interface DriverModel {
@@ -78,15 +100,15 @@ export class DriverRepository {
     isOnDuty: true,
     isApproved: true,
 
-    latitude: -29.7990,
-    longitude: 31.0340,
+    latitude: -29.799,
+    longitude: 31.034,
 
     coordinates: {
-      lat: -29.7990,
-      lng: 31.0340,
+      lat: -29.799,
+      lng: 31.034,
     },
 
-    dailyTarget: 1500.0,
+    dailyTarget: 1500,
 
     todayEarnings: 0,
     weekEarnings: 0,
@@ -113,7 +135,8 @@ export class DriverRepository {
 
   public static getInstance(): DriverRepository {
     if (!DriverRepository.instance) {
-      DriverRepository.instance = new DriverRepository();
+      DriverRepository.instance =
+        new DriverRepository();
     }
 
     return DriverRepository.instance;
@@ -123,152 +146,494 @@ export class DriverRepository {
     return { ...this.activeDriver };
   }
 
-  public async getAllDrivers(): Promise<DriverModel[]> {
-    const { data, error } = await supabase.rpc("get_all_drivers");
+  private mapDriver(driver: any): DriverModel {
+    const latitude =
+      driver.latitude !== null &&
+      driver.latitude !== undefined
+        ? Number(driver.latitude)
+        : 0;
 
-    if (error) {
-      console.error("Error fetching drivers:", error);
-      throw error;
-    }
+    const longitude =
+      driver.longitude !== null &&
+      driver.longitude !== undefined
+        ? Number(driver.longitude)
+        : 0;
 
-    return (data ?? []).map((driver: any): DriverModel => {
-      const latitude =
-        driver.latitude !== null &&
-        driver.latitude !== undefined
-          ? Number(driver.latitude)
-          : 0;
+    const isOnDuty =
+      driver.is_on_duty ??
+      driver.isOnDuty ??
+      driver.status === "active";
 
-      const longitude =
-        driver.longitude !== null &&
-        driver.longitude !== undefined
-          ? Number(driver.longitude)
-          : 0;
+    const isApproved =
+      driver.is_approved ??
+      driver.isApproved ??
+      true;
 
-      const isOnDuty =
-        driver.is_on_duty ??
-        driver.isOnDuty ??
-        driver.status === "active";
+    const vehicleId =
+      driver.vehicle_id ??
+      driver.vehicleId ??
+      "";
 
-      const isApproved =
-        driver.is_approved ??
-        driver.isApproved ??
-        true;
+    const vehicleReg =
+      driver.registration_number ??
+      driver.vehicle_reg ??
+      driver.vehicleReg ??
+      "";
 
-      return {
-        id: driver.id ?? driver.driver_id ?? "",
+    const vehicleMake =
+      driver.vehicle_make ??
+      driver.vehicleMake ??
+      "";
 
-        name: driver.name ?? "",
+    const vehicleModel =
+      driver.vehicle_model ??
+      driver.vehicleModel ??
+      "";
 
-        phone: driver.phone ?? "",
+    const vehicleCapacity = Number(
+      driver.capacity_litres ??
+        driver.vehicle_capacity ??
+        driver.vehicleCapacity ??
+        0,
+    );
 
-        email: driver.email ?? "",
+    const vehicleName = [
+      vehicleMake,
+      vehicleModel,
+    ]
+      .filter(Boolean)
+      .join(" ");
 
-        rating: Number(driver.rating ?? 0),
+    return {
+      id:
+        driver.id ??
+        driver.driver_id ??
+        "",
 
-        licence_number:
-          driver.licence_number ?? "",
+      name:
+        driver.name ??
+        "",
 
-        zone:
-          driver.zone ?? "",
+      phone:
+        driver.phone ??
+        "",
 
-        province:
-          driver.province ?? "",
+      email:
+        driver.email ??
+        "",
 
-        status:
-          driver.status ?? "",
+      rating:
+        Number(driver.rating ?? 0),
 
-        total_deliveries: Number(
+      licence_number:
+        driver.licence_number ??
+        "",
+
+      zone:
+        driver.zone ??
+        "",
+
+      province:
+        driver.province ??
+        "",
+
+      status:
+        driver.status ??
+        "",
+
+      total_deliveries:
+        Number(
           driver.total_deliveries ??
             driver.totalDeliveries ??
             0,
         ),
 
-        isOnDuty,
+      isOnDuty,
 
-        isApproved,
+      isApproved,
 
-        latitude,
+      latitude,
 
-        longitude,
+      longitude,
 
-        coordinates: {
-          lat: latitude,
-          lng: longitude,
-        },
+      coordinates: {
+        lat: latitude,
+        lng: longitude,
+      },
 
-        dailyTarget: Number(
-          driver.daily_target ?? 1500,
+      dailyTarget:
+        Number(
+          driver.daily_target ??
+            driver.dailyTarget ??
+            1500,
         ),
 
-        todayEarnings: Number(
-          driver.today_earnings ?? 0,
+      todayEarnings:
+        Number(
+          driver.today_earnings ??
+            driver.todayEarnings ??
+            0,
         ),
 
-        weekEarnings: Number(
-          driver.week_earnings ?? 0,
+      weekEarnings:
+        Number(
+          driver.week_earnings ??
+            driver.weekEarnings ??
+            0,
         ),
 
-        monthEarnings: Number(
-          driver.month_earnings ?? 0,
+      monthEarnings:
+        Number(
+          driver.month_earnings ??
+            driver.monthEarnings ??
+            0,
         ),
 
-        documents: [],
+      documents: [],
 
-        vehicleId:
-          driver.vehicle_id ?? "",
+      vehicleId,
 
-        vehicleReg:
-          driver.registration_number ?? "",
+      vehicleReg,
 
-        vehicleMake:
-          driver.vehicle_make ?? "",
+      vehicleMake,
 
-        vehicleModel:
-          driver.vehicle_model ?? "",
+      vehicleModel,
 
-        vehicleColor:
-          driver.vehicle_color ?? "",
+      vehicleColor:
+        driver.vehicle_color ??
+        driver.vehicleColor ??
+        "",
 
-        stationName:
-          driver.station_name ?? "",
+      stationName:
+        driver.station_name ??
+        driver.stationName ??
+        "",
 
-        vehicleCapacity: Number(
-          driver.capacity_litres ?? 0,
-        ),
+      vehicleCapacity,
 
-        truck:
-          driver.registration_number ||
-          [driver.vehicle_make, driver.vehicle_model]
-            .filter(Boolean)
-            .join(" ") ||
-          "No Vehicle Assigned",
+      truck:
+        vehicleReg ||
+        vehicleName ||
+        "No Vehicle Assigned",
 
-        avatar: (driver.name ?? "?")
+      avatar:
+        (driver.name ?? "?")
           .split(" ")
-          .map((part: string) => part[0])
+          .map(
+            (part: string) => part[0],
+          )
           .join("")
           .slice(0, 2)
           .toUpperCase(),
 
-        compliance: [],
-      };
-    });
+      compliance: [],
+    };
+  }
+
+  public async getAllDrivers(): Promise<DriverModel[]> {
+    const { data, error } =
+      await supabase.rpc(
+        "get_all_drivers",
+      );
+
+    if (error) {
+      console.error(
+        "Error fetching drivers:",
+        error,
+      );
+
+      throw error;
+    }
+
+    return (data ?? []).map(
+      (driver: any) =>
+        this.mapDriver(driver),
+    );
+  }
+
+  public async getDriver(
+    driverId: string,
+  ): Promise<DriverModel> {
+    const { data, error } =
+      await supabase.rpc(
+        "get_driver",
+        {
+          p_driver_id: driverId,
+        },
+      );
+
+    if (error) {
+      console.error(
+        "Error fetching driver details:",
+        error,
+      );
+
+      throw error;
+    }
+
+    const driver = Array.isArray(data)
+      ? data[0]
+      : data;
+
+    if (!driver) {
+      throw new Error(
+        "Driver was not found.",
+      );
+    }
+
+    return this.mapDriver(driver);
+  }
+
+  public async getAvailableVehicles(
+    currentDriverId?: string,
+  ): Promise<DriverVehicleModel[]> {
+    const { data, error } =
+      await supabase
+        .from("vehicles")
+        .select(
+          `
+          vehicle_id,
+          driver_id,
+          registration_number,
+          make,
+          model,
+          capacity_litres
+          `,
+        )
+        .or(
+          currentDriverId
+            ? `driver_id.is.null,driver_id.eq.${currentDriverId}`
+            : "driver_id.is.null",
+        )
+        .order(
+          "registration_number",
+          {
+            ascending: true,
+          },
+        );
+
+    if (error) {
+      console.error(
+        "Error fetching available vehicles:",
+        error,
+      );
+
+      throw error;
+    }
+
+    return (data ?? []).map(
+      (vehicle: any) => ({
+        vehicleId:
+          vehicle.vehicle_id,
+
+        registrationNumber:
+          vehicle.registration_number,
+
+        make:
+          vehicle.make,
+
+        model:
+          vehicle.model,
+
+        capacityLitres:
+          Number(
+            vehicle.capacity_litres ?? 0,
+          ),
+
+        driverId:
+          vehicle.driver_id ?? null,
+      }),
+    );
+  }
+
+  public async assignVehicle(
+    driverId: string,
+    vehicleId: string | null,
+  ): Promise<void> {
+    const { error: clearError } =
+      await supabase
+        .from("vehicles")
+        .update({
+          driver_id: null,
+        })
+        .eq(
+          "driver_id",
+          driverId,
+        );
+
+    if (clearError) {
+      console.error(
+        "Failed to clear driver's previous vehicle:",
+        clearError,
+      );
+
+      throw clearError;
+    }
+
+    if (!vehicleId) {
+      return;
+    }
+
+    const {
+      data: vehicle,
+      error: vehicleError,
+    } = await supabase
+      .from("vehicles")
+      .select(
+        "vehicle_id, driver_id",
+      )
+      .eq(
+        "vehicle_id",
+        vehicleId,
+      )
+      .single();
+
+    if (vehicleError || !vehicle) {
+      throw new Error(
+        "The selected vehicle could not be found.",
+      );
+    }
+
+    if (
+      vehicle.driver_id &&
+      vehicle.driver_id !== driverId
+    ) {
+      throw new Error(
+        "That vehicle is already assigned to another driver.",
+      );
+    }
+
+    const { error: assignError } =
+      await supabase
+        .from("vehicles")
+        .update({
+          driver_id: driverId,
+        })
+        .eq(
+          "vehicle_id",
+          vehicleId,
+        );
+
+    if (assignError) {
+      console.error(
+        "Failed to assign vehicle:",
+        assignError,
+      );
+
+      throw assignError;
+    }
+  }
+
+  /**
+   * Creates the driver's Supabase Auth account through
+   * the create-driver-user Edge Function.
+   *
+   * The Edge Function is responsible for:
+   *
+   * auth.users
+   *      ↓
+   * public.users.auth_id
+   *
+   * and returns public.users.user_id.
+   *
+   * The returned userId is therefore the value that
+   * must be passed to create_driver as p_driver_id.
+   */
+  public async createAuthAccount(
+    email: string,
+    password: string,
+    name: string,
+  ): Promise<DriverAuthAccount> {
+    const cleanEmail =
+      email.trim().toLowerCase();
+
+    const cleanName =
+      name.trim();
+
+    if (!cleanEmail) {
+      throw new Error(
+        "Email address is required.",
+      );
+    }
+
+    if (!password) {
+      throw new Error(
+        "A password is required.",
+      );
+    }
+
+    if (!cleanName) {
+      throw new Error(
+        "Driver name is required.",
+      );
+    }
+
+    const { data, error } = await supabase.rpc("create_driver_user", {
+  p_email: cleanEmail,
+  p_password: password,
+  p_name: cleanName,
+});
+
+if (error) {
+  throw new Error(error.message);
+}
+
+if (!data?.userId || !data?.authId || !data?.email) {
+  throw new Error("Driver Auth account was not created correctly.");
+}
+
+return {
+  userId: data.userId,
+  authId: data.authId,
+  email: data.email,
+};
+
+    if (error) {
+      console.error(
+        "Failed to create driver Auth account:",
+        error,
+      );
+
+      throw new Error(
+        error.message ||
+          "Failed to create driver Auth account.",
+      );
+    }
+
+    if (
+      !data?.userId ||
+      !data?.authId ||
+      !data?.email
+    ) {
+      throw new Error(
+        "The driver account was not created correctly. The Edge Function did not return the required user information.",
+      );
+    }
+
+    return {
+      userId: data.userId,
+      authId: data.authId,
+      email: data.email,
+    };
   }
 
   public async toggleOnDutyStatus(
     isOnDuty: boolean,
   ): Promise<boolean> {
-    const driverId = this.activeDriver.id;
+    const driverId =
+      this.activeDriver.id;
 
-    const { data, error } = await supabase.rpc(
-      "update_driver_status",
-      {
-        p_driver_id: driverId,
-        p_status: isOnDuty
-          ? "active"
-          : "inactive",
-      },
-    );
+    const { data, error } =
+      await supabase.rpc(
+        "update_driver_status",
+        {
+          p_driver_id: driverId,
+
+          p_status: isOnDuty
+            ? "active"
+            : "inactive",
+        },
+      );
 
     if (error) {
       console.error(
@@ -279,11 +644,13 @@ export class DriverRepository {
       throw error;
     }
 
-    this.activeDriver.isOnDuty = isOnDuty;
+    this.activeDriver.isOnDuty =
+      isOnDuty;
 
-    this.activeDriver.status = isOnDuty
-      ? "active"
-      : "inactive";
+    this.activeDriver.status =
+      isOnDuty
+        ? "active"
+        : "inactive";
 
     return Boolean(data);
   }
@@ -292,16 +659,20 @@ export class DriverRepository {
     lat: number,
     lng: number,
   ): Promise<void> {
-    const driverId = this.activeDriver.id;
+    const driverId =
+      this.activeDriver.id;
 
-    const { data, error } = await supabase.rpc(
-      "update_driver_gps",
-      {
-        p_driver_id: driverId,
-        p_latitude: lat,
-        p_longitude: lng,
-      },
-    );
+    const { data, error } =
+      await supabase.rpc(
+        "update_driver_gps",
+        {
+          p_driver_id: driverId,
+
+          p_latitude: lat,
+
+          p_longitude: lng,
+        },
+      );
 
     if (error) {
       console.error(
@@ -313,6 +684,7 @@ export class DriverRepository {
     }
 
     this.activeDriver.latitude = lat;
+
     this.activeDriver.longitude = lng;
 
     this.activeDriver.coordinates = {
@@ -321,7 +693,9 @@ export class DriverRepository {
     };
 
     realtimeHub
-      .getDriverGpsChannel(driverId)
+      .getDriverGpsChannel(
+        driverId,
+      )
       .notify({
         driverId,
 
@@ -336,27 +710,6 @@ export class DriverRepository {
       });
   }
 
-  public async getUserIdByEmail(
-    email: string,
-  ): Promise<string> {
-    const { data, error } = await supabase
-      .from("users")
-      .select("user_id")
-      .eq(
-        "email",
-        email.trim().toLowerCase(),
-      )
-      .single();
-
-    if (error || !data) {
-      throw new Error(
-        "No FuelNow user was found with this email address.",
-      );
-    }
-
-    return data.user_id;
-  }
-
   public async addDriver(
     driverId: string,
     driver: Omit<
@@ -368,6 +721,12 @@ export class DriverRepository {
       | "documents"
     >,
   ): Promise<DriverModel> {
+    if (!driverId) {
+      throw new Error(
+        "A public user ID is required to create the driver.",
+      );
+    }
+
     const { data, error } =
       await supabase.rpc(
         "create_driver",
@@ -380,14 +739,15 @@ export class DriverRepository {
 
           p_licence_number:
             driver.licence_number ||
-            driver.vehicleReg ||
             null,
 
           p_zone:
-            driver.zone || null,
+            driver.zone ||
+            null,
 
           p_province:
-            driver.province || null,
+            driver.province ||
+            null,
 
           p_status:
             driver.status ||
@@ -409,10 +769,24 @@ export class DriverRepository {
       throw error;
     }
 
+    const createdDriverId =
+      typeof data === "string"
+        ? data
+        : data?.driver_id ??
+          data?.id ??
+          driverId;
+
+    if (driver.vehicleId) {
+      await this.assignVehicle(
+        createdDriverId,
+        driver.vehicleId,
+      );
+    }
+
     return {
       ...driver,
 
-      id: data,
+      id: createdDriverId,
 
       todayEarnings: 0,
 
@@ -435,24 +809,28 @@ export class DriverRepository {
           p_driver_id: id,
 
           p_name:
-            updates.name ?? null,
+            updates.name ??
+            null,
 
           p_phone:
-            updates.phone ?? null,
+            updates.phone ??
+            null,
 
           p_zone:
-            updates.zone ?? null,
+            updates.zone ??
+            null,
 
           p_province:
-            updates.province ?? null,
+            updates.province ??
+            null,
 
           p_licence_number:
             updates.licence_number ??
-            updates.vehicleReg ??
             null,
 
           p_status:
-            updates.status ?? null,
+            updates.status ??
+            null,
 
           p_rating:
             updates.rating !== undefined
@@ -468,6 +846,17 @@ export class DriverRepository {
       );
 
       throw error;
+    }
+
+    if (
+      updates.vehicleId !==
+      undefined
+    ) {
+      await this.assignVehicle(
+        id,
+        updates.vehicleId ||
+          null,
+      );
     }
   }
 
@@ -501,3 +890,4 @@ export class DriverRepository {
 
 export const driverRepository =
   DriverRepository.getInstance();
+
