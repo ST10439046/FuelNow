@@ -7,15 +7,11 @@ import {
   TouchableOpacity,
   Platform,
 } from "react-native";
-import {
-  SafeAreaView,
-  useSafeAreaInsets,
-} from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useDesignMode } from "../../context/DesignModeContext";
 import { FontSizes, Spacing, Radius } from "../../theme/tokens";
 import Button from "../../components/Button";
-import { orderRepository } from "../../repositories/OrderRepository";
 import { userRepository } from "../../repositories/UserRepository";
 import { supabase } from "../../services/supabase";
 import { createPayFastPaymentData } from "../../services/payfast";
@@ -29,7 +25,6 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
   const { colors, font, isWireframe: isWF } = useDesignMode();
   const insets = useSafeAreaInsets();
 
-  // Pull order params
   const fuelType = route?.params?.fuelType ?? "Petrol 95";
   const litres = route?.params?.litres ?? 40;
   const pricePerLitre = route?.params?.pricePerLitre ?? 23.45;
@@ -39,8 +34,6 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const [userState, setUserState] = useState(userRepository);
-
   const address = route?.params?.deliveryAddress || {
     id: deliveryAddressId,
     label: "Home",
@@ -49,12 +42,17 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
     city: "Durban",
     province: "KwaZulu-Natal",
     postalCode: "4051",
-    coordinates: { lat: -29.8, lng: 31.0333 },
+    coordinates: {
+      lat: -29.8,
+      lng: 31.0333,
+    },
   };
 
   const deliveryFee = 49.0;
+
   const subtotal = parseFloat((litres * pricePerLitre).toFixed(2));
-  const total = subtotal + deliveryFee;
+
+  const total = parseFloat((subtotal + deliveryFee).toFixed(2));
 
   const handleConfirm = async () => {
     setLoading(true);
@@ -68,7 +66,7 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
       const userId = await userRepository.getCurrentUserId();
 
       // --------------------------------------------------
-      // 2. Get the actual Auth user
+      // 2. Get the actual Supabase Auth user
       // --------------------------------------------------
 
       const {
@@ -81,7 +79,7 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
       }
 
       // --------------------------------------------------
-      // 3. Find the customer's actual address UUID
+      // 3. Validate the selected address
       // --------------------------------------------------
 
       const addressId = deliveryAddressId;
@@ -91,75 +89,103 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
       }
 
       // --------------------------------------------------
-      // 4. Create REAL order in Supabase
+      // 4. Generate the delivery PIN
       // --------------------------------------------------
 
       const deliveryPin = String(Math.floor(1000 + Math.random() * 9000));
 
-      const { data: createdOrder, error } = await supabase.rpc("create_order", {
-        p_customer_id: userId,
+      // --------------------------------------------------
+      // 5. Create the real Supabase order
+      // --------------------------------------------------
 
-        p_driver_id: null,
+      const { data: createdOrder, error: orderError } = await supabase.rpc(
+        "create_order",
+        {
+          p_customer_id: userId,
+          p_driver_id: null,
+          p_address_id: addressId,
+          p_fuel_type_id: route?.params?.fuelTypeId ?? null,
+          p_order_method: "CUSTOMER_APP",
+          p_volume_litres: litres,
 
-        p_address_id: addressId,
+          // This is passed for compatibility.
+          // The database calculates the authoritative
+          // amount using the current fuel rate + delivery fee.
+          p_rand_amount: total,
 
-        p_fuel_type_id: route?.params?.fuelTypeId ?? null,
+          p_delivery_type: scheduledAt ? "Scheduled" : "Deliver Now",
 
-        p_order_method: "CUSTOMER_APP",
+          p_scheduled_date_time:
+            route?.params?.scheduledDateTime ??
+            (scheduledAt ? new Date().toISOString() : null),
 
-        p_volume_litres: litres,
+          p_status: "PENDING_PAYMENT",
+          p_delivery_pin: deliveryPin,
+        },
+      );
 
-        p_rand_amount: total,
-
-        p_delivery_type: scheduledAt ? "Scheduled" : "Deliver Now",
-
-        p_scheduled_date_time:
-          route?.params?.scheduledDateTime ??
-          (scheduledAt ? new Date().toISOString() : null),
-
-        p_status: "PENDING_PAYMENT",
-
-        p_delivery_pin: deliveryPin,
-      });
-
-      if (error) {
-        throw error;
+      if (orderError) {
+        throw orderError;
       }
 
       if (!createdOrder) {
         throw new Error("The order could not be created. Please try again.");
       }
 
+      // --------------------------------------------------
+      // 6. Extract the database-generated order ID
+      // --------------------------------------------------
+
       const orderId =
-        (typeof createdOrder === "string" ? createdOrder : null) ||
-        createdOrder?.order_id ||
-        createdOrder?.id ||
+        (createdOrder as any)?.order_id ||
+        (createdOrder as any)?.id ||
         (Array.isArray(createdOrder)
-          ? createdOrder[0]?.order_id || createdOrder[0]?.id || createdOrder[0]
+          ? (createdOrder[0] as any)?.order_id ||
+            (createdOrder[0] as any)?.id ||
+            createdOrder[0]
           : null);
 
       if (!orderId) {
-        console.error("Unexpected createdOrder return:", createdOrder);
-        throw new Error("Could not extract order ID from database response.");
+        console.error("Unexpected createdOrder response:", createdOrder);
+
+        throw new Error("Could not extract the order ID.");
       }
 
-      console.log("Created order ID for payment:", orderId, "Total:", total);
+      // --------------------------------------------------
+      // 7. Use the database's authoritative amount
+      // --------------------------------------------------
+
+      const databaseTotal = Number((createdOrder as any)?.rand_amount);
+
+      const paymentAmount =
+        Number.isFinite(databaseTotal) && databaseTotal > 0
+          ? databaseTotal
+          : total;
+
+      console.log("Created order:", orderId);
+
+      console.log("Frontend total:", total);
+
+      console.log("Database payment total:", paymentAmount);
 
       // --------------------------------------------------
-      // 5. Ask Supabase to create the PayFast request
+      // 8. Make sure the Auth account has an email
       // --------------------------------------------------
 
       if (!user.email) {
         throw new Error("No email address is associated with this account.");
       }
 
-      const paymentData = createPayFastPaymentData({
+      // --------------------------------------------------
+      // 9. Generate the PayFast payment request
+      // --------------------------------------------------
+
+      const { paymentUrl, paymentData } = await createPayFastPaymentData({
         orderId,
-        amount: total,
-        email: user.email,
       });
+
       navigation.navigate("PayFastCheckout", {
-        paymentUrl: "https://sandbox.payfast.co.za/eng/process",
+        paymentUrl,
         paymentData,
         orderId,
       });
@@ -172,14 +198,16 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
     }
   };
 
-  // Shared colours
   const bg = isWF ? "#F0F0F0" : colors.warmAsh;
+
   const cardBg = isWF ? "#FFFFFF" : colors.white;
+
   const border = isWF ? "#DDDDDD" : colors.divider;
+
   const headingColor = isWF ? "#1A1A1A" : colors.charcoalInk;
+
   const subColor = isWF ? "#555555" : colors.inkLight;
 
-  // Label / value row
   const Row = ({
     label,
     value,
@@ -222,7 +250,6 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
     </View>
   );
 
-  // Section card
   const Section = ({
     icon,
     emoji,
@@ -247,7 +274,12 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
       <View style={styles.sectionHeader}>
         {!isWF && (
           <View
-            style={[styles.iconCircle, { backgroundColor: colors.petrolLight }]}
+            style={[
+              styles.iconCircle,
+              {
+                backgroundColor: colors.petrolLight,
+              },
+            ]}
           >
             {emoji ? (
               <Text style={{ fontSize: 16 }}>{emoji}</Text>
@@ -282,7 +314,6 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
         },
       ]}
     >
-      {/* Header */}
       <View style={styles.topBar}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
@@ -305,7 +336,6 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
         <View style={{ width: 40 }} />
       </View>
 
-      {/* Scrollable content */}
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scroll}
@@ -315,7 +345,6 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
         nestedScrollEnabled={true}
         scrollEnabled={true}
       >
-        {/* Fuel card */}
         <Section emoji="⛽" title="Fuel Order">
           <Row label="Fuel type" value={fuelType} />
 
@@ -339,7 +368,6 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
           <Row label="Fuel subtotal" value={`R${subtotal.toFixed(2)}`} mono />
         </Section>
 
-        {/* Delivery card */}
         <Section icon="map-pin" title="Delivery">
           <Row label="Address" value={address.street} />
 
@@ -350,7 +378,6 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
           <Row label="Est. arrival" value="20–35 minutes" />
         </Section>
 
-        {/* Cost breakdown */}
         <View
           style={[
             styles.sectionCard,
@@ -417,7 +444,6 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
           </View>
         </View>
 
-        {/* T&C */}
         <Text
           style={{
             color: isWF ? "#AAAAAA" : colors.inkFaint,
@@ -431,7 +457,6 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
           fee may vary based on your exact location.
         </Text>
 
-        {/* Error */}
         {error ? (
           <Text
             style={{
@@ -446,7 +471,6 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
         ) : null}
       </ScrollView>
 
-      {/* Sticky confirm button */}
       <View
         style={[
           styles.footer,
@@ -484,7 +508,7 @@ export default function OrderReviewScreen({ navigation, route }: Props) {
         </View>
 
         <Button
-          label={loading ? "Placing order..." : "Confirm Order →"}
+          label={loading ? "Starting payment..." : "Confirm Order →"}
           onPress={handleConfirm}
           loading={loading}
           variant="primary"
