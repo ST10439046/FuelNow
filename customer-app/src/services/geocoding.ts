@@ -22,15 +22,13 @@ interface GeocodingFunctionResponse {
 async function callGeocodingFunction(
   body: Record<string, unknown>
 ): Promise<GeocodingResult | null> {
-  const {
-    data,
-    error,
-  } = await supabase.functions.invoke<GeocodingFunctionResponse>(
-    "geocode-address",
-    {
-      body,
-    }
-  );
+  const { data, error } =
+    await supabase.functions.invoke<GeocodingFunctionResponse>(
+      "geocode-address",
+      {
+        body,
+      }
+    );
 
   if (error) {
     console.error(
