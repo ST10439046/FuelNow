@@ -1,152 +1,213 @@
 import React, { useEffect, useRef } from "react";
+
+import { StyleSheet, View } from "react-native";
+
 import L from "leaflet";
-// @ts-ignore
 import "leaflet/dist/leaflet.css";
 
-interface Coordinates {
-  lat: number;
-  lng: number;
-}
-
-interface Props {
-  coordinates: Coordinates | null;
-}
+import type { Coordinates, DeliveryMapProps } from "./DeliveryMap";
 
 const DEFAULT_COORDINATES: Coordinates = {
   lat: -29.8587,
   lng: 31.0218,
 };
 
-const createCustomPinIcon = () => {
-  return L.divIcon({
-    className: "fuelnow-map-pin",
+const createPinIcon = () =>
+  L.divIcon({
+    className: "",
     html: `
-      <div style="
-        width: 32px;
-        height: 32px;
-        border-radius: 50% 50% 50% 0;
-        background: #0B3D42;
-        position: absolute;
-        transform: rotate(-45deg);
-        left: 50%;
-        top: 50%;
-        margin: -24px 0 0 -16px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-        border: 2px solid #FFFFFF;
-      ">
-        <div style="
-          width: 12px;
-          height: 12px;
-          border-radius: 50%;
-          background: #F97316;
-          transform: rotate(45deg);
-        "></div>
+      <div
+        style="
+          width:30px;
+          height:30px;
+          border-radius:50% 50% 50% 0;
+          background:#174a4a;
+          border:3px solid white;
+          transform:rotate(-45deg);
+          box-shadow:0 2px 8px rgba(0,0,0,0.3);
+          position:relative;
+        "
+      >
+        <div
+          style="
+            width:10px;
+            height:10px;
+            background:white;
+            border-radius:50%;
+            position:absolute;
+            top:7px;
+            left:7px;
+          "
+        ></div>
       </div>
     `,
-    iconSize: [32, 32],
-    iconAnchor: [16, 32],
+    iconSize: [30, 30],
+    iconAnchor: [15, 30],
+    popupAnchor: [0, -30],
   });
-};
 
-export default function DeliveryMap({ coordinates }: Props) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
+export default function DeliveryMapWeb({
+  coordinates,
+  interactive = true,
+  onLocationSelect,
+}: DeliveryMapProps) {
+  const mapElementRef = useRef<HTMLDivElement | null>(null);
+
   const mapRef = useRef<L.Map | null>(null);
+
   const markerRef = useRef<L.Marker | null>(null);
 
-  /*
-   * Initialize Leaflet map
-   */
+  const onLocationSelectRef = useRef(onLocationSelect);
+
+  const interactiveRef = useRef(interactive);
+
   useEffect(() => {
-    if (!containerRef.current) return;
-    if (mapRef.current) return;
+    onLocationSelectRef.current = onLocationSelect;
+  }, [onLocationSelect]);
 
-    const initialCoordinates = coordinates ?? DEFAULT_COORDINATES;
+  useEffect(() => {
+    interactiveRef.current = interactive;
+  }, [interactive]);
 
-    const map = L.map(containerRef.current, {
-      zoomControl: false,
-      attributionControl: false,
-    }).setView(
-      [initialCoordinates.lat, initialCoordinates.lng],
-      coordinates ? 15 : 12,
-    );
+  useEffect(() => {
+    if (!mapElementRef.current || mapRef.current) {
+      return;
+    }
+
+    const initial = coordinates ?? DEFAULT_COORDINATES;
+
+    const map = L.map(mapElementRef.current, {
+      zoomControl: true,
+      attributionControl: true,
+    }).setView([initial.lat, initial.lng], coordinates ? 16 : 13);
 
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 19,
+      attribution: "&copy; OpenStreetMap contributors",
     }).addTo(map);
 
-    if (coordinates) {
-      markerRef.current = L.marker([coordinates.lat, coordinates.lng], {
-        icon: createCustomPinIcon(),
+    const createMarker = (position: Coordinates) => {
+      const marker = L.marker([position.lat, position.lng], {
+        draggable: interactiveRef.current,
+        icon: createPinIcon(),
       }).addTo(map);
+
+      marker.on("dragend", () => {
+        if (!interactiveRef.current) {
+          return;
+        }
+
+        const next = marker.getLatLng();
+
+        onLocationSelectRef.current?.({
+          lat: next.lat,
+          lng: next.lng,
+        });
+      });
+
+      return marker;
+    };
+
+    if (coordinates) {
+      markerRef.current = createMarker(coordinates);
     }
+
+    map.on("click", (event) => {
+      if (!interactiveRef.current) {
+        return;
+      }
+
+      const next: Coordinates = {
+        lat: event.latlng.lat,
+        lng: event.latlng.lng,
+      };
+
+      if (markerRef.current) {
+        markerRef.current.setLatLng([next.lat, next.lng]);
+      } else {
+        markerRef.current = createMarker(next);
+      }
+
+      map.setView([next.lat, next.lng], Math.max(map.getZoom(), 15), {
+        animate: true,
+      });
+
+      onLocationSelectRef.current?.(next);
+    });
 
     mapRef.current = map;
 
-    // Trigger invalidateSize at multiple intervals to handle flex/viewport settling
-    const t1 = setTimeout(() => map.invalidateSize(), 50);
-    const t2 = setTimeout(() => map.invalidateSize(), 300);
-
-    let resizeObserver: ResizeObserver | null = null;
-    if (typeof ResizeObserver !== "undefined" && containerRef.current) {
-      resizeObserver = new ResizeObserver(() => {
-        map.invalidateSize();
-      });
-      resizeObserver.observe(containerRef.current);
-    }
+    setTimeout(() => {
+      map.invalidateSize();
+    }, 100);
 
     return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      if (resizeObserver) resizeObserver.disconnect();
       map.remove();
       mapRef.current = null;
       markerRef.current = null;
     };
   }, []);
 
-  /*
-   * Update position when coordinates change
-   */
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-
-    const targetCoords = coordinates ?? DEFAULT_COORDINATES;
-    const position: L.LatLngExpression = [targetCoords.lat, targetCoords.lng];
-
-    map.setView(position, coordinates ? 15 : 12, { animate: true });
-
-    if (coordinates) {
-      if (!markerRef.current) {
-        markerRef.current = L.marker(position, {
-          icon: createCustomPinIcon(),
-        }).addTo(map);
-      } else {
-        markerRef.current.setLatLng(position);
-      }
-    } else if (markerRef.current) {
-      markerRef.current.remove();
-      markerRef.current = null;
+    if (!mapRef.current || !coordinates) {
+      return;
     }
-  }, [coordinates]);
+
+    if (markerRef.current) {
+      markerRef.current.setLatLng([coordinates.lat, coordinates.lng]);
+    } else {
+      markerRef.current = L.marker([coordinates.lat, coordinates.lng], {
+        draggable: interactiveRef.current,
+        icon: createPinIcon(),
+      }).addTo(mapRef.current);
+
+      markerRef.current.on("dragend", () => {
+        if (!interactiveRef.current) {
+          return;
+        }
+
+        const next = markerRef.current?.getLatLng();
+
+        if (!next) {
+          return;
+        }
+
+        onLocationSelectRef.current?.({
+          lat: next.lat,
+          lng: next.lng,
+        });
+      });
+    }
+
+    mapRef.current.setView([coordinates.lat, coordinates.lng], 16, {
+      animate: true,
+    });
+  }, [coordinates?.lat, coordinates?.lng]);
+
+  useEffect(() => {
+    if (!markerRef.current) {
+      return;
+    }
+
+    markerRef.current.dragging?.[interactive ? "enable" : "disable"]();
+  }, [interactive]);
 
   return (
-    <div
-      ref={containerRef}
-      style={{
-        position: "absolute",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        width: "100%",
-        height: "100%",
-        minHeight: "100%",
-        backgroundColor: "#E2E8F0",
-      }}
-    />
+    <View style={styles.container}>
+      <div
+        ref={mapElementRef}
+        style={{
+          width: "100%",
+          height: "100%",
+        }}
+      />
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    overflow: "hidden",
+  },
+});

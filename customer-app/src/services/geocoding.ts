@@ -1,11 +1,64 @@
+import { supabase } from "./supabase";
+
 export interface GeocodingResult {
   latitude: number;
   longitude: number;
   displayName: string;
+
+  streetNumber?: string;
+  streetName?: string;
+  suburb?: string;
+  city?: string;
+  province?: string;
+  postalCode?: string;
 }
 
-const NOMINATIM_URL =
-  'https://nominatim.openstreetmap.org/search';
+interface GeocodingFunctionResponse {
+  success: boolean;
+  result: GeocodingResult | null;
+  error?: string;
+}
+
+async function callGeocodingFunction(
+  body: Record<string, unknown>
+): Promise<GeocodingResult | null> {
+  const {
+    data,
+    error,
+  } = await supabase.functions.invoke<GeocodingFunctionResponse>(
+    "geocode-address",
+    {
+      body,
+    }
+  );
+
+  if (error) {
+    console.error(
+      "Geocoding Edge Function error:",
+      error
+    );
+
+    throw new Error(
+      error.message ||
+        "Unable to contact the geocoding service."
+    );
+  }
+
+  if (!data) {
+    throw new Error(
+      "The geocoding service returned no response."
+    );
+  }
+
+  if (!data.success) {
+    throw new Error(
+      data.error ||
+        "The geocoding service returned an error."
+    );
+  }
+
+  return data.result;
+}
 
 export async function geocodeAddress(
   address: string
@@ -16,43 +69,16 @@ export async function geocodeAddress(
     return null;
   }
 
-  const params = new URLSearchParams({
-    format: 'jsonv2',
-    q: trimmed,
-    limit: '1',
-    countrycodes: 'za',
+  return callGeocodingFunction({
+    mode: "search",
+    address: trimmed,
   });
+}
 
-  const response = await fetch(
-    `${NOMINATIM_URL}?${params.toString()}`,
-    {
-      headers: {
-        Accept: 'application/json',
-
-        // Replace this with a real project contact email.
-        'User-Agent':
-          'FuelNow/1.0 (replace-with-your-contact-email)',
-      },
-    }
-  );
-
-  if (!response.ok) {
-    throw new Error(
-      `Geocoding failed with status ${response.status}.`
-    );
-  }
-
-  const results = await response.json();
-
-  if (!Array.isArray(results) || results.length === 0) {
-    return null;
-  }
-
-  const result = results[0];
-
-  const latitude = Number(result.lat);
-  const longitude = Number(result.lon);
-
+export async function reverseGeocode(
+  latitude: number,
+  longitude: number
+): Promise<GeocodingResult | null> {
   if (
     !Number.isFinite(latitude) ||
     !Number.isFinite(longitude)
@@ -60,9 +86,9 @@ export async function geocodeAddress(
     return null;
   }
 
-  return {
+  return callGeocodingFunction({
+    mode: "reverse",
     latitude,
     longitude,
-    displayName: result.display_name,
-  };
+  });
 }

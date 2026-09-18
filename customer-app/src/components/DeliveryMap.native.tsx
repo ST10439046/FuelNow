@@ -1,174 +1,411 @@
-import React, { useEffect, useRef, useState } from "react";
-import { StyleSheet, View, ActivityIndicator } from "react-native";
-import { WebView } from "react-native-webview";
+import React, { useEffect, useRef } from "react";
 
-interface Coordinates {
-  lat: number;
-  lng: number;
-}
+import { ActivityIndicator, StyleSheet, View } from "react-native";
 
-interface Props {
-  coordinates: Coordinates | null;
-}
+import WebView from "react-native-webview";
+
+import type { Coordinates, DeliveryMapProps } from "./DeliveryMap";
 
 const DEFAULT_COORDINATES: Coordinates = {
   lat: -29.8587,
   lng: 31.0218,
 };
 
-export default function DeliveryMap({ coordinates }: Props) {
-  const webViewRef = useRef<WebView | null>(null);
-  const [mapLoaded, setMapLoaded] = useState(false);
-
-  const targetCoords = coordinates ?? DEFAULT_COORDINATES;
-  const hasCoords = !!coordinates;
-
-  // Inline the Leaflet HTML with a data URI approach so no external CDN is needed at load time.
-  // Leaflet is loaded from unpkg but we gracefully handle offline with a static fallback.
-  const html = `<!DOCTYPE html>
+const LEAFLET_HTML = `
+<!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+  />
+
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
+
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body {
-      height: 100%;
-      width: 100%;
-      overflow: hidden;
-      background: #E2E8F0;
-    }
+    html,
+    body,
     #map {
-      height: 100%;
       width: 100%;
-      background: #E2E8F0;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #e8e8e8;
     }
-    .custom-pin {
-      width: 32px;
-      height: 32px;
+
+    .leaflet-control-attribution {
+      font-size: 9px;
+    }
+
+    .fuelnow-pin {
+      width: 30px;
+      height: 30px;
       border-radius: 50% 50% 50% 0;
-      background: #0B3D42;
-      position: absolute;
+      background: #174a4a;
+      border: 3px solid white;
       transform: rotate(-45deg);
-      left: 50%;
-      top: 50%;
-      margin: -24px 0 0 -16px;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-      border: 2px solid #FFFFFF;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      position: relative;
     }
-    .custom-pin-inner {
+
+    .fuelnow-pin::after {
+      content: "";
       position: absolute;
-      width: 12px;
-      height: 12px;
+      width: 10px;
+      height: 10px;
+      background: white;
       border-radius: 50%;
-      background: #F97316;
-      transform: rotate(45deg);
-      top: 50%;
-      left: 50%;
-      margin: -6px 0 0 -6px;
+      top: 7px;
+      left: 7px;
     }
   </style>
 </head>
+
 <body>
   <div id="map"></div>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV/XN/WLo=" crossorigin=""></script>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
   <script>
-    var map, marker;
-    function initMap() {
+    let map = null;
+    let marker = null;
+    let currentCoordinates = null;
+    let leafletReady = false;
+
+    const defaultCoordinates = {
+      lat: ${DEFAULT_COORDINATES.lat},
+      lng: ${DEFAULT_COORDINATES.lng}
+    };
+
+    function sendMessage(payload) {
       try {
-        map = L.map('map', {
-          zoomControl: false,
-          attributionControl: false,
-          tap: false
-        }).setView([${targetCoords.lat}, ${targetCoords.lng}], ${hasCoords ? 15 : 12});
-
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          maxZoom: 19,
-          crossOrigin: true
-        }).addTo(map);
-
-        var pinIcon = L.divIcon({
-          className: '',
-          html: '<div class="custom-pin"><div class="custom-pin-inner"></div></div>',
-          iconSize: [32, 32],
-          iconAnchor: [16, 32]
-        });
-
-        ${hasCoords ? `marker = L.marker([${targetCoords.lat}, ${targetCoords.lng}], { icon: pinIcon }).addTo(map);` : ''}
-
-        setTimeout(function() {
-          if (map) map.invalidateSize();
-        }, 300);
-
-        window.ReactNativeWebView && window.ReactNativeWebView.postMessage('map_ready');
-      } catch(e) {
-        console.error('Map init error:', e);
+        if (
+          window.ReactNativeWebView &&
+          window.ReactNativeWebView.postMessage
+        ) {
+          window.ReactNativeWebView.postMessage(
+            JSON.stringify(payload)
+          );
+        }
+      } catch (error) {
+        console.error(error);
       }
     }
 
-    function updateLocation(newLat, newLng) {
-      if (!map) return;
-      map.setView([newLat, newLng], 15, { animate: true });
-      var pinIcon = L.divIcon({
-        className: '',
-        html: '<div class="custom-pin"><div class="custom-pin-inner"></div></div>',
-        iconSize: [32, 32],
-        iconAnchor: [16, 32]
+    function createIcon() {
+      return L.divIcon({
+        className: "",
+        html: '<div class="fuelnow-pin"></div>',
+        iconSize: [30, 30],
+        iconAnchor: [15, 30],
+        popupAnchor: [0, -30]
       });
+    }
+
+    function emitLocation(lat, lng) {
+      const coordinates = {
+        lat: Number(lat),
+        lng: Number(lng)
+      };
+
+      currentCoordinates = coordinates;
+
+      sendMessage({
+        type: "location_selected",
+        coordinates
+      });
+    }
+
+    function setMarker(lat, lng, shouldEmit) {
+      if (!map) {
+        return;
+      }
+
+      const coordinates = {
+        lat: Number(lat),
+        lng: Number(lng)
+      };
+
+      currentCoordinates = coordinates;
+
       if (!marker) {
-        marker = L.marker([newLat, newLng], { icon: pinIcon }).addTo(map);
+        marker = L.marker(
+          [coordinates.lat, coordinates.lng],
+          {
+            draggable: true,
+            icon: createIcon()
+          }
+        ).addTo(map);
+
+        marker.on("dragend", function () {
+          const position = marker.getLatLng();
+
+          emitLocation(
+            position.lat,
+            position.lng
+          );
+        });
       } else {
-        marker.setLatLng([newLat, newLng]);
+        marker.setLatLng([
+          coordinates.lat,
+          coordinates.lng
+        ]);
+      }
+
+      if (shouldEmit) {
+        emitLocation(
+          coordinates.lat,
+          coordinates.lng
+        );
       }
     }
 
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', initMap);
-    } else {
-      initMap();
+    function initialiseMap() {
+      if (leafletReady || typeof L === "undefined") {
+        return;
+      }
+
+      leafletReady = true;
+
+      map = L.map("map", {
+        zoomControl: true,
+        attributionControl: true
+      }).setView(
+        [
+          defaultCoordinates.lat,
+          defaultCoordinates.lng
+        ],
+        13
+      );
+
+      L.tileLayer(
+        "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+        {
+          maxZoom: 19,
+          attribution: "&copy; OpenStreetMap contributors"
+        }
+      ).addTo(map);
+
+      map.on("click", function (event) {
+        setMarker(
+          event.latlng.lat,
+          event.latlng.lng,
+          true
+        );
+
+        map.setView(
+          [
+            event.latlng.lat,
+            event.latlng.lng
+          ],
+          Math.max(map.getZoom(), 15),
+          {
+            animate: true
+          }
+        );
+      });
+
+      sendMessage({
+        type: "map_ready"
+      });
     }
+
+    function waitForLeaflet() {
+      if (
+        typeof L !== "undefined"
+      ) {
+        initialiseMap();
+        return;
+      }
+
+      setTimeout(
+        waitForLeaflet,
+        100
+      );
+    }
+
+    function setLocation(
+      lat,
+      lng,
+      zoom
+    ) {
+      if (!map) {
+        return;
+      }
+
+      setMarker(
+        lat,
+        lng,
+        false
+      );
+
+      map.setView(
+        [
+          Number(lat),
+          Number(lng)
+        ],
+        zoom || 15,
+        {
+          animate: true
+        }
+      );
+    }
+
+    document.addEventListener(
+      "message",
+      function (event) {
+        try {
+          const message =
+            JSON.parse(
+              event.data
+            );
+
+          if (
+            message.type ===
+            "set_location"
+          ) {
+            setLocation(
+              message.lat,
+              message.lng,
+              message.zoom
+            );
+          }
+        } catch (error) {
+          console.error(error);
+        }
+      }
+    );
+
+    window.addEventListener(
+      "message",
+      function (event) {
+        try {
+          const message =
+            JSON.parse(
+              event.data
+            );
+
+          if (
+            message.type ===
+            "set_location"
+          ) {
+            setLocation(
+              message.lat,
+              message.lng,
+              message.zoom
+            );
+          }
+        } catch (error) {
+          console.error(error);
+        }
+      }
+    );
+
+    waitForLeaflet();
   </script>
 </body>
-</html>`;
+</html>
+`;
+
+export default function DeliveryMapNative({
+  coordinates,
+  interactive = true,
+  onLocationSelect,
+}: DeliveryMapProps) {
+  const webViewRef = useRef<WebView>(null);
+
+  const hasLoadedRef = useRef(false);
 
   useEffect(() => {
-    if (coordinates && webViewRef.current && mapLoaded) {
-      const js = `if (typeof updateLocation === 'function') { updateLocation(${coordinates.lat}, ${coordinates.lng}); } true;`;
-      webViewRef.current.injectJavaScript(js);
+    if (!coordinates) {
+      return;
     }
-  }, [coordinates?.lat, coordinates?.lng, mapLoaded]);
+
+    if (!hasLoadedRef.current) {
+      return;
+    }
+
+    sendCoordinatesToMap(coordinates);
+  }, [coordinates?.lat, coordinates?.lng]);
+
+  const sendCoordinatesToMap = (value: Coordinates) => {
+    if (!webViewRef.current) {
+      return;
+    }
+
+    const message = JSON.stringify({
+      type: "set_location",
+      lat: value.lat,
+      lng: value.lng,
+      zoom: 16,
+    });
+
+    webViewRef.current.postMessage(message);
+  };
+
+  const handleMessage = (event: any) => {
+    try {
+      const message = JSON.parse(event.nativeEvent.data);
+
+      if (message.type === "map_ready") {
+        hasLoadedRef.current = true;
+
+        if (coordinates) {
+          sendCoordinatesToMap(coordinates);
+        }
+
+        return;
+      }
+
+      if (message.type === "location_selected") {
+        if (!interactive) {
+          return;
+        }
+
+        const selected = message.coordinates;
+
+        if (
+          selected &&
+          Number.isFinite(Number(selected.lat)) &&
+          Number.isFinite(Number(selected.lng))
+        ) {
+          onLocationSelect?.({
+            lat: Number(selected.lat),
+            lng: Number(selected.lng),
+          });
+        }
+      }
+    } catch (error) {
+      console.warn("DeliveryMap.native: invalid WebView message:", error);
+    }
+  };
 
   return (
     <View style={styles.container}>
-      {!mapLoaded && (
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="small" color="#0B3D42" />
-        </View>
-      )}
       <WebView
         ref={webViewRef}
+        source={{
+          html: LEAFLET_HTML,
+          baseUrl: "https://unpkg.com/",
+        }}
         originWhitelist={["*"]}
-        source={{ html, baseUrl: "https://unpkg.com" }}
-        javaScriptEnabled={true}
-        domStorageEnabled={true}
+        javaScriptEnabled
+        domStorageEnabled
+        startInLoadingState
         scrollEnabled={false}
         bounces={false}
-        overScrollMode="never"
-        mixedContentMode="always"
-        allowsInlineMediaPlayback={true}
-        mediaPlaybackRequiresUserAction={false}
-        allowsFullscreenVideo={false}
-        scalesPageToFit={false}
-        style={styles.webview}
-        onLoadEnd={() => setMapLoaded(true)}
-        onMessage={(event) => {
-          if (event.nativeEvent.data === 'map_ready') {
-            setMapLoaded(true);
-          }
-        }}
-        onError={(e) => {
-          console.warn('DeliveryMap WebView error:', e.nativeEvent);
+        onMessage={handleMessage}
+        renderLoading={() => (
+          <View style={styles.loading}>
+            <ActivityIndicator size="small" />
+          </View>
+        )}
+        onError={(event) => {
+          console.error("DeliveryMap.native WebView error:", event.nativeEvent);
         }}
       />
     </View>
@@ -178,21 +415,15 @@ export default function DeliveryMap({ coordinates }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    width: "100%",
-    height: "100%",
-    backgroundColor: "#E2E8F0",
     overflow: "hidden",
   },
-  webview: {
-    flex: 1,
-    backgroundColor: "transparent",
-    opacity: 0.99, // Fixes a known React Native WebView rendering bug on Android
-  },
-  loadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
+
+  loading: {
+    ...StyleSheet.absoluteFill,
+
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#E2E8F0",
-    zIndex: 1,
+
+    backgroundColor: "#E8E8E8",
   },
 });

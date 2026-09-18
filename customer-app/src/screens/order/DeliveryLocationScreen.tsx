@@ -10,9 +10,11 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
+import * as Location from "expo-location";
 
-import DeliveryMap from "../../components/DeliveryMap";
-import { geocodeAddress } from "../../services/geocoding";
+import DeliveryMap, { Coordinates } from "../../components/DeliveryMap";
+
+import { geocodeAddress, reverseGeocode } from "../../services/geocoding";
 
 import {
   userRepository,
@@ -38,48 +40,113 @@ export default function DeliveryLocationScreen({ navigation, route }: Props) {
 
   const [selectedAddr, setSelectedAddr] = useState<AddressModel | null>(null);
 
+  const [mapCoordinates, setMapCoordinates] = useState<Coordinates | null>(
+    null,
+  );
+
+  const [mapAddress, setMapAddress] = useState<string>("");
+
   const [search, setSearch] = useState("");
+
   const [loading, setLoading] = useState(true);
 
+  const [locationLoading, setLocationLoading] = useState(false);
+
+  /*
+   * Load saved addresses when the screen opens.
+   */
   useEffect(() => {
     loadAddresses();
   }, []);
 
+  /*
+   * Keep the map synchronized with the currently
+   * selected saved address.
+   */
   useEffect(() => {
-    if (selectedAddr && !selectedAddr.coordinates) {
-      const fullAddr = [
-        selectedAddr.street,
-        selectedAddr.suburb,
-        selectedAddr.city,
-        selectedAddr.province,
-      ]
-        .filter(Boolean)
-        .join(", ");
-
-      if (fullAddr.trim()) {
-        geocodeAddress(fullAddr)
-          .then((res) => {
-            if (res) {
-              setSelectedAddr((prev) =>
-                prev && prev.id === selectedAddr.id
-                  ? {
-                      ...prev,
-                      coordinates: {
-                        lat: res.latitude,
-                        lng: res.longitude,
-                      },
-                    }
-                  : prev,
-              );
-            }
-          })
-          .catch((err) => {
-            console.warn("DeliveryLocation geocoding warning:", err);
-          });
-      }
+    if (!selectedAddr) {
+      setMapCoordinates(null);
+      setMapAddress("");
+      return;
     }
-  }, [selectedAddr?.id]);
 
+    if (selectedAddr.coordinates) {
+      setMapCoordinates({
+        lat: selectedAddr.coordinates.lat,
+        lng: selectedAddr.coordinates.lng,
+      });
+
+      setMapAddress(buildAddressText(selectedAddr));
+      return;
+    }
+
+    /*
+     * Older saved addresses may not have coordinates.
+     * Try to geocode the address so the map can still
+     * display the location.
+     */
+    const fullAddress = [
+      selectedAddr.street,
+      selectedAddr.suburb,
+      selectedAddr.city,
+      selectedAddr.province,
+      selectedAddr.postalCode,
+      "South Africa",
+    ]
+      .filter(Boolean)
+      .join(", ");
+
+    if (!fullAddress.trim()) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const resolveAddress = async () => {
+      try {
+        const result = await geocodeAddress(fullAddress);
+
+        if (!result || cancelled) {
+          return;
+        }
+
+        const coordinates = {
+          lat: result.latitude,
+          lng: result.longitude,
+        };
+
+        setMapCoordinates(coordinates);
+        setMapAddress(result.displayName || buildAddressText(selectedAddr));
+      } catch (error) {
+        console.warn("DeliveryLocation geocoding warning:", error);
+      }
+    };
+
+    resolveAddress();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedAddr]);
+
+  /*
+   * Creates a readable address for the map card.
+   */
+  const buildAddressText = (address: AddressModel) => {
+    return [
+      address.street,
+      address.suburb,
+      address.city,
+      address.province,
+      address.postalCode,
+    ]
+      .filter(Boolean)
+      .join(", ");
+  };
+
+  /*
+   * Load the customer's saved addresses.
+   */
   const loadAddresses = async () => {
     try {
       setLoading(true);
@@ -93,6 +160,10 @@ export default function DeliveryLocationScreen({ navigation, route }: Props) {
           addresses.find((address) => address.isDefault) ?? addresses[0];
 
         setSelectedAddr(defaultAddress);
+      } else {
+        setSelectedAddr(null);
+        setMapCoordinates(null);
+        setMapAddress("");
       }
     } catch (error) {
       console.error("DeliveryLocation: failed to load addresses:", error);
@@ -101,10 +172,107 @@ export default function DeliveryLocationScreen({ navigation, route }: Props) {
     }
   };
 
+  /*
+   * Select one of the customer's saved addresses.
+   */
   const handleSelectAddress = (address: AddressModel) => {
     setSelectedAddr(address);
+
+    if (address.coordinates) {
+      setMapCoordinates({
+        lat: address.coordinates.lat,
+        lng: address.coordinates.lng,
+      });
+
+      setMapAddress(buildAddressText(address));
+    }
   };
 
+  /*
+   * Get the user's current GPS position.
+   *
+   * This intentionally does not overwrite the saved
+   * Supabase address. It only changes the map position
+   * for the current screen.
+   */
+  const handleUseCurrentLocation = async () => {
+    try {
+      setLocationLoading(true);
+
+      const { status } = await Location.requestForegroundPermissionsAsync();
+
+      if (status !== "granted") {
+        console.warn("Location permission was not granted.");
+        return;
+      }
+
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+
+      const coordinates = {
+        lat: location.coords.latitude,
+        lng: location.coords.longitude,
+      };
+
+      console.log("Current GPS location:", coordinates);
+
+      setMapCoordinates(coordinates);
+
+      try {
+        const result = await reverseGeocode(coordinates.lat, coordinates.lng);
+
+        if (result) {
+          setMapAddress(result.displayName);
+
+          console.log("Current location address:", result.displayName);
+        } else {
+          setMapAddress(
+            `${coordinates.lat.toFixed(6)}, ${coordinates.lng.toFixed(6)}`,
+          );
+        }
+      } catch (error) {
+        console.warn("Current location reverse geocoding failed:", error);
+
+        setMapAddress(
+          `${coordinates.lat.toFixed(6)}, ${coordinates.lng.toFixed(6)}`,
+        );
+      }
+    } catch (error) {
+      console.error("Failed to get current location:", error);
+    } finally {
+      setLocationLoading(false);
+    }
+  };
+
+  /*
+   * Handle a location selected directly from
+   * the interactive map.
+   *
+   * This changes the temporary map position.
+   * It does not modify the saved address in Supabase.
+   */
+  const handleMapLocationSelect = async (coordinates: Coordinates) => {
+    setMapCoordinates(coordinates);
+
+    setMapAddress(
+      `${coordinates.lat.toFixed(6)}, ${coordinates.lng.toFixed(6)}`,
+    );
+
+    try {
+      const result = await reverseGeocode(coordinates.lat, coordinates.lng);
+
+      if (result) {
+        setMapAddress(result.displayName);
+      }
+    } catch (error) {
+      console.warn("Map reverse geocoding failed:", error);
+    }
+  };
+
+  /*
+   * Continue to the delivery-time screen.
+   */
   const handleContinue = () => {
     if (!selectedAddr) {
       return;
@@ -117,16 +285,21 @@ export default function DeliveryLocationScreen({ navigation, route }: Props) {
     console.log("DeliveryLocation forwarding params:", {
       ...params,
       deliveryAddressId: selectedAddr.id,
+      deliveryAddress: selectedAddr,
+      mapCoordinates,
     });
 
     navigation.navigate("DeliveryTime", {
       ...params,
-
       deliveryAddressId: selectedAddr.id,
       deliveryAddress: selectedAddr,
     });
   };
 
+  /*
+   * Open the Add Address screen while preserving
+   * the fuel/order parameters.
+   */
   const handleAddAddress = () => {
     navigation.navigate("AddAddress", {
       ...params,
@@ -168,6 +341,7 @@ export default function DeliveryLocationScreen({ navigation, route }: Props) {
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={styles.backBtn}
+          activeOpacity={0.7}
         >
           <Feather
             name="arrow-left"
@@ -189,13 +363,21 @@ export default function DeliveryLocationScreen({ navigation, route }: Props) {
           Delivery Location
         </Text>
 
-        <View style={{ width: 40 }} />
+        <View
+          style={{
+            width: 40,
+          }}
+        />
       </View>
 
       <View style={styles.mapContainer}>
-        <DeliveryMap coordinates={selectedAddr?.coordinates ?? null} />
+        <DeliveryMap
+          coordinates={mapCoordinates}
+          interactive
+          onLocationSelect={handleMapLocationSelect}
+        />
 
-        {selectedAddr && (
+        {selectedAddr || mapAddress ? (
           <View
             style={[
               styles.mapAddressCard,
@@ -219,7 +401,11 @@ export default function DeliveryLocationScreen({ navigation, route }: Props) {
               />
             </View>
 
-            <View style={{ flex: 1 }}>
+            <View
+              style={{
+                flex: 1,
+              }}
+            >
               <Text
                 style={[
                   styles.mapAddressTitle,
@@ -229,7 +415,7 @@ export default function DeliveryLocationScreen({ navigation, route }: Props) {
                   },
                 ]}
               >
-                {selectedAddr.label}
+                {selectedAddr?.label ?? "Selected location"}
               </Text>
 
               <Text
@@ -242,13 +428,14 @@ export default function DeliveryLocationScreen({ navigation, route }: Props) {
                 ]}
                 numberOfLines={2}
               >
-                {selectedAddr.street}
-                {selectedAddr.suburb ? `, ${selectedAddr.suburb}` : ""}
-                {selectedAddr.city ? `, ${selectedAddr.city}` : ""}
+                {mapAddress ||
+                  (selectedAddr
+                    ? buildAddressText(selectedAddr)
+                    : "Location selected")}
               </Text>
             </View>
           </View>
-        )}
+        ) : null}
       </View>
 
       <View
@@ -306,6 +493,9 @@ export default function DeliveryLocationScreen({ navigation, route }: Props) {
                 borderColor: isWF ? "#CCC" : colors.divider,
               },
             ]}
+            onPress={handleUseCurrentLocation}
+            activeOpacity={0.8}
+            disabled={locationLoading}
           >
             <View
               style={[
@@ -315,14 +505,25 @@ export default function DeliveryLocationScreen({ navigation, route }: Props) {
                 },
               ]}
             >
-              <Feather
-                name="crosshair"
-                size={18}
-                color={isWF ? "#555" : colors.petrolDeep}
-              />
+              {locationLoading ? (
+                <ActivityIndicator
+                  size="small"
+                  color={isWF ? "#555" : colors.petrolDeep}
+                />
+              ) : (
+                <Feather
+                  name="crosshair"
+                  size={18}
+                  color={isWF ? "#555" : colors.petrolDeep}
+                />
+              )}
             </View>
 
-            <View>
+            <View
+              style={{
+                flex: 1,
+              }}
+            >
               <Text
                 style={{
                   color: isWF ? "#1A1A1A" : colors.charcoalInk,
@@ -330,7 +531,9 @@ export default function DeliveryLocationScreen({ navigation, route }: Props) {
                   fontSize: FontSizes.base,
                 }}
               >
-                Use current location
+                {locationLoading
+                  ? "Finding your location..."
+                  : "Use current location"}
               </Text>
 
               <Text
@@ -338,12 +541,46 @@ export default function DeliveryLocationScreen({ navigation, route }: Props) {
                   color: isWF ? "#666" : colors.inkLight,
                   fontFamily: font("body"),
                   fontSize: FontSizes.xs,
+                  marginTop: 2,
                 }}
               >
                 Use your phone's GPS location
               </Text>
             </View>
+
+            <Feather
+              name="chevron-right"
+              size={18}
+              color={isWF ? "#888" : colors.inkLight}
+            />
           </TouchableOpacity>
+
+          <View
+            style={[
+              styles.mapHint,
+              {
+                backgroundColor: isWF ? "#E8E8E8" : colors.petrolLight,
+              },
+            ]}
+          >
+            <Feather
+              name="info"
+              size={15}
+              color={isWF ? "#666" : colors.petrolDeep}
+            />
+
+            <Text
+              style={[
+                styles.mapHintText,
+                {
+                  color: isWF ? "#555" : colors.petrolDeep,
+                  fontFamily: font("body"),
+                },
+              ]}
+            >
+              Tap the map or move the pin to choose a location.
+            </Text>
+          </View>
 
           <Text
             style={[
@@ -464,7 +701,11 @@ export default function DeliveryLocationScreen({ navigation, route }: Props) {
                     />
                   </View>
 
-                  <View style={{ flex: 1 }}>
+                  <View
+                    style={{
+                      flex: 1,
+                    }}
+                  >
                     <View
                       style={{
                         flexDirection: "row",
@@ -535,6 +776,7 @@ export default function DeliveryLocationScreen({ navigation, route }: Props) {
               },
             ]}
             onPress={handleAddAddress}
+            activeOpacity={0.8}
           >
             <Feather
               name="plus"
@@ -598,11 +840,6 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
 
-  map: {
-    width: "100%",
-    height: "100%",
-  },
-
   mapAddressCard: {
     position: "absolute",
     left: Spacing.md,
@@ -659,7 +896,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: Spacing.md,
     padding: Spacing.md,
-    borderBottomWidth: 1,
+    borderWidth: 1,
+    borderRadius: Radius.lg,
     marginBottom: Spacing.sm,
   },
 
@@ -669,6 +907,21 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
+  },
+
+  mapHint: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.md,
+    marginTop: Spacing.xs,
+  },
+
+  mapHintText: {
+    flex: 1,
+    fontSize: FontSizes.xs,
   },
 
   sectionTitle: {
