@@ -3,7 +3,6 @@ import {
   View,
   StyleSheet,
   Platform,
-  ActivityIndicator,
 } from 'react-native';
 import {
   NavigationContainer,
@@ -14,7 +13,10 @@ import {
 import {
   createBottomTabNavigator,
 } from '@react-navigation/bottom-tabs';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import {
+  SafeAreaProvider,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import {
   useFonts,
@@ -29,9 +31,8 @@ import {
   DesignModeProvider,
   useDesignMode,
 } from './src/context/DesignModeContext';
+
 import { Fonts } from './src/theme/tokens';
-import { userRepository } from './src/repositories/UserRepository';
-import { supabase } from './src/services/supabase';
 
 import DriverLoginScreen from './src/screens/driver/DriverLoginScreen';
 import AvailableOrdersScreen from './src/screens/driver/AvailableOrdersScreen';
@@ -44,8 +45,18 @@ import EarningsScreen from './src/screens/driver/EarningsScreen';
 import SOSScreen from './src/screens/driver/SOSScreen';
 import DriverProfileScreen from './src/screens/driver/DriverProfileScreen';
 
-const RootStack = createStackNavigator();
-const DriverTab = createBottomTabNavigator();
+import {
+  userRepository,
+  DriverAuthProfile,
+} from './src/repositories/UserRepository';
+
+import { supabase } from './src/services/supabase';
+
+const RootStack =
+  createStackNavigator();
+
+const DriverTab =
+  createBottomTabNavigator();
 
 function DriverTabNavigator() {
   const {
@@ -53,29 +64,46 @@ function DriverTabNavigator() {
     isWireframe,
   } = useDesignMode();
 
+  const insets =
+    useSafeAreaInsets();
+
+  const bottomInset =
+    Math.max(
+      insets.bottom,
+      Platform.OS === 'android'
+        ? 0
+        : insets.bottom
+    );
+
   return (
     <DriverTab.Navigator
-      screenOptions={({ route }) => ({
+      screenOptions={({
+        route,
+      }) => ({
         headerShown: false,
+
         tabBarShowLabel: true,
 
         tabBarStyle: {
-          backgroundColor: isWireframe
-            ? '#FFFFFF'
-            : colors.white,
-          borderTopColor: isWireframe
-            ? '#CCCCCC'
-            : colors.divider,
+          backgroundColor:
+            isWireframe
+              ? '#FFFFFF'
+              : colors.white,
+
+          borderTopColor:
+            isWireframe
+              ? '#CCCCCC'
+              : colors.divider,
+
           borderTopWidth: 1,
-          paddingBottom:
-            Platform.OS === 'ios'
-              ? 20
-              : 8,
+
           paddingTop: 8,
+
+          paddingBottom:
+            8 + bottomInset,
+
           height:
-            Platform.OS === 'ios'
-              ? 84
-              : 64,
+            64 + bottomInset,
         },
 
         tabBarActiveTintColor:
@@ -90,9 +118,11 @@ function DriverTabNavigator() {
 
         tabBarLabelStyle: {
           fontSize: 11,
-          fontFamily: isWireframe
-            ? undefined
-            : Fonts.bodyMedium,
+
+          fontFamily:
+            isWireframe
+              ? undefined
+              : Fonts.bodyMedium,
         },
 
         tabBarIcon: ({
@@ -103,10 +133,12 @@ function DriverTabNavigator() {
             string,
             string
           > = {
-            DriverOrdersTab: 'truck',
+            DriverOrdersTab:
+              'truck',
             DriverEarningsTab:
               'trending-up',
-            DriverProfileTab: 'user',
+            DriverProfileTab:
+              'user',
           };
 
           return (
@@ -125,7 +157,9 @@ function DriverTabNavigator() {
     >
       <DriverTab.Screen
         name="DriverOrdersTab"
-        component={AvailableOrdersScreen}
+        component={
+          AvailableOrdersScreen
+        }
         options={{
           title: 'Jobs',
         }}
@@ -133,7 +167,9 @@ function DriverTabNavigator() {
 
       <DriverTab.Screen
         name="DriverEarningsTab"
-        component={EarningsScreen}
+        component={
+          EarningsScreen
+        }
         options={{
           title: 'Earnings',
         }}
@@ -141,7 +177,9 @@ function DriverTabNavigator() {
 
       <DriverTab.Screen
         name="DriverProfileTab"
-        component={DriverProfileScreen}
+        component={
+          DriverProfileScreen
+        }
         options={{
           title: 'Profile',
         }}
@@ -150,60 +188,68 @@ function DriverTabNavigator() {
   );
 }
 
-function DriverNavigator({
-  authenticated,
-}: {
-  authenticated: boolean;
-}) {
+function DriverNavigator() {
   return (
     <RootStack.Navigator
       screenOptions={{
         headerShown: false,
       }}
-      initialRouteName={
-        authenticated
-          ? 'DriverTabs'
-          : 'DriverLogin'
-      }
+      initialRouteName="DriverLogin"
     >
       <RootStack.Screen
         name="DriverLogin"
-        component={DriverLoginScreen}
+        component={
+          DriverLoginScreen
+        }
       />
 
       <RootStack.Screen
         name="DriverTabs"
-        component={DriverTabNavigator}
+        component={
+          DriverTabNavigator
+        }
       />
 
       <RootStack.Screen
         name="DriverOrderDetails"
-        component={OrderDetailsScreen}
+        component={
+          OrderDetailsScreen
+        }
       />
 
       <RootStack.Screen
         name="ActiveNavigation"
-        component={ActiveNavigationScreen}
+        component={
+          ActiveNavigationScreen
+        }
       />
 
       <RootStack.Screen
         name="DriverStatusUpdate"
-        component={StatusUpdateScreen}
+        component={
+          StatusUpdateScreen
+        }
       />
 
       <RootStack.Screen
         name="ProofOfDelivery"
-        component={ProofOfDeliveryScreen}
+        component={
+          ProofOfDeliveryScreen
+        }
       />
 
       <RootStack.Screen
         name="DeliveryComplete"
-        component={DeliveryCompleteScreen}
+        component={
+          DeliveryCompleteScreen
+        }
       />
 
       <RootStack.Screen
         name="DriverEarnings"
-        component={EarningsScreen}
+        component={
+          EarningsScreen
+        }
       />
 
       <RootStack.Screen
@@ -215,17 +261,11 @@ function DriverNavigator({
 }
 
 function AppContent() {
-  const [sessionChecked, setSessionChecked] =
+  const [sessionReady, setSessionReady] =
     useState(false);
 
-  const [
-    authenticated,
-    setAuthenticated,
-  ] = useState(false);
-
-  const {
-    colors,
-  } = useDesignMode();
+  const [authenticatedDriver, setAuthenticatedDriver] =
+    useState<DriverAuthProfile | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -234,30 +274,27 @@ function AppContent() {
       async () => {
         try {
           const driver =
-            await userRepository
-              .restoreDriverSession();
+            await userRepository.restoreDriverSession();
 
-          if (!mounted) {
-            return;
+          if (mounted) {
+            setAuthenticatedDriver(
+              driver
+            );
           }
-
-          setAuthenticated(
-            driver !== null
-          );
         } catch (error) {
-          if (!mounted) {
-            return;
-          }
-
-          setAuthenticated(false);
-
           console.error(
             'Driver session restore failed:',
             error
           );
+
+          if (mounted) {
+            setAuthenticatedDriver(
+              null
+            );
+          }
         } finally {
           if (mounted) {
-            setSessionChecked(true);
+            setSessionReady(true);
           }
         }
       };
@@ -265,29 +302,43 @@ function AppContent() {
     restoreSession();
 
     const {
-      data: {
-        subscription,
-      },
+      data: authListener,
     } =
       supabase.auth.onAuthStateChange(
-        async (_event, session) => {
+        async (
+          event,
+          session
+        ) => {
           if (!mounted) {
             return;
           }
 
-          if (!session) {
-            setAuthenticated(false);
+          if (
+            event ===
+            'SIGNED_OUT'
+          ) {
+            setAuthenticatedDriver(
+              null
+            );
+            return;
+          }
+
+          if (
+            !session?.user
+          ) {
+            setAuthenticatedDriver(
+              null
+            );
             return;
           }
 
           try {
             const driver =
-              await userRepository
-                .getDriverAuthProfile();
+              await userRepository.getDriverAuthProfile();
 
             if (mounted) {
-              setAuthenticated(
-                driver !== null
+              setAuthenticatedDriver(
+                driver
               );
             }
           } catch (error) {
@@ -296,10 +347,10 @@ function AppContent() {
               error
             );
 
-            await supabase.auth.signOut();
-
             if (mounted) {
-              setAuthenticated(false);
+              setAuthenticatedDriver(
+                null
+              );
             }
           }
         }
@@ -307,46 +358,31 @@ function AppContent() {
 
     return () => {
       mounted = false;
-      subscription.unsubscribe();
+
+      authListener.subscription.unsubscribe();
     };
   }, []);
 
-  if (!sessionChecked) {
-    return (
-      <View
-        style={[
-          styles.loadingScreen,
-          {
-            backgroundColor:
-              colors.warmAsh,
-          },
-        ]}
-      >
-        <ActivityIndicator
-          size="large"
-          color={colors.petrolDeep}
-        />
-      </View>
-    );
+  if (!sessionReady) {
+    return null;
   }
 
   return (
     <NavigationContainer>
-      <DriverNavigator
-        authenticated={authenticated}
-      />
+      <DriverNavigator />
     </NavigationContainer>
   );
 }
 
 export default function App() {
-  const [fontsLoaded] =
-    useFonts({
-      Inter_400Regular,
-      Inter_500Medium,
-      Inter_600SemiBold,
-      Inter_700Bold,
-    });
+  const [
+    fontsLoaded,
+  ] = useFonts({
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
+  });
 
   if (!fontsLoaded) {
     return null;
@@ -356,25 +392,24 @@ export default function App() {
     <SafeAreaProvider>
       <DesignModeProvider>
         <View
-          style={styles.appContainer}
+          style={
+            styles.appContainer
+          }
         >
           <AppContent />
 
-          <StatusBar style="auto" />
+          <StatusBar
+            style="auto"
+          />
         </View>
       </DesignModeProvider>
     </SafeAreaProvider>
   );
 }
 
-const styles = StyleSheet.create({
-  appContainer: {
-    flex: 1,
-  },
-
-  loadingScreen: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
+const styles =
+  StyleSheet.create({
+    appContainer: {
+      flex: 1,
+    },
+  });

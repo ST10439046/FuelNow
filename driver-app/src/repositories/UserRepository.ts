@@ -1,10 +1,7 @@
 import { CustomerApiClient } from '../services/apiClient';
 import { supabase } from '../services/supabase';
 import {
-  User,
-  Customer,
   Address,
-  RewardAccount,
 } from '../types/database';
 
 export interface DriverAuthProfile {
@@ -134,14 +131,19 @@ export class UserRepository {
       );
     }
 
-    const { data: userProfile, error: profileError } =
-      await supabase
-        .from('users')
-        .select('user_id')
-        .eq('auth_id', user.id)
-        .single();
+    const {
+      data: userProfile,
+      error: profileError,
+    } = await supabase
+      .from('users')
+      .select('user_id')
+      .eq('auth_id', user.id)
+      .single();
 
-    if (profileError || !userProfile) {
+    if (
+      profileError ||
+      !userProfile
+    ) {
       throw new Error(
         'Authenticated account does not have a FuelNow user profile.'
       );
@@ -197,7 +199,10 @@ export class UserRepository {
       .eq('auth_id', authUser.id)
       .single();
 
-    if (userError || !userProfile) {
+    if (
+      userError ||
+      !userProfile
+    ) {
       throw new Error(
         'Your account is authenticated, but your FuelNow user profile could not be found.'
       );
@@ -217,7 +222,10 @@ export class UserRepository {
       )
       .single();
 
-    if (driverError || !driverProfile) {
+    if (
+      driverError ||
+      !driverProfile
+    ) {
       throw new Error(
         'This account is not registered as a FuelNow driver.'
       );
@@ -235,29 +243,47 @@ export class UserRepository {
       userProfile.user_id;
 
     return {
-      userId: userProfile.user_id,
-      authId: authUser.id,
-      name: userProfile.full_name ?? '',
+      userId:
+        userProfile.user_id,
+
+      authId:
+        authUser.id,
+
+      name:
+        userProfile.full_name ?? '',
+
       email:
         userProfile.email ??
         authUser.email ??
         '',
+
       phone:
-        userProfile.phone_number ?? '',
-      status: userProfile.status,
+        userProfile.phone_number ??
+        '',
+
+      status:
+        userProfile.status,
+
       driverStatus:
         driverProfile.status ??
         'Offline',
+
       zone:
-        driverProfile.zone ?? null,
+        driverProfile.zone ??
+        null,
+
       province:
         driverProfile.province ??
         'KwaZulu-Natal',
+
       licenceNumber:
-        driverProfile.licence_number ?? '',
-      rating: Number(
-        driverProfile.rating ?? 5
-      ),
+        driverProfile.licence_number ??
+        '',
+
+      rating:
+        Number(
+          driverProfile.rating ?? 5
+        ),
     };
   }
 
@@ -283,14 +309,17 @@ export class UserRepository {
     const {
       data,
       error,
-    } = await supabase.auth.signInWithPassword({
-      email: normalizedEmail,
-      password,
-    });
+    } =
+      await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password,
+      });
 
     if (error) {
       throw new Error(
-        this.mapAuthError(error.message)
+        this.mapAuthError(
+          error.message
+        )
       );
     }
 
@@ -304,6 +333,7 @@ export class UserRepository {
       return await this.getDriverAuthProfile();
     } catch (error) {
       await supabase.auth.signOut();
+
       this.currentUserId = null;
 
       throw error;
@@ -314,7 +344,8 @@ export class UserRepository {
     const {
       data: { session },
       error,
-    } = await supabase.auth.getSession();
+    } =
+      await supabase.auth.getSession();
 
     if (error) {
       throw new Error(error.message);
@@ -329,6 +360,7 @@ export class UserRepository {
       return await this.getDriverAuthProfile();
     } catch (error) {
       await supabase.auth.signOut();
+
       this.currentUserId = null;
 
       throw error;
@@ -372,6 +404,42 @@ export class UserRepository {
     throw new Error(
       'Driver accounts are created by FuelNow administration. Please contact your administrator.'
     );
+  }
+
+  private mapAuthError(
+    message: string
+  ): string {
+    const normalized =
+      message.toLowerCase();
+
+    if (
+      normalized.includes(
+        'invalid login credentials'
+      ) ||
+      normalized.includes(
+        'invalid credentials'
+      )
+    ) {
+      return 'Incorrect email or password.';
+    }
+
+    if (
+      normalized.includes(
+        'email not confirmed'
+      )
+    ) {
+      return 'Your email address has not been confirmed.';
+    }
+
+    if (
+      normalized.includes(
+        'too many requests'
+      )
+    ) {
+      return 'Too many login attempts. Please wait a moment and try again.';
+    }
+
+    return message;
   }
 
   public async getUser(): Promise<UserModel> {
@@ -421,23 +489,22 @@ export class UserRepository {
     const savedAddresses =
       await this.getAddresses();
 
-    const paymentMethods: PaymentMethodModel[] =
-      [];
-
     return {
       id: user.user_id,
       name: user.full_name ?? '',
       email: user.email ?? '',
-      phone: user.phone_number ?? '',
+      phone:
+        user.phone_number ?? '',
       loyaltyPoints:
-        customer.fuel_points_balance ?? 0,
+        customer.fuel_points_balance ??
+        0,
       loyaltyTier:
         this.mapLoyaltyTier(
           customer.loyalty_tier
         ),
       companyName: '',
       savedAddresses,
-      paymentMethods,
+      paymentMethods: [],
     };
   }
 
@@ -451,10 +518,16 @@ export class UserRepository {
     } = await supabase
       .from('addresses')
       .select('*')
-      .eq('customer_id', userId)
-      .order('address_id', {
-        ascending: true,
-      });
+      .eq(
+        'customer_id',
+        userId
+      )
+      .order(
+        'address_id',
+        {
+          ascending: true,
+        }
+      );
 
     if (error) {
       console.error(
@@ -465,7 +538,9 @@ export class UserRepository {
       throw error;
     }
 
-    return (data ?? []).map(
+    return (
+      data ?? []
+    ).map(
       (address: Address) =>
         this.mapAddress(address)
     );
@@ -504,7 +579,8 @@ export class UserRepository {
       customerResponse.data;
 
     const currentPoints =
-      customer.fuel_points_balance ?? 0;
+      customer.fuel_points_balance ??
+      0;
 
     const newPoints =
       currentPoints + points;
@@ -518,7 +594,8 @@ export class UserRepository {
       await CustomerApiClient.updateCustomer({
         customerId: userId,
         loyaltyTier: newTier,
-        fuelPointsBalance: newPoints,
+        fuelPointsBalance:
+          newPoints,
       });
 
     if (
@@ -559,30 +636,47 @@ export class UserRepository {
 
     const response =
       await CustomerApiClient.updateAddress({
-        addressId: params.addressId,
+        addressId:
+          params.addressId,
+
         customerId:
           params.customerId ??
           userId,
 
-        label: params.label,
+        label:
+          params.label,
+
         unitNumber:
           params.unitNumber,
+
         streetNumber:
           params.streetNumber,
+
         streetName:
           params.streetName,
-        suburb: params.suburb,
-        city: params.city,
-        province: params.province,
+
+        suburb:
+          params.suburb,
+
+        city:
+          params.city,
+
+        province:
+          params.province,
+
         postalCode:
           params.postalCode,
+
         deliveryInstructions:
           params.deliveryInstructions,
+
         isDefault:
-          params.isDefault ?? false,
+          params.isDefault ??
+          false,
 
         latitude:
           params.coordinates?.lat,
+
         longitude:
           params.coordinates?.lng,
       });
@@ -605,34 +699,53 @@ export class UserRepository {
   }
 
   public async addAddress(
-    address: Omit<AddressModel, 'id'>
+    address: Omit<
+      AddressModel,
+      'id'
+    >
   ): Promise<AddressModel> {
     const userId =
       await this.getAuthenticatedUserId();
 
     const response =
       await CustomerApiClient.createAddress({
-        customerId: userId,
+        customerId:
+          userId,
 
-        label: address.label,
+        label:
+          address.label,
+
         unitNumber:
           address.unitNumber,
+
         streetNumber:
           address.streetNumber,
+
         streetName:
           address.streetName,
-        suburb: address.suburb,
-        city: address.city,
-        province: address.province,
+
+        suburb:
+          address.suburb,
+
+        city:
+          address.city,
+
+        province:
+          address.province,
+
         postalCode:
           address.postalCode,
+
         deliveryInstructions:
           address.instructions,
+
         isDefault:
-          address.isDefault ?? false,
+          address.isDefault ??
+          false,
 
         latitude:
           address.coordinates?.lat,
+
         longitude:
           address.coordinates?.lng,
       });
@@ -674,9 +787,13 @@ export class UserRepository {
       await this.getAuthenticatedUserId();
 
     const {
-      data: { user: authUser },
-      error: authUserError,
-    } = await supabase.auth.getUser();
+      data: {
+        user: authUser,
+      },
+      error:
+        authUserError,
+    } =
+      await supabase.auth.getUser();
 
     if (authUserError) {
       throw authUserError;
@@ -692,7 +809,8 @@ export class UserRepository {
       params.email.trim();
 
     const currentEmail =
-      authUser.email?.trim() ?? '';
+      authUser.email?.trim() ??
+      '';
 
     if (
       newEmail.toLowerCase() !==
@@ -729,7 +847,8 @@ export class UserRepository {
     address: Address
   ): AddressModel {
     return {
-      id: address.address_id,
+      id:
+        address.address_id,
 
       label:
         this.mapAddressLabel(
@@ -737,11 +856,16 @@ export class UserRepository {
         ),
 
       unitNumber:
-        address.unit_number ?? '',
+        address.unit_number ??
+        '',
+
       streetNumber:
-        address.street_number ?? '',
+        address.street_number ??
+        '',
+
       streetName:
-        address.street_name ?? '',
+        address.street_name ??
+        '',
 
       street: [
         address.unit_number,
@@ -751,25 +875,35 @@ export class UserRepository {
         .filter(Boolean)
         .join(' '),
 
-      suburb: address.suburb ?? '',
-      city: address.city ?? '',
+      suburb:
+        address.suburb ?? '',
+
+      city:
+        address.city ?? '',
+
       province:
         address.province ?? '',
+
       postalCode:
-        address.postal_code ?? '',
+        address.postal_code ??
+        '',
 
       instructions:
         address.delivery_instructions ??
         '',
+
       isDefault:
-        address.is_default ?? false,
+        address.is_default ??
+        false,
 
       coordinates:
         address.latitude != null &&
         address.longitude != null
           ? {
-              lat: address.latitude,
-              lng: address.longitude,
+              lat:
+                address.latitude,
+              lng:
+                address.longitude,
             }
           : undefined,
     };
