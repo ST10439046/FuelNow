@@ -98,6 +98,13 @@ export interface DeliveryPinResult {
   status: string;
 }
 
+export interface CompleteDriverOrderResult {
+  orderId: string;
+  status: string;
+  deliveryPin: string;
+  completedAt: string;
+}
+
 export class DriverRepository {
   private static instance: DriverRepository;
 
@@ -856,6 +863,101 @@ export class DriverRepository {
         Number(
           data.rand_amount ??
             0
+        ),
+    };
+  }
+
+  public async completeDriverOrder(
+    orderId: string
+  ): Promise<CompleteDriverOrderResult> {
+    if (!orderId) {
+      throw new Error(
+        'A valid order ID is required.'
+      );
+    }
+
+    console.log(
+      'DriverRepository: completing order',
+      orderId
+    );
+
+    const {
+      data,
+      error,
+    } = await supabase.rpc(
+      'complete_driver_order',
+      {
+        p_order_id:
+          orderId,
+      }
+    );
+
+    if (error) {
+      console.error(
+        'DriverRepository: complete_driver_order failed',
+        {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+        }
+      );
+
+      throw error;
+    }
+
+    const result =
+      Array.isArray(data)
+        ? data[0]
+        : data;
+
+    if (!result) {
+      throw new Error(
+        'The completion request returned no result.'
+      );
+    }
+
+    if (
+      String(
+        result.status ?? ''
+      ).toUpperCase() !==
+      'DELIVERED'
+    ) {
+      throw new Error(
+        `The order was not marked as delivered. Current result: ${result.status ?? 'unknown'}`
+      );
+    }
+
+    if (!result.delivery_pin) {
+      throw new Error(
+        'The order was delivered, but no delivery PIN was returned.'
+      );
+    }
+
+    if (!result.completed_at) {
+      throw new Error(
+        'The order was delivered, but no completion timestamp was returned.'
+      );
+    }
+
+    return {
+      orderId:
+        result.order_id ??
+        orderId,
+
+      status:
+        String(
+          result.status
+        ),
+
+      deliveryPin:
+        String(
+          result.delivery_pin
+        ),
+
+      completedAt:
+        String(
+          result.completed_at
         ),
     };
   }

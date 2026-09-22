@@ -36,8 +36,8 @@ import {
 } from './AcceptedOrdersScreen';
 
 import {
-  supabase,
-} from '../../services/supabase';
+  driverRepository,
+} from '../../repositories/DriverRepository';
 
 interface Props {
   navigation: any;
@@ -60,6 +60,9 @@ const formatStatus = (
     case 'ACCEPTED':
       return 'Accepted';
 
+    case 'IN_TRANSIT':
+      return 'En Route';
+
     case 'NAVIGATING':
       return 'En Route';
 
@@ -68,6 +71,9 @@ const formatStatus = (
 
     case 'DISPENSING':
       return 'Dispensing';
+
+    case 'COMPLETION_PENDING':
+      return 'Completion Pending';
 
     default:
       return status;
@@ -93,6 +99,66 @@ export default function AcceptedOrderDetailsScreen({
     completing,
     setCompleting,
   ] = useState(false);
+
+  const completeOrder =
+    async (): Promise<void> => {
+      if (
+        completing ||
+        !order?.orderId
+      ) {
+        return;
+      }
+
+      console.log(
+        'AcceptedOrderDetailsScreen: Complete Delivery pressed',
+        order.orderId
+      );
+
+      setCompleting(true);
+
+      try {
+        const result =
+          await driverRepository.completeDriverOrder(
+            order.orderId
+          );
+
+        console.log(
+          'AcceptedOrderDetailsScreen: order completed',
+          result
+        );
+
+        navigation.replace(
+          'DeliveryPin',
+          {
+            order: {
+              ...order,
+              status: 'DELIVERED',
+            },
+            deliveryPin:
+              result.deliveryPin,
+            completedAt:
+              result.completedAt,
+          }
+        );
+      } catch (error) {
+        console.error(
+          'AcceptedOrderDetailsScreen: completion failed',
+          error
+        );
+
+        const message =
+          error instanceof Error
+            ? error.message
+            : 'The delivery could not be completed.';
+
+        Alert.alert(
+          'Unable to Complete Delivery',
+          message
+        );
+      } finally {
+        setCompleting(false);
+      }
+    };
 
   if (!order) {
     return (
@@ -156,86 +222,6 @@ export default function AcceptedOrderDetailsScreen({
       </SafeAreaView>
     );
   }
-
-  const completeOrder =
-    async () => {
-      if (completing) {
-        return;
-      }
-
-      Alert.alert(
-        'Complete Delivery',
-        'Are you sure this delivery has been completed? The order will be marked as completed.',
-        [
-          {
-            text: 'Cancel',
-            style: 'cancel',
-          },
-          {
-            text: 'Complete',
-            onPress: async () => {
-              try {
-                setCompleting(true);
-
-                const {
-                  data,
-                  error,
-                } = await supabase.rpc(
-                  'complete_driver_order',
-                  {
-                    p_order_id:
-                      order.orderId,
-                  }
-                );
-
-                if (error) {
-                  throw error;
-                }
-
-                const result =
-                  Array.isArray(data)
-                    ? data[0]
-                    : data;
-
-                if (
-                  !result
-                    ?.delivery_pin
-                ) {
-                  throw new Error(
-                    'The delivery was completed, but the delivery PIN could not be retrieved.'
-                  );
-                }
-
-                navigation.replace(
-                  'DeliveryPin',
-                  {
-                    order,
-                    deliveryPin:
-                      result.delivery_pin,
-                    completedAt:
-                      result.completed_at,
-                  }
-                );
-              } catch (error) {
-                console.error(
-                  'AcceptedOrderDetailsScreen: completion failed',
-                  error
-                );
-
-                Alert.alert(
-                  'Unable to Complete Delivery',
-                  error instanceof Error
-                    ? error.message
-                    : 'The delivery could not be completed.'
-                );
-              } finally {
-                setCompleting(false);
-              }
-            },
-          },
-        ]
-      );
-    };
 
   return (
     <SafeAreaView
@@ -722,14 +708,30 @@ export default function AcceptedOrderDetailsScreen({
             completing &&
               styles.disabledButton,
           ]}
-          onPress={completeOrder}
+          onPress={() => {
+            void completeOrder();
+          }}
           disabled={completing}
           activeOpacity={0.85}
         >
           {completing ? (
-            <ActivityIndicator
-              color="#FFFFFF"
-            />
+            <>
+              <ActivityIndicator
+                color="#FFFFFF"
+              />
+
+              <Text
+                style={[
+                  styles.completeText,
+                  {
+                    fontFamily:
+                      font('bodyBold'),
+                  },
+                ]}
+              >
+                Completing...
+              </Text>
+            </>
           ) : (
             <>
               <Feather
