@@ -16,18 +16,28 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useDesignMode } from '../../context/DesignModeContext';
-import { driverRepository, DriverDocumentModel as DriverDocument } from '../../repositories/DriverRepository';
+import {
+  driverRepository,
+  DriverDocumentModel as DriverDocument,
+  DriverModel,
+} from '../../repositories/DriverRepository';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /** Format an ISO date: '15 Aug 2027' */
 function formatExpiry(isoDate: string): string {
   const d = new Date(isoDate);
-  return d.toLocaleDateString('en-ZA', { day: '2-digit', month: 'short', year: 'numeric' });
+  return d.toLocaleDateString('en-ZA', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
 }
 
 /** Derive status from document flags */
-function docStatus(doc: DriverDocument): 'expired' | 'expiringSoon' | 'valid' {
+function docStatus(
+  doc: DriverDocument
+): 'expired' | 'expiringSoon' | 'valid' {
   if (doc.isExpired) return 'expired';
   if (doc.isExpiringSoon) return 'expiringSoon';
   return 'valid';
@@ -43,22 +53,37 @@ interface InfoRowProps {
   font: ReturnType<typeof useDesignMode>['font'];
 }
 
-function InfoRow({ icon, value, isWireframe, colors, font }: InfoRowProps) {
+function InfoRow({
+  icon,
+  value,
+  isWireframe,
+  colors,
+  font,
+}: InfoRowProps) {
   const iconColor = isWireframe ? colors.inkLight : '#F97316';
+
   return (
     <View style={styles.infoRow}>
       <View
         style={[
           styles.infoIconWrap,
-          { backgroundColor: isWireframe ? colors.ashDark : '#FFF7ED' },
+          {
+            backgroundColor: isWireframe
+              ? colors.ashDark
+              : '#FFF7ED',
+          },
         ]}
       >
         <Feather name={icon} size={16} color={iconColor} />
       </View>
+
       <Text
         style={[
           styles.infoValue,
-          { color: colors.charcoalInk, fontFamily: font('body') },
+          {
+            color: colors.charcoalInk,
+            fontFamily: font('body'),
+          },
         ]}
       >
         {value}
@@ -74,45 +99,52 @@ interface DocumentCardProps {
   font: ReturnType<typeof useDesignMode>['font'];
 }
 
-function DocumentCard({ doc, isWireframe, colors, font }: DocumentCardProps) {
+function DocumentCard({
+  doc,
+  isWireframe,
+  colors,
+  font,
+}: DocumentCardProps) {
   const status = docStatus(doc);
 
-  // Icon circle color
   const iconCircleColor = isWireframe
     ? colors.ashDark
     : status === 'expired'
-    ? '#EF4444'
-    : status === 'expiringSoon'
-    ? '#FACC15'
-    : '#22C55E';
+      ? '#EF4444'
+      : status === 'expiringSoon'
+        ? '#FACC15'
+        : '#22C55E';
 
   const iconColor = isWireframe
     ? colors.inkLight
     : status === 'expired'
-    ? '#FFFFFF'
-    : status === 'expiringSoon'
-    ? '#78350F'
-    : '#FFFFFF';
+      ? '#FFFFFF'
+      : status === 'expiringSoon'
+        ? '#78350F'
+        : '#FFFFFF';
 
-  // Badge colors
   const badgeBg = isWireframe
     ? colors.ashDark
     : status === 'expired'
-    ? '#FEE2E2'
-    : status === 'expiringSoon'
-    ? '#FEF9C3'
-    : '#DCFCE7';
+      ? '#FEE2E2'
+      : status === 'expiringSoon'
+        ? '#FEF9C3'
+        : '#DCFCE7';
 
   const badgeText = isWireframe
     ? colors.inkLight
     : status === 'expired'
-    ? '#DC2626'
-    : status === 'expiringSoon'
-    ? '#854D0E'
-    : '#16A34A';
+      ? '#DC2626'
+      : status === 'expiringSoon'
+        ? '#854D0E'
+        : '#16A34A';
 
   const badgeLabel =
-    status === 'expired' ? 'Expired' : status === 'expiringSoon' ? 'Expiring Soon' : 'Valid';
+    status === 'expired'
+      ? 'Expired'
+      : status === 'expiringSoon'
+        ? 'Expiring Soon'
+        : 'Valid';
 
   return (
     <View
@@ -132,34 +164,48 @@ function DocumentCard({ doc, isWireframe, colors, font }: DocumentCardProps) {
         },
       ]}
     >
-      {/* Left: colored icon circle */}
-      <View style={[styles.docIconCircle, { backgroundColor: iconCircleColor }]}>
+      <View
+        style={[
+          styles.docIconCircle,
+          { backgroundColor: iconCircleColor },
+        ]}
+      >
         <Feather name="file-text" size={18} color={iconColor} />
       </View>
 
-      {/* Center: doc info */}
       <View style={styles.docCenter}>
         <Text
           style={[
             styles.docType,
-            { color: colors.charcoalInk, fontFamily: font('bodyBold') },
+            {
+              color: colors.charcoalInk,
+              fontFamily: font('bodyBold'),
+            },
           ]}
         >
           {doc.type}
         </Text>
+
         <Text
           style={[
             styles.docNumber,
-            { color: colors.inkLight, fontFamily: font('body') },
+            {
+              color: colors.inkLight,
+              fontFamily: font('body'),
+            },
           ]}
         >
           {doc.number}
         </Text>
+
         <Text
           style={[
             styles.docExpiry,
             {
-              color: status === 'expired' ? '#EF4444' : colors.inkFaint,
+              color:
+                status === 'expired'
+                  ? '#EF4444'
+                  : colors.inkFaint,
               fontFamily: font('body'),
             },
           ]}
@@ -168,12 +214,19 @@ function DocumentCard({ doc, isWireframe, colors, font }: DocumentCardProps) {
         </Text>
       </View>
 
-      {/* Right: status badge */}
-      <View style={[styles.docBadge, { backgroundColor: badgeBg }]}>
+      <View
+        style={[
+          styles.docBadge,
+          { backgroundColor: badgeBg },
+        ]}
+      >
         <Text
           style={[
             styles.docBadgeText,
-            { color: badgeText, fontFamily: font('bodyMedium') },
+            {
+              color: badgeText,
+              fontFamily: font('bodyMedium'),
+            },
           ]}
         >
           {badgeLabel}
@@ -189,10 +242,12 @@ interface Props {
   navigation: any;
 }
 
-export default function DriverProfileScreen({ navigation }: Props) {
+export default function DriverProfileScreen({
+  navigation,
+}: Props) {
   const { colors, font, isWireframe } = useDesignMode();
 
-  const [driver, setDriver] = useState<any>(null);
+  const [driver, setDriver] = useState<DriverModel | null>(null);
   const [documents, setDocuments] = useState<DriverDocument[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -203,6 +258,7 @@ export default function DriverProfileScreen({ navigation }: Props) {
           driverRepository.getActiveDriver().catch(() => null),
           driverRepository.getDriverDocuments(),
         ]);
+
         setDriver(driverData);
         setDocuments(docs);
       } catch (_) {
@@ -213,37 +269,69 @@ export default function DriverProfileScreen({ navigation }: Props) {
     })();
   }, []);
 
-  const orangeColor = isWireframe ? colors.charcoalInk : '#F97316';
-  const headerBg = isWireframe ? '#3A3A3A' : '#F97316';
+  const orangeColor = isWireframe
+    ? colors.charcoalInk
+    : '#F97316';
+
+  const headerBg = isWireframe
+    ? '#3A3A3A'
+    : '#F97316';
+
   const headerText = '#FFFFFF';
-  const headerSub = isWireframe ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.82)';
+
+  const headerSub = isWireframe
+    ? 'rgba(255,255,255,0.75)'
+    : 'rgba(255,255,255,0.82)';
+
+  const driverName = driver?.name || 'Driver';
+  const driverPhone = driver?.phone || 'Not available';
+  const driverStation = driver?.stationName || 'Not assigned';
+  const driverEmail = 'Account email';
+
+  const initials = driverName
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join('') || 'DR';
 
   return (
     <SafeAreaView
-      style={[styles.safeArea, { backgroundColor: colors.warmAsh }]}
+      style={[
+        styles.safeArea,
+        { backgroundColor: colors.warmAsh },
+      ]}
       edges={['top', 'left', 'right']}
     >
-      <View style={[styles.root, { backgroundColor: colors.warmAsh }]}>
+      <View
+        style={[
+          styles.root,
+          { backgroundColor: colors.warmAsh },
+        ]}
+      >
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* ── Profile header card ────────────────────────────────────────── */}
+          {/* Profile header */}
           <View
             style={[
               styles.profileHeader,
               { backgroundColor: headerBg },
               !isWireframe && {
                 shadowColor: '#F97316',
-                shadowOffset: { width: 0, height: 6 },
+                shadowOffset: {
+                  width: 0,
+                  height: 6,
+                },
                 shadowOpacity: 0.25,
                 shadowRadius: 16,
                 elevation: 8,
               },
             ]}
           >
-            {/* Avatar */}
             <View
               style={[
                 styles.avatarCircle,
@@ -257,57 +345,89 @@ export default function DriverProfileScreen({ navigation }: Props) {
               <Text
                 style={[
                   styles.avatarInitials,
-                  { color: orangeColor, fontFamily: font('displayBold') },
+                  {
+                    color: orangeColor,
+                    fontFamily: font('displayBold'),
+                  },
                 ]}
               >
-                FS
+                {initials}
               </Text>
             </View>
 
-            {/* Name */}
             <Text
               style={[
                 styles.profileName,
-                { color: headerText, fontFamily: font('displayBold') },
+                {
+                  color: headerText,
+                  fontFamily: font('displayBold'),
+                },
               ]}
             >
-              France Sizwe
+              {driverName}
             </Text>
 
-            {/* Rating + deliveries */}
             <Text
               style={[
                 styles.profileMeta,
-                { color: headerSub, fontFamily: font('body') },
+                {
+                  color: headerSub,
+                  fontFamily: font('body'),
+                },
               ]}
             >
-              ⭐ {driver?.rating ?? '—'} Rating  •  {(driver?.totalDeliveries ?? 0).toLocaleString()} Deliveries
+              ⭐ {driver?.rating ?? '—'} Rating
+              {'  •  '}
+              {(driver?.totalDeliveries ?? 0).toLocaleString()}
+              {' Deliveries'}
             </Text>
 
-            {/* Vehicle chip */}
-            <View style={[styles.vehicleChip, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
-              <Feather name="truck" size={12} color={headerText} style={{ marginRight: 5 }} />
+            <View
+              style={[
+                styles.vehicleChip,
+                {
+                  backgroundColor:
+                    'rgba(255,255,255,0.2)',
+                },
+              ]}
+            >
+              <Feather
+                name="truck"
+                size={12}
+                color={headerText}
+                style={{ marginRight: 5 }}
+              />
+
               <Text
                 style={[
                   styles.vehicleChipText,
-                  { color: headerText, fontFamily: font('bodyMedium') },
+                  {
+                    color: headerText,
+                    fontFamily: font('bodyMedium'),
+                  },
                 ]}
               >
-                {driver?.vehicleModel ?? 'Vehicle'}  ·  {driver?.vehicleReg ?? ''}
+                {driver?.vehicleModel || 'Vehicle'}
+                {'  ·  '}
+                {driver?.vehicleReg || 'Not assigned'}
               </Text>
             </View>
           </View>
 
-          {/* ── Personal Info ──────────────────────────────────────────────── */}
+          {/* Personal Info */}
           <View style={styles.sectionBlock}>
             <Text
               style={[
                 styles.sectionTitle,
-                { color: colors.charcoalInk, fontFamily: font('displayBold') },
+                {
+                  color: colors.charcoalInk,
+                  fontFamily: font('displayBold'),
+                },
               ]}
             >
               Personal Info
             </Text>
+
             <View
               style={[
                 styles.infoCard,
@@ -318,7 +438,10 @@ export default function DriverProfileScreen({ navigation }: Props) {
                 },
                 !isWireframe && {
                   shadowColor: '#111827',
-                  shadowOffset: { width: 0, height: 2 },
+                  shadowOffset: {
+                    width: 0,
+                    height: 2,
+                  },
                   shadowOpacity: 0.06,
                   shadowRadius: 10,
                   elevation: 3,
@@ -327,23 +450,37 @@ export default function DriverProfileScreen({ navigation }: Props) {
             >
               <InfoRow
                 icon="phone"
-                value={MOCK_DRIVER.phone}
+                value={driverPhone}
                 isWireframe={isWireframe}
                 colors={colors}
                 font={font}
               />
-              <View style={[styles.infoSeparator, { backgroundColor: colors.divider }]} />
+
+              <View
+                style={[
+                  styles.infoSeparator,
+                  { backgroundColor: colors.divider },
+                ]}
+              />
+
               <InfoRow
                 icon="mail"
-                value="france.sizwe@fuelnow.co.za"
+                value={driverEmail}
                 isWireframe={isWireframe}
                 colors={colors}
                 font={font}
               />
-              <View style={[styles.infoSeparator, { backgroundColor: colors.divider }]} />
+
+              <View
+                style={[
+                  styles.infoSeparator,
+                  { backgroundColor: colors.divider },
+                ]}
+              />
+
               <InfoRow
                 icon="map-pin"
-                value={MOCK_DRIVER.stationName}
+                value={driverStation}
                 isWireframe={isWireframe}
                 colors={colors}
                 font={font}
@@ -351,12 +488,15 @@ export default function DriverProfileScreen({ navigation }: Props) {
             </View>
           </View>
 
-          {/* ── Compliance Documents ───────────────────────────────────────── */}
+          {/* Compliance Documents */}
           <View style={styles.sectionBlock}>
             <Text
               style={[
                 styles.sectionTitle,
-                { color: colors.charcoalInk, fontFamily: font('displayBold') },
+                {
+                  color: colors.charcoalInk,
+                  fontFamily: font('displayBold'),
+                },
               ]}
             >
               Compliance Documents
@@ -366,15 +506,37 @@ export default function DriverProfileScreen({ navigation }: Props) {
               <View style={styles.docsLoading}>
                 <ActivityIndicator
                   size="small"
-                  color={isWireframe ? colors.inkLight : '#F97316'}
+                  color={
+                    isWireframe
+                      ? colors.inkLight
+                      : '#F97316'
+                  }
                 />
+
                 <Text
                   style={[
                     styles.loadingText,
-                    { color: colors.inkLight, fontFamily: font('body') },
+                    {
+                      color: colors.inkLight,
+                      fontFamily: font('body'),
+                    },
                   ]}
                 >
                   Loading documents…
+                </Text>
+              </View>
+            ) : documents.length === 0 ? (
+              <View style={styles.docsLoading}>
+                <Text
+                  style={[
+                    styles.loadingText,
+                    {
+                      color: colors.inkLight,
+                      fontFamily: font('body'),
+                    },
+                  ]}
+                >
+                  No compliance documents found.
                 </Text>
               </View>
             ) : (
@@ -392,43 +554,65 @@ export default function DriverProfileScreen({ navigation }: Props) {
             )}
           </View>
 
-          {/* ── Action Buttons ─────────────────────────────────────────────── */}
+          {/* Action Buttons */}
           <View style={styles.actionsBlock}>
-            {/* SOS / Emergency button */}
             <TouchableOpacity
               activeOpacity={0.85}
               onPress={() => navigation.navigate('SOS')}
               style={[
                 styles.sosButton,
-                { backgroundColor: isWireframe ? '#4A4A4A' : '#EF4444' },
+                {
+                  backgroundColor: isWireframe
+                    ? '#4A4A4A'
+                    : '#EF4444',
+                },
                 !isWireframe && {
                   shadowColor: '#EF4444',
-                  shadowOffset: { width: 0, height: 4 },
+                  shadowOffset: {
+                    width: 0,
+                    height: 4,
+                  },
                   shadowOpacity: 0.3,
                   shadowRadius: 12,
                   elevation: 6,
                 },
               ]}
             >
-              <Feather name="alert-triangle" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
+              <Feather
+                name="alert-triangle"
+                size={18}
+                color="#FFFFFF"
+                style={{ marginRight: 8 }}
+              />
+
               <Text
                 style={[
                   styles.sosButtonText,
-                  { color: '#FFFFFF', fontFamily: font('bodyBold') },
+                  {
+                    color: '#FFFFFF',
+                    fontFamily: font('bodyBold'),
+                  },
                 ]}
               >
                 SOS / Emergency
               </Text>
             </TouchableOpacity>
 
-            {/* Sign Out outline button */}
             <TouchableOpacity
               activeOpacity={0.75}
-              onPress={() => navigation.navigate('AppPicker')}
+              onPress={async () => {
+                try {
+                  await navigation.getParent()?.goBack?.();
+                } catch (_) {
+                  // Navigation fallback handled by the auth flow.
+                }
+              }}
               style={[
                 styles.signOutButton,
                 {
-                  borderColor: isWireframe ? colors.inkLight : colors.divider,
+                  borderColor: isWireframe
+                    ? colors.inkLight
+                    : colors.divider,
                   backgroundColor: colors.cardBg,
                 },
               ]}
@@ -439,10 +623,14 @@ export default function DriverProfileScreen({ navigation }: Props) {
                 color={colors.inkLight}
                 style={{ marginRight: 8 }}
               />
+
               <Text
                 style={[
                   styles.signOutText,
-                  { color: colors.inkLight, fontFamily: font('bodyMedium') },
+                  {
+                    color: colors.inkLight,
+                    fontFamily: font('bodyMedium'),
+                  },
                 ]}
               >
                 Sign Out
@@ -460,15 +648,26 @@ export default function DriverProfileScreen({ navigation }: Props) {
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1 },
+  safeArea: {
+    flex: 1,
+  },
+
   root: {
     flex: 1,
-    height: Platform.OS === 'web' ? ('100vh' as any) : '100%',
+    height:
+      Platform.OS === 'web'
+        ? ('100vh' as any)
+        : '100%',
   },
-  scroll: { flex: 1 },
-  scrollContent: { paddingBottom: 24 },
 
-  // Profile header card
+  scroll: {
+    flex: 1,
+  },
+
+  scrollContent: {
+    paddingBottom: 24,
+  },
+
   profileHeader: {
     alignItems: 'center',
     paddingTop: 32,
@@ -479,6 +678,7 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 4,
   },
+
   avatarCircle: {
     width: 72,
     height: 72,
@@ -487,9 +687,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 4,
   },
-  avatarInitials: { fontSize: 26, fontWeight: '700' },
-  profileName: { fontSize: 20, fontWeight: '700' },
-  profileMeta: { fontSize: 14 },
+
+  avatarInitials: {
+    fontSize: 26,
+    fontWeight: '700',
+  },
+
+  profileName: {
+    fontSize: 20,
+    fontWeight: '700',
+  },
+
+  profileMeta: {
+    fontSize: 14,
+  },
+
   vehicleChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -498,21 +710,27 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     marginTop: 4,
   },
-  vehicleChipText: { fontSize: 12 },
 
-  // Section blocks
+  vehicleChipText: {
+    fontSize: 12,
+  },
+
   sectionBlock: {
     marginTop: 20,
     paddingHorizontal: 16,
     gap: 10,
   },
-  sectionTitle: { fontSize: 17, fontWeight: '700' },
 
-  // Info card
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+  },
+
   infoCard: {
     borderRadius: 16,
     overflow: 'hidden',
   },
+
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -520,6 +738,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     gap: 14,
   },
+
   infoIconWrap: {
     width: 34,
     height: 34,
@@ -528,10 +747,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     flexShrink: 0,
   },
-  infoValue: { fontSize: 14, flex: 1 },
-  infoSeparator: { height: StyleSheet.hairlineWidth, marginHorizontal: 16 },
 
-  // Documents
+  infoValue: {
+    fontSize: 14,
+    flex: 1,
+  },
+
+  infoSeparator: {
+    height: StyleSheet.hairlineWidth,
+    marginHorizontal: 16,
+  },
+
   docsLoading: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -539,8 +765,15 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
     justifyContent: 'center',
   },
-  loadingText: { fontSize: 14 },
-  docsContainer: { gap: 10 },
+
+  loadingText: {
+    fontSize: 14,
+  },
+
+  docsContainer: {
+    gap: 10,
+  },
+
   docCard: {
     borderRadius: 14,
     padding: 14,
@@ -548,6 +781,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
+
   docIconCircle: {
     width: 40,
     height: 40,
@@ -556,10 +790,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     flexShrink: 0,
   },
-  docCenter: { flex: 1, gap: 2 },
-  docType: { fontSize: 13, fontWeight: '700' },
-  docNumber: { fontSize: 12 },
-  docExpiry: { fontSize: 11 },
+
+  docCenter: {
+    flex: 1,
+    gap: 2,
+  },
+
+  docType: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+
+  docNumber: {
+    fontSize: 12,
+  },
+
+  docExpiry: {
+    fontSize: 11,
+  },
+
   docBadge: {
     borderRadius: 999,
     paddingHorizontal: 10,
@@ -567,14 +816,18 @@ const styles = StyleSheet.create({
     flexShrink: 0,
     alignSelf: 'center',
   },
-  docBadgeText: { fontSize: 11, fontWeight: '500' },
 
-  // Actions
+  docBadgeText: {
+    fontSize: 11,
+    fontWeight: '500',
+  },
+
   actionsBlock: {
     paddingHorizontal: 16,
     marginTop: 28,
     gap: 12,
   },
+
   sosButton: {
     borderRadius: 14,
     paddingVertical: 16,
@@ -582,7 +835,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  sosButtonText: { fontSize: 15, fontWeight: '700' },
+
+  sosButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+
   signOutButton: {
     borderRadius: 14,
     borderWidth: 1.5,
@@ -591,5 +849,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  signOutText: { fontSize: 15 },
+
+  signOutText: {
+    fontSize: 15,
+  },
 });
