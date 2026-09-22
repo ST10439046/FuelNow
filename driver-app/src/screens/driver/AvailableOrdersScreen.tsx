@@ -1,153 +1,553 @@
-import React, {
-  useState,
-  useEffect,
-  useCallback,
-} from 'react';
-
+import React, { useCallback, useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
+  ActivityIndicator,
   FlatList,
-  TouchableOpacity,
   RefreshControl,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 
-import { SafeAreaView } from 'react-native-safe-area-context';
-
-import { Feather } from '@expo/vector-icons';
-
-import {
-  useDesignMode,
-} from '../../context/DesignModeContext';
-
-import {
-  FontSizes,
-  Spacing,
-  Radius,
-  Shadow,
-} from '../../theme/tokens';
-
-import {
-  orderRepository,
-} from '../../repositories/OrderRepository';
-
-import {
-  userRepository,
-} from '../../repositories/UserRepository';
+import { supabase } from '../../services/supabase';
+import { useDesignMode } from '../../context/DesignModeContext';
 
 export interface AvailableOrder {
-  id: string;
-  fuelType: string;
-  litres: number;
+  // Database fields
+  order_id: string;
+  customer_id: string | null;
+  driver_id: string | null;
+  address_id: string | null;
+  fuel_type_id: string | null;
+  volume_litres: number | null;
+  rand_amount: number | null;
+  delivery_type: string | null;
+  scheduled_date_time: string | null;
+  status: string | null;
+  placed_at: string | null;
+
+  // Display fields
+  fuel_type_name: string;
   address: string;
   suburb: string;
+
+  // Legacy fields expected by OrderDetailsScreen
+  id: string;
   customerInitials: string;
+  fuelType: string;
+  litres: number;
+  totalZAR: number;
   distanceKm: number;
   estimatedMinutes: number;
-  totalZAR: number;
+  coordinates: {
+    lat: number;
+    lng: number;
+  };
 }
 
-interface Props {
-  navigation: any;
+interface RawOrder {
+  order_id: string;
+  customer_id: string | null;
+  driver_id: string | null;
+  address_id: string | null;
+  fuel_type_id: string | null;
+  volume_litres: number | null;
+  rand_amount: number | null;
+  delivery_type: string | null;
+  scheduled_date_time: string | null;
+  status: string | null;
+  placed_at: string | null;
+  fuel_types:
+    | {
+        name: string | null;
+      }
+    | {
+        name: string | null;
+      }[]
+    | null;
+  addresses:
+    | {
+        unit_number: string | null;
+        street_number: string | null;
+        street_name: string | null;
+        suburb: string | null;
+        city: string | null;
+        latitude: number | null;
+        longitude: number | null;
+      }
+    | {
+        unit_number: string | null;
+        street_number: string | null;
+        street_name: string | null;
+        suburb: string | null;
+        city: string | null;
+        latitude: number | null;
+        longitude: number | null;
+      }[]
+    | null;
 }
 
-function VectorMap({
-  orders,
-  isWireframe,
-  colors,
-}: {
-  orders: AvailableOrder[];
-  isWireframe: boolean;
-  colors: any;
-}) {
-  const pins = [
-    {
-      x: '55%',
-      y: '30%',
-      isDiesel: false,
-    },
-    {
-      x: '20%',
-      y: '58%',
-      isDiesel: true,
-    },
-    {
-      x: '72%',
-      y: '62%',
-      isDiesel: false,
-    },
-  ];
+function getFirstRelation<T>(
+  relation: T | T[] | null | undefined
+): T | null {
+  if (!relation) {
+    return null;
+  }
 
-  if (isWireframe) {
+  return Array.isArray(relation) ? relation[0] ?? null : relation;
+}
+
+function isSameCalendarDay(date: Date, reference: Date): boolean {
+  return (
+    date.getFullYear() === reference.getFullYear() &&
+    date.getMonth() === reference.getMonth() &&
+    date.getDate() === reference.getDate()
+  );
+}
+
+function isOrderAvailable(order: RawOrder, now: Date): boolean {
+  if (String(order.status ?? '').toUpperCase() !== 'PAID') {
+    return false;
+  }
+
+  if (order.driver_id) {
+    return false;
+  }
+
+  const deliveryType = String(order.delivery_type ?? '')
+    .trim()
+    .toLowerCase();
+
+  const isDeliverNow =
+    deliveryType === 'deliver now' ||
+    deliveryType === 'now' ||
+    deliveryType === 'immediate';
+
+  if (isDeliverNow) {
+    if (!order.placed_at) {
+      return false;
+    }
+
+    const placedAt = new Date(order.placed_at);
+
+    if (Number.isNaN(placedAt.getTime())) {
+      return false;
+    }
+
+    return isSameCalendarDay(placedAt, now);
+  }
+
+  if (deliveryType === 'scheduled') {
+    if (!order.scheduled_date_time) {
+      return false;
+    }
+
+    const scheduledAt = new Date(order.scheduled_date_time);
+
+    if (Number.isNaN(scheduledAt.getTime())) {
+      return false;
+    }
+
+    return scheduledAt.getTime() >= now.getTime();
+  }
+
+  return false;
+}
+
+function formatDeliveryTime(order: AvailableOrder): string {
+  const deliveryType = String(order.delivery_type ?? '')
+    .trim()
+    .toLowerCase();
+
+  if (
+    deliveryType === 'deliver now' ||
+    deliveryType === 'now' ||
+    deliveryType === 'immediate'
+  ) {
+    return 'Deliver Now';
+  }
+
+  if (deliveryType === 'scheduled' && order.scheduled_date_time) {
+    const date = new Date(order.scheduled_date_time);
+
+    if (!Number.isNaN(date.getTime())) {
+      return `Scheduled: ${date.toLocaleDateString()} ${date.toLocaleTimeString(
+        [],
+        {
+          hour: '2-digit',
+          minute: '2-digit',
+        }
+      )}`;
+    }
+  }
+
+  return 'Delivery';
+}
+
+function formatAddress(order: RawOrder): string {
+  const address = getFirstRelation(order.addresses);
+
+  if (!address) {
+    return 'Address unavailable';
+  }
+
+  const parts = [
+    address.unit_number,
+    address.street_number,
+    address.street_name,
+    address.suburb,
+    address.city,
+  ].filter(Boolean);
+
+  return parts.length > 0 ? parts.join(', ') : 'Address unavailable';
+}
+
+function mapOrder(order: RawOrder): AvailableOrder {
+  const fuelType = getFirstRelation(order.fuel_types);
+  const address = getFirstRelation(order.addresses);
+
+  const addressParts = [
+    address?.unit_number,
+    address?.street_number,
+    address?.street_name,
+  ].filter(Boolean);
+
+  const formattedAddress =
+    addressParts.length > 0
+      ? addressParts.join(', ')
+      : 'Address unavailable';
+
+  const suburb = address?.suburb ?? '';
+
+  /*
+   * The current Available Orders query does not fetch the customer's
+   * name, because the database relationship points to a customers
+   * table that does not contain full_name.
+   *
+   * Use a neutral fallback until customer information is retrieved
+   * through the correct relationship.
+   */
+  const customerInitials = 'C';
+
+  return {
+    // Database fields
+    order_id: order.order_id,
+    customer_id: order.customer_id,
+    driver_id: order.driver_id,
+    address_id: order.address_id,
+    fuel_type_id: order.fuel_type_id,
+    volume_litres: order.volume_litres,
+    rand_amount: order.rand_amount,
+    delivery_type: order.delivery_type,
+    scheduled_date_time: order.scheduled_date_time,
+    status: order.status,
+    placed_at: order.placed_at,
+
+    // Display fields
+    fuel_type_name: fuelType?.name ?? 'Fuel',
+    address: formatAddress(order),
+    suburb,
+
+    // Legacy fields used by OrderDetailsScreen
+    id: order.order_id,
+    customerInitials,
+    fuelType: fuelType?.name ?? 'Fuel',
+    litres: Number(order.volume_litres ?? 0),
+    totalZAR: Number(order.rand_amount ?? 0),
+
+    /*
+     * These remain 0 until we connect the driver's current location
+     * to the order destination and calculate a real route/ETA.
+     */
+    distanceKm: 0,
+    estimatedMinutes: 0,
+
+    coordinates: {
+      lat: address?.latitude ?? 0,
+      lng: address?.longitude ?? 0,
+    },
+  };
+}
+
+export default function AvailableOrdersScreen() {
+  const navigation = useNavigation<any>();
+  const { mode } = useDesignMode();
+
+  const [orders, setOrders] = useState<AvailableOrder[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const isWireframe = mode === 'WIREFRAME';
+
+  const fetchAvailableOrders = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select(`
+          order_id,
+          customer_id,
+          driver_id,
+          address_id,
+          fuel_type_id,
+          volume_litres,
+          rand_amount,
+          delivery_type,
+          scheduled_date_time,
+          status,
+          placed_at,
+          fuel_types (
+            name
+          ),
+          addresses (
+            unit_number,
+            street_number,
+            street_name,
+            suburb,
+            city,
+            latitude,
+            longitude
+          )
+        `)
+        .eq('status', 'PAID')
+        .is('driver_id', null)
+        .order('placed_at', { ascending: false });
+
+      if (error) {
+        console.error(
+          'AvailableOrdersScreen: failed to fetch available orders',
+          error
+        );
+        setOrders([]);
+        return;
+      }
+
+      const now = new Date();
+
+      const availableOrders = ((data ?? []) as RawOrder[])
+        .filter((order) => isOrderAvailable(order, now))
+        .map(mapOrder);
+
+      setOrders(availableOrders);
+    } catch (error) {
+      console.error(
+        'AvailableOrdersScreen: unexpected error while fetching orders',
+        error
+      );
+
+      setOrders([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchAvailableOrders().finally(() => {
+      setLoading(false);
+    });
+  }, [fetchAvailableOrders]);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+
+    try {
+      await fetchAvailableOrders();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [fetchAvailableOrders]);
+
+  const handleOrderPress = (order: AvailableOrder) => {
+    navigation.navigate('DriverOrderDetails', {
+      orderId: order.order_id,
+      order,
+    });
+  };
+
+  const renderOrder = ({ item }: { item: AvailableOrder }) => {
+    const amount = Number(item.rand_amount ?? 0);
+    const litres = Number(item.volume_litres ?? 0);
+
+    return (
+      <TouchableOpacity
+        style={[
+          styles.card,
+          isWireframe && styles.wireframeCard,
+        ]}
+        activeOpacity={0.8}
+        onPress={() => handleOrderPress(item)}
+      >
+        <View style={styles.cardHeader}>
+          <View style={styles.orderIdContainer}>
+            <Text
+              style={[
+                styles.orderLabel,
+                isWireframe && styles.wireframeText,
+              ]}
+            >
+              ORDER
+            </Text>
+
+            <Text
+              style={[
+                styles.orderId,
+                isWireframe && styles.wireframeText,
+              ]}
+              numberOfLines={1}
+            >
+              #{item.order_id.slice(0, 8).toUpperCase()}
+            </Text>
+          </View>
+
+          <View style={styles.paidBadge}>
+            <Text style={styles.paidText}>PAID</Text>
+          </View>
+        </View>
+
+        <View style={styles.divider} />
+
+        <View style={styles.detailsRow}>
+          <View style={styles.detailBlock}>
+            <Text
+              style={[
+                styles.detailLabel,
+                isWireframe && styles.wireframeText,
+              ]}
+            >
+              FUEL
+            </Text>
+
+            <Text
+              style={[
+                styles.detailValue,
+                isWireframe && styles.wireframeText,
+              ]}
+            >
+              {item.fuel_type_name}
+            </Text>
+          </View>
+
+          <View style={styles.detailBlock}>
+            <Text
+              style={[
+                styles.detailLabel,
+                isWireframe && styles.wireframeText,
+              ]}
+            >
+              VOLUME
+            </Text>
+
+            <Text
+              style={[
+                styles.detailValue,
+                isWireframe && styles.wireframeText,
+              ]}
+            >
+              {litres.toFixed(0)} L
+            </Text>
+          </View>
+
+          <View style={styles.detailBlock}>
+            <Text
+              style={[
+                styles.detailLabel,
+                isWireframe && styles.wireframeText,
+              ]}
+            >
+              VALUE
+            </Text>
+
+            <Text
+              style={[
+                styles.detailValue,
+                isWireframe && styles.wireframeText,
+              ]}
+            >
+              R{amount.toFixed(2)}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.deliveryContainer}>
+          <Text
+            style={[
+              styles.detailLabel,
+              isWireframe && styles.wireframeText,
+            ]}
+          >
+            DELIVERY
+          </Text>
+
+          <Text
+            style={[
+              styles.deliveryValue,
+              isWireframe && styles.wireframeText,
+            ]}
+          >
+            {formatDeliveryTime(item)}
+          </Text>
+        </View>
+
+        <View style={styles.addressContainer}>
+          <Text
+            style={[
+              styles.detailLabel,
+              isWireframe && styles.wireframeText,
+            ]}
+          >
+            DELIVERY ADDRESS
+          </Text>
+
+          <Text
+            style={[
+              styles.addressText,
+              isWireframe && styles.wireframeText,
+            ]}
+            numberOfLines={2}
+          >
+            {item.address}
+          </Text>
+        </View>
+
+        <View style={styles.actionRow}>
+          <Text
+            style={[
+              styles.viewText,
+              isWireframe && styles.wireframeText,
+            ]}
+          >
+            View Order
+          </Text>
+
+          <Text
+            style={[
+              styles.arrow,
+              isWireframe && styles.wireframeText,
+            ]}
+          >
+            →
+          </Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  if (loading) {
     return (
       <View
         style={[
-          styles.map,
-          {
-            backgroundColor: '#D8D8D8',
-            borderWidth: 1.5,
-            borderColor: '#BBBBBB',
-          },
+          styles.centered,
+          isWireframe && styles.wireframeBackground,
         ]}
       >
-        <Text
-          style={{
-            color: '#888',
-            textAlign: 'center',
-            marginTop: 70,
-            fontSize: 13,
-          }}
-        >
-          [ Available Orders Map ]
-        </Text>
+        <ActivityIndicator size="large" />
 
-        {pins.map(
-          (p, i) => (
-            <View
-              key={i}
-              style={{
-                position:
-                  'absolute',
-                left:
-                  p.x as any,
-                top:
-                  p.y as any,
-                width: 18,
-                height: 18,
-                borderRadius: 9,
-                backgroundColor:
-                  '#888',
-                alignItems:
-                  'center',
-                justifyContent:
-                  'center',
-                borderWidth: 2,
-                borderColor:
-                  '#FFF',
-                transform: [
-                  {
-                    translateX:
-                      -9,
-                  },
-                  {
-                    translateY:
-                      -9,
-                  },
-                ],
-              }}
-            >
-              <Text
-                style={{
-                  color: '#FFF',
-                  fontSize: 8,
-                }}
-              >
-                {i + 1}
-              </Text>
-            </View>
-          )
-        )}
+        <Text
+          style={[
+            styles.loadingText,
+            isWireframe && styles.wireframeText,
+          ]}
+        >
+          Loading available orders...
+        </Text>
       </View>
     );
   }
@@ -155,724 +555,16 @@ function VectorMap({
   return (
     <View
       style={[
-        styles.map,
-        {
-          backgroundColor:
-            '#F0EBE3',
-          overflow: 'hidden',
-        },
-      ]}
-    >
-      <View
-        style={[
-          styles.block,
-          {
-            top: 8,
-            left: 16,
-            width: 70,
-            height: 36,
-          },
-        ]}
-      />
-
-      <View
-        style={[
-          styles.block,
-          {
-            top: 8,
-            right: 24,
-            width: 55,
-            height: 44,
-          },
-        ]}
-      />
-
-      <View
-        style={[
-          styles.block,
-          {
-            top: 60,
-            left: 8,
-            width: 44,
-            height: 28,
-          },
-        ]}
-      />
-
-      <View
-        style={[
-          styles.block,
-          {
-            top: 60,
-            left: 68,
-            width: 60,
-            height: 32,
-          },
-        ]}
-      />
-
-      <View
-        style={[
-          styles.block,
-          {
-            top: 60,
-            right: 16,
-            width: 52,
-            height: 36,
-          },
-        ]}
-      />
-
-      <View
-        style={[
-          styles.block,
-          {
-            top: 108,
-            left: 20,
-            width: 80,
-            height: 38,
-          },
-        ]}
-      />
-
-      <View
-        style={[
-          styles.block,
-          {
-            top: 108,
-            right: 30,
-            width: 60,
-            height: 40,
-          },
-        ]}
-      />
-
-      <View
-        style={[
-          styles.block,
-          {
-            top: 108,
-            left: 120,
-            width: 48,
-            height: 38,
-          },
-        ]}
-      />
-
-      <View
-        style={[
-          styles.park,
-          {
-            top: 16,
-            left: 100,
-            width: 40,
-            height: 28,
-          },
-        ]}
-      />
-
-      <View
-        style={[
-          styles.park,
-          {
-            top: 90,
-            right: 90,
-            width: 30,
-            height: 22,
-          },
-        ]}
-      />
-
-      <View
-        style={[
-          styles.water,
-          {
-            bottom: 0,
-            left: 0,
-            right: 0,
-            height: 22,
-          },
-        ]}
-      />
-
-      <View
-        style={[
-          styles.road,
-          {
-            top: 52,
-            left: 0,
-            right: 0,
-            height: 10,
-          },
-        ]}
-      />
-
-      <View
-        style={[
-          styles.road,
-          {
-            top: 100,
-            left: 0,
-            right: 0,
-            height: 10,
-          },
-        ]}
-      />
-
-      <View
-        style={[
-          styles.roadV,
-          {
-            top: 0,
-            left: '33%' as any,
-            bottom: 0,
-            width: 10,
-          },
-        ]}
-      />
-
-      <View
-        style={[
-          styles.roadV,
-          {
-            top: 0,
-            right: '25%' as any,
-            bottom: 0,
-            width: 10,
-          },
-        ]}
-      />
-
-      <View
-        style={[
-          styles.driverDot,
-          {
-            top: 80,
-            left: '32%' as any,
-          },
-        ]}
-      >
-        <Feather
-          name="truck"
-          size={10}
-          color="#FFF"
-        />
-      </View>
-
-      {pins.map(
-        (p, i) => (
-          <View
-            key={i}
-            style={{
-              position:
-                'absolute',
-              left:
-                p.x as any,
-              top:
-                p.y as any,
-              width: 22,
-              height: 22,
-              borderRadius: 11,
-              backgroundColor:
-                p.isDiesel
-                  ? '#2563EB'
-                  : '#F97316',
-              alignItems:
-                'center',
-              justifyContent:
-                'center',
-              borderWidth: 2,
-              borderColor:
-                '#FFFFFF',
-              transform: [
-                {
-                  translateX:
-                    -11,
-                },
-                {
-                  translateY:
-                    -11,
-                },
-              ],
-            }}
-          >
-            <Text
-              style={{
-                color: '#FFF',
-                fontSize: 9,
-                fontWeight: '800',
-              }}
-            >
-              {i + 1}
-            </Text>
-          </View>
-        )
-      )}
-    </View>
-  );
-}
-
-function OrderCard({
-  order,
-  onPress,
-  isWireframe,
-  colors,
-  font,
-}: {
-  order: AvailableOrder;
-  onPress: () => void;
-  isWireframe: boolean;
-  colors: any;
-  font: any;
-}) {
-  const isDiesel =
-    order.fuelType.startsWith(
-      'Diesel'
-    );
-
-  const dotColor =
-    isWireframe
-      ? '#888'
-      : isDiesel
-        ? '#2563EB'
-        : '#F97316';
-
-  const dotBg =
-    isWireframe
-      ? '#E0E0E0'
-      : isDiesel
-        ? '#DBEAFE'
-        : '#FFEDD5';
-
-  const fmt = (
-    n: number
-  ) =>
-    'R ' +
-    n.toLocaleString(
-      'en-ZA',
-      {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      }
-    );
-
-  return (
-    <TouchableOpacity
-      activeOpacity={0.82}
-      onPress={onPress}
-      style={[
-        styles.orderCard,
-        {
-          backgroundColor:
-            isWireframe
-              ? '#FFFFFF'
-              : colors.white,
-
-          borderRadius:
-            isWireframe
-              ? Radius.sm
-              : Radius.lg,
-
-          borderWidth:
-            isWireframe
-              ? 1.5
-              : 0,
-
-          borderColor:
-            '#CCCCCC',
-
-          ...(isWireframe
-            ? {}
-            : Shadow.sm),
-        },
-      ]}
-    >
-      <View
-        style={[
-          styles.fuelDotContainer,
-          {
-            backgroundColor:
-              dotBg,
-          },
-        ]}
-      >
-        <View
-          style={{
-            width: 10,
-            height: 10,
-            borderRadius: 5,
-            backgroundColor:
-              dotColor,
-          }}
-        />
-
-        <Text
-          style={{
-            fontSize: 8,
-            color: dotColor,
-            fontWeight: '700',
-            marginTop: 2,
-          }}
-        >
-          {isDiesel
-            ? 'DSL'
-            : 'PET'}
-        </Text>
-      </View>
-
-      <View
-        style={{
-          flex: 1,
-        }}
-      >
-        <Text
-          style={[
-            {
-              color:
-                isWireframe
-                  ? '#1A1A1A'
-                  : colors.charcoalInk,
-
-              fontFamily:
-                font(
-                  'bodyMedium'
-                ),
-
-              fontSize:
-                FontSizes.sm,
-            },
-          ]}
-        >
-          {order.fuelType} ·{' '}
-          {order.litres}L
-        </Text>
-
-        <View
-          style={{
-            flexDirection:
-              'row',
-            alignItems:
-              'center',
-            gap: Spacing.xs,
-            marginTop: 3,
-          }}
-        >
-          <View
-            style={[
-              styles.initialsTag,
-              {
-                backgroundColor:
-                  isWireframe
-                    ? '#D0D0D0'
-                    : colors.petrolLight,
-              },
-            ]}
-          >
-            <Text
-              style={[
-                {
-                  color:
-                    isWireframe
-                      ? '#555'
-                      : colors.petrolDeep,
-
-                  fontFamily:
-                    font(
-                      'bodySemiBold'
-                    ),
-
-                  fontSize: 9,
-                },
-              ]}
-            >
-              {
-                order.customerInitials
-              }
-            </Text>
-          </View>
-
-          <Text
-            style={[
-              {
-                color:
-                  isWireframe
-                    ? '#666'
-                    : colors.inkLight,
-
-                fontFamily:
-                  font('body'),
-
-                fontSize:
-                  FontSizes.xs,
-
-                flex: 1,
-              },
-            ]}
-            numberOfLines={1}
-          >
-            {order.address},{' '}
-            {order.suburb}
-          </Text>
-        </View>
-
-        <View
-          style={[
-            styles.etaChip,
-            {
-              backgroundColor:
-                isWireframe
-                  ? '#EBEBEB'
-                  : colors.warmAsh,
-
-              marginTop: 5,
-            },
-          ]}
-        >
-          <Feather
-            name="map-pin"
-            size={10}
-            color={
-              isWireframe
-                ? '#888'
-                : colors.inkLight
-            }
-          />
-
-          <Text
-            style={[
-              {
-                color:
-                  isWireframe
-                    ? '#666'
-                    : colors.inkLight,
-
-                fontFamily:
-                  font('body'),
-
-                fontSize:
-                  FontSizes.xs,
-              },
-            ]}
-          >
-            {order.distanceKm}{' '}
-            km ·{' '}
-            {order.estimatedMinutes}{' '}
-            min ETA
-          </Text>
-        </View>
-      </View>
-
-      <View
-        style={{
-          alignItems:
-            'flex-end',
-          justifyContent:
-            'center',
-          gap: Spacing.sm,
-        }}
-      >
-        <Text
-          style={[
-            {
-              color:
-                isWireframe
-                  ? '#1A1A1A'
-                  : colors.petrolDeep,
-
-              fontFamily:
-                font(
-                  'displayBold'
-                ),
-
-              fontSize:
-                FontSizes.base,
-            },
-          ]}
-        >
-          {fmt(
-            order.totalZAR
-          )}
-        </Text>
-
-        <View
-          style={[
-            styles.viewChevron,
-            {
-              backgroundColor:
-                isWireframe
-                  ? '#E0E0E0'
-                  : colors.petrolLight,
-            },
-          ]}
-        >
-          <Feather
-            name="chevron-right"
-            size={14}
-            color={
-              isWireframe
-                ? '#555'
-                : colors.petrolDeep
-            }
-          />
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
-}
-
-export default function AvailableOrdersScreen({
-  navigation,
-}: Props) {
-  const {
-    colors,
-    font,
-    isWireframe,
-  } = useDesignMode();
-
-  const [
-    orders,
-    setOrders,
-  ] =
-    useState<
-      AvailableOrder[]
-    >([]);
-
-  const [
-    driverName,
-    setDriverName,
-  ] =
-    useState('Driver');
-
-  const [
-    refreshing,
-    setRefreshing,
-  ] =
-    useState(false);
-
-  const [
-    initialLoading,
-    setInitialLoading,
-  ] =
-    useState(true);
-
-  useEffect(() => {
-    let mounted = true;
-
-    const loadDriver =
-      async () => {
-        try {
-          const profile =
-            await userRepository.getDriverAuthProfile();
-
-          if (mounted) {
-            setDriverName(
-              profile.name ||
-                'Driver'
-            );
-          }
-        } catch (error) {
-          console.error(
-            'Failed to load driver name:',
-            error
-          );
-        }
-      };
-
-    loadDriver();
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  const loadOrders =
-    useCallback(
-      async () => {
-        try {
-          const data =
-            await orderRepository.getAvailableOrders();
-
-          setOrders(data);
-        } catch (_) {
-          setOrders([]);
-        } finally {
-          setInitialLoading(
-            false
-          );
-
-          setRefreshing(
-            false
-          );
-        }
-      },
-      []
-    );
-
-  useEffect(() => {
-    loadOrders();
-  }, [loadOrders]);
-
-  const handleRefresh =
-    () => {
-      setRefreshing(true);
-      loadOrders();
-    };
-
-  return (
-    <SafeAreaView
-      style={[
         styles.container,
-        {
-          backgroundColor:
-            isWireframe
-              ? '#F0F0F0'
-              : colors.warmAsh,
-        },
-      ]}
-      edges={[
-        'top',
-        'left',
-        'right',
+        isWireframe && styles.wireframeBackground,
       ]}
     >
-      <View
-        style={[
-          styles.headerBar,
-          {
-            backgroundColor:
-              isWireframe
-                ? '#FFFFFF'
-                : colors.white,
-
-            borderBottomWidth:
-              isWireframe
-                ? 1.5
-                : 1,
-
-            borderBottomColor:
-              isWireframe
-                ? '#CCCCCC'
-                : colors.divider,
-          },
-        ]}
-      >
+      <View style={styles.header}>
         <View>
           <Text
             style={[
-              {
-                color:
-                  isWireframe
-                    ? '#1A1A1A'
-                    : colors.charcoalInk,
-
-                fontFamily:
-                  font(
-                    'displayBold'
-                  ),
-
-                fontSize:
-                  FontSizes.lg,
-              },
+              styles.title,
+              isWireframe && styles.wireframeText,
             ]}
           >
             Available Orders
@@ -880,447 +572,281 @@ export default function AvailableOrdersScreen({
 
           <Text
             style={[
-              {
-                color:
-                  isWireframe
-                    ? '#666'
-                    : colors.inkLight,
-
-                fontFamily:
-                  font('body'),
-
-                fontSize:
-                  FontSizes.sm,
-
-                marginTop: 1,
-              },
+              styles.subtitle,
+              isWireframe && styles.wireframeText,
             ]}
           >
-            {driverName}
+            Paid orders ready for delivery
           </Text>
         </View>
 
-        <View
-          style={[
-            styles.onlinePill,
-            {
-              backgroundColor:
-                isWireframe
-                  ? '#E0E0E0'
-                  : '#F0FDF4',
+        <View style={styles.countBadge}>
+          <Text style={styles.countText}>{orders.length}</Text>
+        </View>
+      </View>
 
-              borderColor:
-                isWireframe
-                  ? '#CCCCCC'
-                  : '#BBF7D0',
-
-              borderWidth: 1,
-            },
-          ]}
-        >
-          <View
-            style={[
-              styles.greenDot,
-              {
-                backgroundColor:
-                  isWireframe
-                    ? '#888'
-                    : '#22C55E',
-              },
-            ]}
+      <FlatList
+        data={orders}
+        keyExtractor={(item) => item.order_id}
+        renderItem={renderOrder}
+        contentContainerStyle={[
+          styles.listContent,
+          orders.length === 0 && styles.emptyListContent,
+        ]}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
           />
-
-          <Text
-            style={[
-              {
-                color:
-                  isWireframe
-                    ? '#555'
-                    : '#16A34A',
-
-                fontFamily:
-                  font(
-                    'bodySemiBold'
-                  ),
-
-                fontSize:
-                  FontSizes.sm,
-              },
-            ]}
-          >
-            Online
-          </Text>
-        </View>
-      </View>
-
-      <VectorMap
-        orders={orders}
-        isWireframe={
-          isWireframe
         }
-        colors={colors}
-      />
-
-      <View
-        style={{
-          flex: 1,
-        }}
-      >
-        <Text
-          style={[
-            {
-              color:
-                isWireframe
-                  ? '#1A1A1A'
-                  : colors.charcoalInk,
-
-              fontFamily:
-                font(
-                  'bodySemiBold'
-                ),
-
-              fontSize:
-                FontSizes.sm,
-
-              marginHorizontal:
-                Spacing.base,
-
-              marginTop:
-                Spacing.md,
-
-              marginBottom:
-                Spacing.sm,
-            },
-          ]}
-        >
-          Orders Near You
-        </Text>
-
-        <FlatList
-          data={orders}
-          keyExtractor={(
-            item
-          ) => item.id}
-          contentContainerStyle={[
-            styles.listContent,
-            orders.length ===
-              0 &&
-              !initialLoading &&
-              styles.emptyListContent,
-          ]}
-          showsVerticalScrollIndicator={
-            false
-          }
-          refreshControl={
-            <RefreshControl
-              refreshing={
-                refreshing
-              }
-              onRefresh={
-                handleRefresh
-              }
-              tintColor={
-                isWireframe
-                  ? '#888'
-                  : colors.petrolDeep
-              }
-              colors={[
-                colors.petrolDeep,
+        showsVerticalScrollIndicator={false}
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Text
+              style={[
+                styles.emptyTitle,
+                isWireframe && styles.wireframeText,
               ]}
-            />
-          }
-          renderItem={({
-            item,
-          }) => (
-            <OrderCard
-              order={item}
-              isWireframe={
-                isWireframe
-              }
-              colors={colors}
-              font={font}
-              onPress={() =>
-                navigation.navigate(
-                  'DriverOrderDetails',
-                  {
-                    order: item,
-                  }
-                )
-              }
-            />
-          )}
-          ListEmptyComponent={
-            !initialLoading ? (
-              <View
-                style={
-                  styles.emptyState
-                }
-              >
-                <View
-                  style={[
-                    styles.emptyIconWrap,
-                    {
-                      backgroundColor:
-                        isWireframe
-                          ? '#E0E0E0'
-                          : colors.petrolLight,
-                    },
-                  ]}
-                >
-                  <Feather
-                    name="inbox"
-                    size={32}
-                    color={
-                      isWireframe
-                        ? '#888'
-                        : colors.petrolDeep
-                    }
-                  />
-                </View>
+            >
+              No available orders
+            </Text>
 
-                <Text
-                  style={[
-                    {
-                      color:
-                        isWireframe
-                          ? '#1A1A1A'
-                          : colors.charcoalInk,
-
-                      fontFamily:
-                        font(
-                          'bodyMedium'
-                        ),
-
-                      fontSize:
-                        FontSizes.base,
-                    },
-                  ]}
-                >
-                  No orders nearby
-                </Text>
-
-                <Text
-                  style={[
-                    {
-                      color:
-                        isWireframe
-                          ? '#666'
-                          : colors.inkLight,
-
-                      fontFamily:
-                        font('body'),
-
-                      fontSize:
-                        FontSizes.sm,
-
-                      textAlign:
-                        'center',
-                    },
-                  ]}
-                >
-                  Pull down to refresh or
-                  wait for new orders
-                </Text>
-              </View>
-            ) : null
-          }
-        />
-      </View>
-    </SafeAreaView>
+            <Text
+              style={[
+                styles.emptyText,
+                isWireframe && styles.wireframeText,
+              ]}
+            >
+              Paid orders that are available for delivery will appear here.
+            </Text>
+          </View>
+        }
+      />
+    </View>
   );
 }
 
-const styles =
-  StyleSheet.create({
-    container: {
-      flex: 1,
-    },
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    backgroundColor: '#F7F8FA',
+  },
 
-    headerBar: {
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      justifyContent:
-        'space-between',
-      paddingHorizontal:
-        Spacing.base,
-      paddingVertical:
-        Spacing.md,
-    },
+  wireframeBackground: {
+    backgroundColor: '#FFFFFF',
+  },
 
-    onlinePill: {
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      gap: Spacing.xs,
-      paddingHorizontal:
-        Spacing.md,
-      paddingVertical:
-        Spacing.xs,
-      borderRadius:
-        Radius.full,
-    },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
 
-    greenDot: {
-      width: 8,
-      height: 8,
-      borderRadius: 4,
-    },
+  title: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#111111',
+  },
 
-    map: {
-      height: 180,
-      position:
-        'relative',
-    },
+  subtitle: {
+    marginTop: 4,
+    fontSize: 14,
+    color: '#666666',
+  },
 
-    block: {
-      position:
-        'absolute',
-      backgroundColor:
-        '#E8E8E0',
-      borderRadius: 4,
-    },
+  countBadge: {
+    minWidth: 40,
+    height: 40,
+    paddingHorizontal: 10,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#111111',
+  },
 
-    park: {
-      position:
-        'absolute',
-      backgroundColor:
-        '#E0EAE2',
-      borderRadius: 4,
-    },
+  countText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
 
-    water: {
-      position:
-        'absolute',
-      backgroundColor:
-        '#BACDD8',
-    },
+  listContent: {
+    paddingBottom: 30,
+  },
 
-    road: {
-      position:
-        'absolute',
-      backgroundColor:
-        '#FFFFFF',
-    },
+  emptyListContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+  },
 
-    roadV: {
-      position:
-        'absolute',
-      backgroundColor:
-        '#FFFFFF',
-    },
+  card: {
+    marginBottom: 14,
+    padding: 18,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
 
-    driverDot: {
-      position:
-        'absolute',
-      width: 24,
-      height: 24,
-      borderRadius: 12,
-      backgroundColor:
-        '#F97316',
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
-      borderWidth: 2,
-      borderColor:
-        '#FFF',
-      transform: [
-        {
-          translateX:
-            -12,
-        },
-        {
-          translateY:
-            -12,
-        },
-      ],
+    shadowColor: '#000000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
     },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
+  },
 
-    listContent: {
-      paddingHorizontal:
-        Spacing.base,
-      paddingBottom:
-        Spacing['2xl'],
-      gap: Spacing.md,
-    },
+  wireframeCard: {
+    borderWidth: 1,
+    borderColor: '#111111',
+    shadowOpacity: 0,
+    elevation: 0,
+  },
 
-    emptyListContent: {
-      flexGrow: 1,
-      justifyContent:
-        'center',
-    },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
 
-    orderCard: {
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      padding:
-        Spacing.md,
-      gap: Spacing.md,
-    },
+  orderIdContainer: {
+    flex: 1,
+  },
 
-    fuelDotContainer: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
-      gap: 2,
-    },
+  orderLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#777777',
+  },
 
-    initialsTag: {
-      paddingHorizontal: 6,
-      paddingVertical: 2,
-      borderRadius: 4,
-    },
+  orderId: {
+    marginTop: 2,
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111111',
+  },
 
-    etaChip: {
-      flexDirection:
-        'row',
-      alignItems:
-        'center',
-      gap: 4,
-      paddingHorizontal: 7,
-      paddingVertical: 3,
-      borderRadius:
-        Radius.sm,
-      alignSelf:
-        'flex-start',
-    },
+  paidBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    backgroundColor: '#DFF5E5',
+  },
 
-    viewChevron: {
-      width: 26,
-      height: 26,
-      borderRadius: 13,
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
-    },
+  paidText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#237A3B',
+  },
 
-    emptyState: {
-      alignItems:
-        'center',
-      paddingHorizontal:
-        Spacing.xl,
-      gap: Spacing.md,
-      paddingVertical:
-        Spacing['4xl'],
-    },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: '#DDDDDD',
+    marginVertical: 16,
+  },
 
-    emptyIconWrap: {
-      width: 72,
-      height: 72,
-      borderRadius: 36,
-      alignItems:
-        'center',
-      justifyContent:
-        'center',
-    },
-  });
+  detailsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+
+  detailBlock: {
+    flex: 1,
+  },
+
+  detailLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#777777',
+  },
+
+  detailValue: {
+    marginTop: 4,
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#111111',
+  },
+
+  deliveryContainer: {
+    marginTop: 18,
+  },
+
+  deliveryValue: {
+    marginTop: 4,
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#111111',
+  },
+
+  addressContainer: {
+    marginTop: 18,
+  },
+
+  addressText: {
+    marginTop: 4,
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#333333',
+  },
+
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    marginTop: 18,
+  },
+
+  viewText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#111111',
+  },
+
+  arrow: {
+    marginLeft: 8,
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#111111',
+  },
+
+  centered: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+    backgroundColor: '#F7F8FA',
+  },
+
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: '#555555',
+  },
+
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 30,
+  },
+
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    textAlign: 'center',
+    color: '#111111',
+  },
+
+  emptyText: {
+    marginTop: 8,
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
+    color: '#666666',
+  },
+
+  wireframeText: {
+    color: '#111111',
+  },
+});
