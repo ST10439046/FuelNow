@@ -1,62 +1,26 @@
-import { CustomerApiClient } from '../services/apiClient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../services/supabase';
-import {
-  User,
-  Customer,
-  Address,
-  RewardAccount,
-} from '../types/database';
 
-
-
-export interface AddressModel {
-  id: string;
-  label: 'Home' | 'Work' | 'Other' | 'Site A' | 'Depot';
-
-  unitNumber?: string;
-  streetNumber?: string;
-  streetName?: string;
-
-  street: string;
-
-  suburb: string;
-  city: string;
-  province: string;
-  postalCode: string;
-
-  instructions?: string;
-  isDefault?: boolean;
-
-  coordinates?: {
-    lat: number;
-    lng: number;
-  };
-}
-
-export interface PaymentMethodModel {
-  id: string;
-  type: 'card' | 'eft' | 'mobile_money';
-  label: string;
-  last4?: string;
-  brand?: 'visa' | 'mastercard';
-  isDefault: boolean;
-}
-
-export interface UserModel {
-  id: string;
+export interface DriverAuthProfile {
+  userId: string;
+  authId: string;
   name: string;
   email: string;
   phone: string;
-  loyaltyPoints: number;
-  loyaltyTier: 'Bronze' | 'Silver' | 'Gold' | 'Platinum';
-  companyName: string;
-  savedAddresses: AddressModel[];
-  paymentMethods: PaymentMethodModel[];
+  status: string;
+  driverStatus: string;
+  zone: string | null;
+  province: string;
+  licenceNumber: string;
+  rating: number;
 }
 
 export class UserRepository {
   private static instance: UserRepository;
+
+  private currentUserId: string | null = null;
+
+  private readonly USER_ID_KEY = '@fuelnow_current_user_id';
 
   private constructor() {}
 
@@ -69,499 +33,299 @@ export class UserRepository {
   }
 
   /**
-   * Gets the currently authenticated user's ID.
+   * Stores the FuelNow public.users.user_id.
+   *
+   * This is deliberately NOT the Supabase auth.users.id.
    */
-private currentUserId: string | null = null;
+  public async setAuthenticatedUserId(userId: string): Promise<void> {
+    if (
+      !userId ||
+      userId === 'undefined' ||
+      userId === 'null'
+    ) {
+      throw new Error('Cannot save authenticated user: invalid user ID.');
+    }
 
-private readonly USER_ID_KEY = '@fuelnow_current_user_id';
-public async setAuthenticatedUserId(
-  userId: string
-): Promise<void> {
-  if (
-    !userId ||
-    userId === 'undefined' ||
-    userId === 'null'
-  ) {
+    this.currentUserId = userId;
+
+    await AsyncStorage.setItem(
+      this.USER_ID_KEY,
+      userId
+    );
+  }
+
+  /**
+   * Returns the FuelNow public user ID for the current session.
+   */
+  public async getCurrentUserId(): Promise<string> {
+    if (
+      this.currentUserId &&
+      this.currentUserId !== 'undefined' &&
+      this.currentUserId !== 'null'
+    ) {
+      return this.currentUserId;
+    }
+
+    const storedUserId = await AsyncStorage.getItem(
+      this.USER_ID_KEY
+    );
+
+    if (
+      storedUserId &&
+      storedUserId !== 'undefined' &&
+      storedUserId !== 'null'
+    ) {
+      this.currentUserId = storedUserId;
+      return storedUserId;
+    }
+
     throw new Error(
-      'Cannot save authenticated user: invalid user ID.'
+      'No authenticated user found. Please log in again.'
     );
   }
 
-  this.currentUserId = userId;
+  /**
+   * Returns the Supabase Auth user for the active session.
+   */
+  public async getAuthUser() {
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
 
-  await AsyncStorage.setItem(
-    this.USER_ID_KEY,
-    userId
-  );
-
-  console.log(
-    'UserRepository: authenticated user ID saved:',
-    userId
-  );
-}
-
-private async getAuthenticatedUserId(): Promise<string> {
-  // Check memory first
-  if (
-    this.currentUserId &&
-    this.currentUserId !== 'undefined' &&
-    this.currentUserId !== 'null'
-  ) {
-    return this.currentUserId;
-  }
-
-  // Restore from AsyncStorage
-  const storedUserId = await AsyncStorage.getItem(
-    this.USER_ID_KEY
-  );
-
-  if (
-    storedUserId &&
-    storedUserId !== 'undefined' &&
-    storedUserId !== 'null'
-  ) {
-    this.currentUserId = storedUserId;
-
-    console.log(
-      'UserRepository: restored user ID:',
-      storedUserId
-    );
-
-    return storedUserId;
-  }
-
-  throw new Error(
-    'No authenticated user found. Please log in again.'
-  );
-}
-  public async clearAuthenticatedUser(): Promise<void> {
-    this.currentUserId = null;
-    await AsyncStorage.removeItem(this.USER_ID_KEY);
-    await supabase.auth.signOut();
-  }
-
-  public async forgotPassword(email: string): Promise<void> {
-    const { error } = await supabase.auth.resetPasswordForEmail(email);
     if (error) {
       throw new Error(error.message);
     }
+
+    return user;
   }
 
-  public async signUp(params: { name: string, email: string, phone: string, password: string }): Promise<void> {
-    const { data, error } = await supabase.auth.signUp({
-      email: params.email,
-      password: params.password,
-      options: {
-        data: {
-          full_name: params.name,
-          phone_number: params.phone,
-        }
-      }
-    });
-    if (error) {
-      throw new Error(error.message);
+  /**
+   * Loads the FuelNow driver profile associated with the
+   * currently authenticated Supabase Auth account.
+   *
+   * Mapping:
+   *
+   * auth.users.id
+   *      ↓
+   * public.users.auth_id
+   *      ↓
+   * public.users.user_id
+   *      ↓
+   * public.drivers.driver_id
+   */
+  public async getDriverAuthProfile(): Promise<DriverAuthProfile> {
+    const {
+      data: { user: authUser },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError) {
+      throw new Error(authError.message);
     }
+
+    if (!authUser) {
+      throw new Error('No authenticated user found.');
+    }
+
+    const { data: userProfile, error: userError } = await supabase
+      .from('users')
+      .select(
+        'user_id, auth_id, full_name, email, phone_number, status'
+      )
+      .eq('auth_id', authUser.id)
+      .single();
+
+    if (userError || !userProfile) {
+      throw new Error(
+        'Your account is authenticated, but your FuelNow user profile could not be found.'
+      );
+    }
+
+    const { data: driverProfile, error: driverError } = await supabase
+      .from('drivers')
+      .select(
+        'driver_id, licence_number, rating, status, zone, province'
+      )
+      .eq('driver_id', userProfile.user_id)
+      .single();
+
+    if (driverError || !driverProfile) {
+      throw new Error(
+        'This account is not registered as a FuelNow driver.'
+      );
+    }
+
+    if (userProfile.status !== 'active') {
+      throw new Error(
+        `Your FuelNow account is currently ${userProfile.status}. Please contact FuelNow support.`
+      );
+    }
+
+    await this.setAuthenticatedUserId(userProfile.user_id);
+
+    return {
+      userId: userProfile.user_id,
+      authId: authUser.id,
+      name: userProfile.full_name ?? '',
+      email: userProfile.email ?? authUser.email ?? '',
+      phone: userProfile.phone_number ?? '',
+      status: userProfile.status,
+      driverStatus: driverProfile.status ?? 'Offline',
+      zone: driverProfile.zone ?? null,
+      province: driverProfile.province ?? 'KwaZulu-Natal',
+      licenceNumber: driverProfile.licence_number ?? '',
+      rating: Number(driverProfile.rating ?? 5),
+    };
   }
 
-  public async login(email: string, password: string): Promise<void> {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
+  /**
+   * Signs in using Supabase Auth and verifies that the
+   * authenticated account actually belongs to a FuelNow driver.
+   */
+  public async login(
+    email: string,
+    password: string
+  ): Promise<DriverAuthProfile> {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!normalizedEmail) {
+      throw new Error('Please enter your email address.');
+    }
+
+    if (!password) {
+      throw new Error('Please enter your password.');
+    }
+
+    const {
+      data,
+      error,
+    } = await supabase.auth.signInWithPassword({
+      email: normalizedEmail,
       password,
     });
+
     if (error) {
-      throw new Error(error.message);
-    }
-    if (data.user) {
-      await this.setAuthenticatedUserId(data.user.id);
-    }
-  }
-
-  /**
-   * Gets the complete customer profile from Supabase.
-   */
-  public async getUser(): Promise<UserModel> {
-  const userId = await this.getAuthenticatedUserId();
-
-  // Get user record
-  const userResponse = await CustomerApiClient.getUser(userId);
-
-  if (userResponse.error || !userResponse.data) {
-    throw userResponse.error ?? new Error('Unable to retrieve user.');
-  }
-
-  const user = userResponse.data;
-
-  // Get customer record
-  const customerResponse =
-    await CustomerApiClient.getCustomer(userId);
-
-  if (customerResponse.error || !customerResponse.data) {
-    throw (
-      customerResponse.error ??
-      new Error('Unable to retrieve customer profile.')
-    );
-  }
-
-  const customer = customerResponse.data;
-
-  // Get saved addresses
-  const savedAddresses = await this.getAddresses();
-
-  const paymentMethods: PaymentMethodModel[] = [];
-
-  return {
-    id: user.user_id,
-    name: user.full_name ?? '',
-    email: user.email ?? '',
-    phone: user.phone_number ?? '',
-    loyaltyPoints: customer.fuel_points_balance ?? 0,
-    loyaltyTier: this.mapLoyaltyTier(customer.loyalty_tier),
-    companyName: '',
-    savedAddresses,
-    paymentMethods,
-  };
-}
-
-
-  public async getAddresses(): Promise<AddressModel[]> {
-  const userId = await this.getAuthenticatedUserId();
-
-  const { data, error } = await supabase
-    .from('addresses')
-    .select('*')
-    .eq('customer_id', userId)
-    .order('address_id', { ascending: true });
-
-  if (error) {
-    console.error('UserRepository: failed to fetch addresses:', error);
-    throw error;
-  }
-
-  return (data ?? []).map((address: Address) =>
-    this.mapAddress(address)
-  );
-}
-
-
-  /**
-   * Adds loyalty points to the customer's account.
-   */
-  public async addPoints(points: number): Promise<number> {
-    if (points <= 0) {
-      throw new Error('Points must be greater than zero.');
-    }
-
-    const userId = await this.getAuthenticatedUserId();
-
-    const customerResponse =
-      await CustomerApiClient.getCustomer(userId);
-
-    if (customerResponse.error || !customerResponse.data) {
-      throw (
-        customerResponse.error ??
-        new Error('Unable to retrieve customer.')
+      throw new Error(
+        this.mapAuthError(error.message)
       );
     }
 
-    const customer = customerResponse.data;
-
-    const currentPoints =
-      customer.fuel_points_balance ?? 0;
-
-    const newPoints = currentPoints + points;
-
-    const newTier = this.calculateLoyaltyTier(newPoints);
-
-    const updateResponse =
-      await CustomerApiClient.updateCustomer({
-        customerId: userId,
-        loyaltyTier: newTier,
-        fuelPointsBalance: newPoints,
-      });
-
-    if (updateResponse.error || !updateResponse.data) {
-      throw (
-        updateResponse.error ??
-        new Error('Unable to update loyalty points.')
+    if (!data.user) {
+      throw new Error(
+        'Authentication succeeded, but no authenticated user was returned.'
       );
     }
 
-    return newPoints;
-  }
+    try {
+      return await this.getDriverAuthProfile();
+    } catch (error) {
+      await supabase.auth.signOut();
 
-
-public async updateAddress(params: {
-  addressId: string;
-  customerId?: string;
-  label?: string;
-  unitNumber?: string;
-  streetNumber?: string;
-  streetName?: string;
-  suburb?: string;
-  city?: string;
-  province?: string;
-  postalCode?: string;
-  deliveryInstructions?: string;
-  isDefault?: boolean;
-  coordinates?: {
-    lat: number;
-    lng: number;
-  };
-}): Promise<AddressModel> {
-  const userId = await this.getAuthenticatedUserId();
-
-  const response = await CustomerApiClient.updateAddress({
-    addressId: params.addressId,
-    customerId: params.customerId ?? userId,
-
-    label: params.label,
-    unitNumber: params.unitNumber,
-    streetNumber: params.streetNumber,
-    streetName: params.streetName,
-    suburb: params.suburb,
-    city: params.city,
-    province: params.province,
-    postalCode: params.postalCode,
-    deliveryInstructions: params.deliveryInstructions,
-    isDefault: params.isDefault ?? false,
-
-    latitude: params.coordinates?.lat,
-    longitude: params.coordinates?.lng,
-  });
-
-  if (response.error || !response.data) {
-    throw (
-      response.error ??
-      new Error('Unable to update address.')
-    );
-  }
-
-  return this.mapAddress(response.data);
-}
-
-  /**
-   * Adds an address to the customer's Supabase account.
-   */
-public async addAddress(
-  address: Omit<AddressModel, 'id'>
-): Promise<AddressModel> {
-  const userId = await this.getAuthenticatedUserId();
-
-  const response = await CustomerApiClient.createAddress({
-    customerId: userId,
-
-    label: address.label,
-    unitNumber: address.unitNumber,
-    streetNumber: address.streetNumber,
-    streetName: address.streetName,
-    suburb: address.suburb,
-    city: address.city,
-    province: address.province,
-    postalCode: address.postalCode,
-    deliveryInstructions: address.instructions,
-    isDefault: address.isDefault ?? false,
-
-    latitude: address.coordinates?.lat,
-    longitude: address.coordinates?.lng,
-  });
-
-  if (response.error || !response.data) {
-    throw (
-      response.error ??
-      new Error('Unable to create address.')
-    );
-  }
-
-  return this.mapAddress(response.data);
-}
-  /**
-   * Adds a payment method.
-   *
-   * This currently requires a payment-method RPC/table because
-   * createPayment() in CustomerApiClient creates an order payment,
-   * not a saved customer payment method.
-   */
-  public async addPaymentMethod(
-    paymentMethod: Omit<PaymentMethodModel, 'id'>
-  ): Promise<PaymentMethodModel> {
-    throw new Error(
-      'Saved payment methods are not yet supported by CustomerApiClient. ' +
-      'Add CRUD RPC functions for your payment_methods table first.'
-    );
-  }
-
-
-public async getCurrentUserId(): Promise<string> {
-  return this.getAuthenticatedUserId();
-}
-
-public async updateProfile(params: {
-  fullName: string;
-  email: string;
-  phoneNumber: string;
-}): Promise<UserModel> {
-  const userId = await this.getAuthenticatedUserId();
-
-  // Get the currently authenticated Supabase user
-  const {
-    data: { user: authUser },
-    error: authUserError,
-  } = await supabase.auth.getUser();
-
-  if (authUserError) {
-    throw authUserError;
-  }
-
-  if (!authUser) {
-    throw new Error('No authenticated user found.');
-  }
-
-  // ==========================================================
-  // 1. UPDATE AUTH EMAIL IF IT CHANGED
-  // ==========================================================
-
-  const newEmail = params.email.trim();
-  const currentEmail = authUser.email?.trim() ?? '';
-
-  if (newEmail.toLowerCase() !== currentEmail.toLowerCase()) {
-    const { error } = await supabase.auth.updateUser({
-      email: newEmail,
-    });
-
-    if (error) {
       throw error;
     }
   }
 
-  // ==========================================================
-  // 2. UPDATE PUBLIC.USERS
-  //
-  // Phone stays in public.users for now.
-  // ==========================================================
-
-  const response = await CustomerApiClient.updateUser({
-    userId,
-    fullName: params.fullName.trim(),
-    email: newEmail,
-    phoneNumber: params.phoneNumber.trim(),
-  });
-
-  if (response.error) {
-    throw response.error;
-  }
-
-  // ==========================================================
-  // 3. GET FRESH PROFILE
-  // ==========================================================
-
-  return await this.getUser();
-}
-
   /**
-   * Converts a database Address into the format expected by the app.
+   * Restores the current authenticated driver after the
+   * application starts.
+   *
+   * Returns null when there is no active session.
    */
-private mapAddress(address: Address): AddressModel {
-  return {
-    id: address.address_id,
+  public async restoreDriverSession(): Promise<DriverAuthProfile | null> {
+    const {
+      data: { session },
+      error,
+    } = await supabase.auth.getSession();
 
-    label: this.mapAddressLabel(address.label),
+    if (error) {
+      throw new Error(error.message);
+    }
 
-    unitNumber: address.unit_number ?? '',
-    streetNumber: address.street_number ?? '',
-    streetName: address.street_name ?? '',
+    if (!session?.user) {
+      this.currentUserId = null;
+      await AsyncStorage.removeItem(this.USER_ID_KEY);
+      return null;
+    }
 
-    street: [
-      address.unit_number,
-      address.street_number,
-      address.street_name,
-    ]
-      .filter(Boolean)
-      .join(' '),
-
-    suburb: address.suburb ?? '',
-    city: address.city ?? '',
-    province: address.province ?? '',
-    postalCode: address.postal_code ?? '',
-
-    instructions: address.delivery_instructions ?? '',
-    isDefault: address.is_default ?? false,
-
-    coordinates:
-      address.latitude != null &&
-      address.longitude != null
-        ? {
-            lat: address.latitude,
-            lng: address.longitude,
-          }
-        : undefined,
-  };
-}
-
-  /**
-   * Converts the database loyalty tier into the app's loyalty tier.
-   */
-  private mapLoyaltyTier(
-    tier: string | null | undefined
-  ): UserModel['loyaltyTier'] {
-    switch (tier) {
-      case 'Platinum':
-        return 'Platinum';
-
-      case 'Gold':
-        return 'Gold';
-
-      case 'Silver':
-        return 'Silver';
-
-      default:
-        return 'Bronze';
+    try {
+      return await this.getDriverAuthProfile();
+    } catch (error) {
+      await supabase.auth.signOut();
+      this.currentUserId = null;
+      await AsyncStorage.removeItem(this.USER_ID_KEY);
+      throw error;
     }
   }
 
   /**
-   * Calculates the loyalty tier from the number of points.
+   * Signs out of Supabase Auth and clears the FuelNow
+   * application user ID.
    */
- private calculateLoyaltyTier(
-  points: number
-): UserModel["loyaltyTier"] {
-  if (points >= 1000) {
-    return "Platinum";
-  }
+  public async clearAuthenticatedUser(): Promise<void> {
+    this.currentUserId = null;
 
-  if (points >= 500) {
-    return "Gold";
-  }
+    await AsyncStorage.removeItem(
+      this.USER_ID_KEY
+    );
 
-  if (points >= 200) {
-    return "Silver";
-  }
+    const { error } = await supabase.auth.signOut();
 
-  return "Bronze";
-}
-
-  /**
-   * Makes sure address labels match the application's allowed values.
-   */
-  private mapAddressLabel(
-    label: string | null | undefined
-  ): AddressModel['label'] {
-    switch (label) {
-      case 'Home':
-        return 'Home';
-
-      case 'Work':
-        return 'Work';
-
-      case 'Site A':
-        return 'Site A';
-
-      case 'Depot':
-        return 'Depot';
-
-      default:
-        return 'Other';
+    if (error) {
+      throw new Error(error.message);
     }
   }
+
+  public async forgotPassword(email: string): Promise<void> {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const { error } =
+      await supabase.auth.resetPasswordForEmail(
+        normalizedEmail
+      );
+
+    if (error) {
+      throw new Error(error.message);
+    }
+  }
+
+  /**
+   * Driver accounts are provisioned by FuelNow administration.
+   *
+   * Public driver self-registration is intentionally not exposed
+   * through the driver app.
+   */
+  public async signUp(): Promise<void> {
+    throw new Error(
+      'Driver accounts are created by FuelNow administration. Please contact your administrator.'
+    );
+  }
+
+  private mapAuthError(message: string): string {
+    const normalized = message.toLowerCase();
+
+    if (
+      normalized.includes('invalid login credentials') ||
+      normalized.includes('invalid credentials')
+    ) {
+      return 'Incorrect email or password.';
+    }
+
+    if (
+      normalized.includes('email not confirmed')
+    ) {
+      return 'Your email address has not been confirmed.';
+    }
+
+    if (
+      normalized.includes('too many requests')
+    ) {
+      return 'Too many login attempts. Please wait a moment and try again.';
+    }
+
+    return message;
+  }
 }
 
-export const userRepository = UserRepository.getInstance();
+export const userRepository =
+  UserRepository.getInstance();
