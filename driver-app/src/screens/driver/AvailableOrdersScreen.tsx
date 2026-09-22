@@ -1,71 +1,52 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
-  FlatList,
+  Alert,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { supabase } from '../../services/supabase';
-import { useDesignMode } from '../../context/DesignModeContext';
 
 export interface AvailableOrder {
-  // Database fields
-  order_id: string;
-  customer_id: string | null;
-  driver_id: string | null;
-  address_id: string | null;
-  fuel_type_id: string | null;
-  volume_litres: number | null;
-  rand_amount: number | null;
-  delivery_type: string | null;
-  scheduled_date_time: string | null;
-  status: string | null;
-  placed_at: string | null;
-
-  // Display fields
-  fuel_type_name: string;
+  orderId: string;
+  customerId: string;
+  customerName: string;
   address: string;
-  suburb: string;
-
-  // Legacy fields expected by OrderDetailsScreen
-  id: string;
-  customerInitials: string;
   fuelType: string;
-  litres: number;
-  totalZAR: number;
-  distanceKm: number;
-  estimatedMinutes: number;
-  coordinates: {
-    lat: number;
-    lng: number;
-  };
+  volumeLitres: number;
+  deliveryType: string;
+  scheduledDateTime?: string | null;
+  placedAt: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  distance: string;
+  eta: string;
+  fuelSubtotal: number;
+  deliveryFee: number;
+  serviceFee: number;
+  vatAmount: number;
+  totalAmount: number;
 }
 
-interface RawOrder {
+type Navigation = {
+  navigate: (screen: string, params?: any) => void;
+};
+
+type RawOrder = {
   order_id: string;
-  customer_id: string | null;
-  driver_id: string | null;
-  address_id: string | null;
-  fuel_type_id: string | null;
+  customer_id: string;
+  fuel_type_id: string;
   volume_litres: number | null;
-  rand_amount: number | null;
   delivery_type: string | null;
   scheduled_date_time: string | null;
-  status: string | null;
-  placed_at: string | null;
-  fuel_types:
-    | {
-        name: string | null;
-      }
-    | {
-        name: string | null;
-      }[]
-    | null;
+  status: string;
+  placed_at: string;
+  address_id: string;
   addresses:
     | {
         unit_number: string | null;
@@ -86,108 +67,60 @@ interface RawOrder {
         longitude: number | null;
       }[]
     | null;
-}
+  fuel_types:
+    | {
+        name: string | null;
+      }
+    | {
+        name: string | null;
+      }[]
+    | null;
+  payments:
+    | {
+        fuel_subtotal: number | null;
+        delivery_fee: number | null;
+        service_fee: number | null;
+        vat_amount: number | null;
+        total_amount: number | null;
+      }
+    | {
+        fuel_subtotal: number | null;
+        delivery_fee: number | null;
+        service_fee: number | null;
+        vat_amount: number | null;
+        total_amount: number | null;
+      }[]
+    | null;
+};
 
-function getFirstRelation<T>(
-  relation: T | T[] | null | undefined
-): T | null {
+type Customer = {
+  user_id: string;
+  full_name: string | null;
+};
+
+const getRelationObject = <T,>(relation: T | T[] | null | undefined): T | null => {
   if (!relation) {
     return null;
   }
 
   return Array.isArray(relation) ? relation[0] ?? null : relation;
-}
+};
 
-function isSameCalendarDay(date: Date, reference: Date): boolean {
-  return (
-    date.getFullYear() === reference.getFullYear() &&
-    date.getMonth() === reference.getMonth() &&
-    date.getDate() === reference.getDate()
-  );
-}
+const formatCurrency = (amount: number): string => {
+  return `R ${amount.toFixed(2)}`;
+};
 
-function isOrderAvailable(order: RawOrder, now: Date): boolean {
-  if (String(order.status ?? '').toUpperCase() !== 'PAID') {
-    return false;
-  }
-
-  if (order.driver_id) {
-    return false;
-  }
-
-  const deliveryType = String(order.delivery_type ?? '')
-    .trim()
-    .toLowerCase();
-
-  const isDeliverNow =
-    deliveryType === 'deliver now' ||
-    deliveryType === 'now' ||
-    deliveryType === 'immediate';
-
-  if (isDeliverNow) {
-    if (!order.placed_at) {
-      return false;
-    }
-
-    const placedAt = new Date(order.placed_at);
-
-    if (Number.isNaN(placedAt.getTime())) {
-      return false;
-    }
-
-    return isSameCalendarDay(placedAt, now);
-  }
-
-  if (deliveryType === 'scheduled') {
-    if (!order.scheduled_date_time) {
-      return false;
-    }
-
-    const scheduledAt = new Date(order.scheduled_date_time);
-
-    if (Number.isNaN(scheduledAt.getTime())) {
-      return false;
-    }
-
-    return scheduledAt.getTime() >= now.getTime();
-  }
-
-  return false;
-}
-
-function formatDeliveryTime(order: AvailableOrder): string {
-  const deliveryType = String(order.delivery_type ?? '')
-    .trim()
-    .toLowerCase();
-
-  if (
-    deliveryType === 'deliver now' ||
-    deliveryType === 'now' ||
-    deliveryType === 'immediate'
-  ) {
-    return 'Deliver Now';
-  }
-
-  if (deliveryType === 'scheduled' && order.scheduled_date_time) {
-    const date = new Date(order.scheduled_date_time);
-
-    if (!Number.isNaN(date.getTime())) {
-      return `Scheduled: ${date.toLocaleDateString()} ${date.toLocaleTimeString(
-        [],
-        {
-          hour: '2-digit',
-          minute: '2-digit',
-        }
-      )}`;
-    }
-  }
-
-  return 'Delivery';
-}
-
-function formatAddress(order: RawOrder): string {
-  const address = getFirstRelation(order.addresses);
-
+const formatAddress = (
+  address:
+    | {
+        unit_number: string | null;
+        street_number: string | null;
+        street_name: string | null;
+        suburb: string | null;
+        city: string | null;
+      }
+    | null
+): string => {
   if (!address) {
     return 'Address unavailable';
   }
@@ -198,107 +131,93 @@ function formatAddress(order: RawOrder): string {
     address.street_name,
     address.suburb,
     address.city,
-  ].filter(Boolean);
+  ].filter(
+    (part): part is string =>
+      typeof part === 'string' && part.trim().length > 0
+  );
 
   return parts.length > 0 ? parts.join(', ') : 'Address unavailable';
-}
+};
 
-function mapOrder(order: RawOrder): AvailableOrder {
-  const fuelType = getFirstRelation(order.fuel_types);
-  const address = getFirstRelation(order.addresses);
+const isSameLocalDay = (dateString: string): boolean => {
+  const date = new Date(dateString);
+  const now = new Date();
 
-  const addressParts = [
-    address?.unit_number,
-    address?.street_number,
-    address?.street_name,
-  ].filter(Boolean);
+  return (
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate()
+  );
+};
 
-  const formattedAddress =
-    addressParts.length > 0
-      ? addressParts.join(', ')
-      : 'Address unavailable';
+const isScheduledStillValid = (dateString: string | null): boolean => {
+  if (!dateString) {
+    return false;
+  }
 
-  const suburb = address?.suburb ?? '';
+  return new Date(dateString).getTime() > Date.now();
+};
+
+const calculateDistanceAndEta = (
+  latitude: number | null | undefined,
+  longitude: number | null | undefined
+): { distance: string; eta: string } => {
+  if (
+    typeof latitude !== 'number' ||
+    typeof longitude !== 'number'
+  ) {
+    return {
+      distance: 'Distance unavailable',
+      eta: 'ETA unavailable',
+    };
+  }
 
   /*
-   * The current Available Orders query does not fetch the customer's
-   * name, because the database relationship points to a customers
-   * table that does not contain full_name.
-   *
-   * Use a neutral fallback until customer information is retrieved
-   * through the correct relationship.
+   * The driver app does not currently have a routing provider connected
+   * directly to this screen, so we avoid inventing a route distance.
+   * These values can be replaced once the navigation service is wired in.
    */
-  const customerInitials = 'C';
-
   return {
-    // Database fields
-    order_id: order.order_id,
-    customer_id: order.customer_id,
-    driver_id: order.driver_id,
-    address_id: order.address_id,
-    fuel_type_id: order.fuel_type_id,
-    volume_litres: order.volume_litres,
-    rand_amount: order.rand_amount,
-    delivery_type: order.delivery_type,
-    scheduled_date_time: order.scheduled_date_time,
-    status: order.status,
-    placed_at: order.placed_at,
-
-    // Display fields
-    fuel_type_name: fuelType?.name ?? 'Fuel',
-    address: formatAddress(order),
-    suburb,
-
-    // Legacy fields used by OrderDetailsScreen
-    id: order.order_id,
-    customerInitials,
-    fuelType: fuelType?.name ?? 'Fuel',
-    litres: Number(order.volume_litres ?? 0),
-    totalZAR: Number(order.rand_amount ?? 0),
-
-    /*
-     * These remain 0 until we connect the driver's current location
-     * to the order destination and calculate a real route/ETA.
-     */
-    distanceKm: 0,
-    estimatedMinutes: 0,
-
-    coordinates: {
-      lat: address?.latitude ?? 0,
-      lng: address?.longitude ?? 0,
-    },
+    distance: 'Location available',
+    eta: 'ETA calculated on navigation',
   };
-}
+};
 
-export default function AvailableOrdersScreen() {
-  const navigation = useNavigation<any>();
-  const { mode } = useDesignMode();
+const AvailableOrdersScreen = () => {
+  const navigation = useNavigation<Navigation>();
 
   const [orders, setOrders] = useState<AvailableOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const isWireframe = mode === 'WIREFRAME';
-
-  const fetchAvailableOrders = useCallback(async () => {
+  const loadAvailableOrders = useCallback(async () => {
     try {
-      const { data, error } = await supabase
+      console.log('AvailableOrdersScreen: loading available orders');
+
+      /*
+       * Do not request the customer through a nested users/customer
+       * relationship here. The orders.customer_id column points to the
+       * application-level users.user_id, while the database also contains
+       * auth.users and potentially other relationships. PostgREST can
+       * therefore resolve the relationship incorrectly.
+       *
+       * Customers are loaded separately below using users.user_id.
+       */
+      const {
+        data: rawOrders,
+        error: ordersError,
+      } = await supabase
         .from('orders')
         .select(`
           order_id,
           customer_id,
-          driver_id,
-          address_id,
           fuel_type_id,
           volume_litres,
-          rand_amount,
           delivery_type,
           scheduled_date_time,
           status,
           placed_at,
-          fuel_types (
-            name
-          ),
+          address_id,
           addresses (
             unit_number,
             street_number,
@@ -307,286 +226,205 @@ export default function AvailableOrdersScreen() {
             city,
             latitude,
             longitude
+          ),
+          fuel_types (
+            name
+          ),
+          payments (
+            fuel_subtotal,
+            delivery_fee,
+            service_fee,
+            vat_amount,
+            total_amount
           )
         `)
         .eq('status', 'PAID')
         .is('driver_id', null)
         .order('placed_at', { ascending: false });
 
-        console.log(
-          'AVAILABLE ORDERS RAW DATA:',
-          JSON.stringify(data, null, 2)
+      if (ordersError) {
+        console.error(
+          'AvailableOrdersScreen: orders query failed',
+          ordersError
         );
-        
-        console.log(
-          'AVAILABLE ORDERS QUERY ERROR:',
-          error
-        );
-        
-        if (error) {
+        throw ordersError;
+      }
+
+      console.log(
+        'AvailableOrdersScreen: raw orders count',
+        rawOrders?.length ?? 0
+      );
+
+      const typedOrders = (rawOrders ?? []) as RawOrder[];
+
+      /*
+       * Get all unique customer IDs from the returned orders.
+       */
+      const customerIds = [
+        ...new Set(
+          typedOrders
+            .map(order => order.customer_id)
+            .filter(
+              (customerId): customerId is string =>
+                typeof customerId === 'string' &&
+                customerId.trim().length > 0
+            )
+        ),
+      ];
+
+      let customers: Customer[] = [];
+
+      /*
+       * Fetch customer names directly from public.users.
+       */
+      if (customerIds.length > 0) {
+        const {
+          data: customerData,
+          error: customersError,
+        } = await supabase
+          .from('users')
+          .select('user_id, full_name')
+          .in('user_id', customerIds);
+
+        if (customersError) {
           console.error(
-            'AvailableOrdersScreen: failed to fetch available orders',
-            error
+            'AvailableOrdersScreen: customer query failed',
+            customersError
           );
-          setOrders([]);
-          return;
+          throw customersError;
         }
 
-      const now = new Date();
+        customers = (customerData ?? []) as Customer[];
+      }
 
-      const rawOrders = (data ?? []) as RawOrder[];
+      const customerMap = new Map<string, string>(
+        customers.map(customer => [
+          customer.user_id,
+          customer.full_name ?? 'Customer',
+        ])
+      );
 
-console.log(
-  'AVAILABLE ORDERS RAW COUNT:',
-  rawOrders.length
-);
+      /*
+       * Apply the driver-specific availability rules:
+       *
+       * Deliver Now:
+       *   Must have been placed today.
+       *
+       * Scheduled:
+       *   Scheduled datetime must still be in the future.
+       *
+       * Anything else:
+       *   Hidden from Available Orders.
+       */
+      const filteredOrders = typedOrders.filter(order => {
+        const deliveryType = (order.delivery_type ?? '').toUpperCase();
 
-rawOrders.forEach((order) => {
-  console.log(
-    'ORDER CHECK:',
-    order.order_id,
-    {
-      status: order.status,
-      driver_id: order.driver_id,
-      delivery_type: order.delivery_type,
-      placed_at: order.placed_at,
-      scheduled_date_time: order.scheduled_date_time,
-    }
-  );
+        if (deliveryType === 'DELIVER NOW') {
+          return isSameLocalDay(order.placed_at);
+        }
 
-  console.log(
-    'ORDER AVAILABLE:',
-    isOrderAvailable(order, now)
-  );
-});
+        if (deliveryType === 'SCHEDULED') {
+          return isScheduledStillValid(order.scheduled_date_time);
+        }
 
-const availableOrders = rawOrders
-  .filter((order) => isOrderAvailable(order, now))
-  .map(mapOrder);
+        /*
+         * Also support underscore/compact values if the database uses
+         * values such as DELIVER_NOW.
+         */
+        if (deliveryType === 'DELIVER_NOW') {
+          return isSameLocalDay(order.placed_at);
+        }
 
-console.log(
-  'AVAILABLE ORDERS FINAL COUNT:',
-  availableOrders.length
-);
+        return false;
+      });
 
-setOrders(availableOrders);
+      console.log(
+        'AvailableOrdersScreen: filtered order count',
+        filteredOrders.length
+      );
+
+      const mappedOrders: AvailableOrder[] = filteredOrders.map(order => {
+        const address = getRelationObject(order.addresses);
+        const fuelType = getRelationObject(order.fuel_types);
+        const payment = getRelationObject(order.payments);
+
+        const {
+          distance,
+          eta,
+        } = calculateDistanceAndEta(
+          address?.latitude,
+          address?.longitude
+        );
+
+        const deliveryType =
+          (order.delivery_type ?? '').toUpperCase() === 'DELIVER_NOW'
+            ? 'Deliver Now'
+            : order.delivery_type ?? 'Unknown';
+
+        return {
+          orderId: order.order_id,
+          customerId: order.customer_id,
+          customerName:
+            customerMap.get(order.customer_id) ?? 'Customer',
+          address: formatAddress(address),
+          fuelType: fuelType?.name ?? 'Fuel',
+          volumeLitres: Number(order.volume_litres ?? 0),
+          deliveryType,
+          scheduledDateTime: order.scheduled_date_time,
+          placedAt: order.placed_at,
+          latitude: address?.latitude,
+          longitude: address?.longitude,
+          distance,
+          eta,
+          fuelSubtotal: Number(payment?.fuel_subtotal ?? 0),
+          deliveryFee: Number(payment?.delivery_fee ?? 0),
+          serviceFee: Number(payment?.service_fee ?? 0),
+          vatAmount: Number(payment?.vat_amount ?? 0),
+          totalAmount: Number(payment?.total_amount ?? 0),
+        };
+      });
+
+      setOrders(mappedOrders);
     } catch (error) {
       console.error(
-        'AvailableOrdersScreen: unexpected error while fetching orders',
+        'AvailableOrdersScreen: failed to load orders',
         error
       );
 
       setOrders([]);
+
+      Alert.alert(
+        'Unable to Load Orders',
+        'There was a problem loading available orders. Please try again.'
+      );
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
-  useEffect(() => {
-    fetchAvailableOrders().finally(() => {
-      setLoading(false);
-    });
-  }, [fetchAvailableOrders]);
+  useFocusEffect(
+    useCallback(() => {
+      loadAvailableOrders();
+    }, [loadAvailableOrders])
+  );
 
-  const handleRefresh = useCallback(async () => {
+  const handleRefresh = async () => {
     setRefreshing(true);
-
-    try {
-      await fetchAvailableOrders();
-    } finally {
-      setRefreshing(false);
-    }
-  }, [fetchAvailableOrders]);
+    await loadAvailableOrders();
+  };
 
   const handleOrderPress = (order: AvailableOrder) => {
     navigation.navigate('DriverOrderDetails', {
-      orderId: order.order_id,
       order,
     });
   };
 
-  const renderOrder = ({ item }: { item: AvailableOrder }) => {
-    const amount = Number(item.rand_amount ?? 0);
-    const litres = Number(item.volume_litres ?? 0);
-
-    return (
-      <TouchableOpacity
-        style={[
-          styles.card,
-          isWireframe && styles.wireframeCard,
-        ]}
-        activeOpacity={0.8}
-        onPress={() => handleOrderPress(item)}
-      >
-        <View style={styles.cardHeader}>
-          <View style={styles.orderIdContainer}>
-            <Text
-              style={[
-                styles.orderLabel,
-                isWireframe && styles.wireframeText,
-              ]}
-            >
-              ORDER
-            </Text>
-
-            <Text
-              style={[
-                styles.orderId,
-                isWireframe && styles.wireframeText,
-              ]}
-              numberOfLines={1}
-            >
-              #{item.order_id.slice(0, 8).toUpperCase()}
-            </Text>
-          </View>
-
-          <View style={styles.paidBadge}>
-            <Text style={styles.paidText}>PAID</Text>
-          </View>
-        </View>
-
-        <View style={styles.divider} />
-
-        <View style={styles.detailsRow}>
-          <View style={styles.detailBlock}>
-            <Text
-              style={[
-                styles.detailLabel,
-                isWireframe && styles.wireframeText,
-              ]}
-            >
-              FUEL
-            </Text>
-
-            <Text
-              style={[
-                styles.detailValue,
-                isWireframe && styles.wireframeText,
-              ]}
-            >
-              {item.fuel_type_name}
-            </Text>
-          </View>
-
-          <View style={styles.detailBlock}>
-            <Text
-              style={[
-                styles.detailLabel,
-                isWireframe && styles.wireframeText,
-              ]}
-            >
-              VOLUME
-            </Text>
-
-            <Text
-              style={[
-                styles.detailValue,
-                isWireframe && styles.wireframeText,
-              ]}
-            >
-              {litres.toFixed(0)} L
-            </Text>
-          </View>
-
-          <View style={styles.detailBlock}>
-            <Text
-              style={[
-                styles.detailLabel,
-                isWireframe && styles.wireframeText,
-              ]}
-            >
-              VALUE
-            </Text>
-
-            <Text
-              style={[
-                styles.detailValue,
-                isWireframe && styles.wireframeText,
-              ]}
-            >
-              R{amount.toFixed(2)}
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.deliveryContainer}>
-          <Text
-            style={[
-              styles.detailLabel,
-              isWireframe && styles.wireframeText,
-            ]}
-          >
-            DELIVERY
-          </Text>
-
-          <Text
-            style={[
-              styles.deliveryValue,
-              isWireframe && styles.wireframeText,
-            ]}
-          >
-            {formatDeliveryTime(item)}
-          </Text>
-        </View>
-
-        <View style={styles.addressContainer}>
-          <Text
-            style={[
-              styles.detailLabel,
-              isWireframe && styles.wireframeText,
-            ]}
-          >
-            DELIVERY ADDRESS
-          </Text>
-
-          <Text
-            style={[
-              styles.addressText,
-              isWireframe && styles.wireframeText,
-            ]}
-            numberOfLines={2}
-          >
-            {item.address}
-          </Text>
-        </View>
-
-        <View style={styles.actionRow}>
-          <Text
-            style={[
-              styles.viewText,
-              isWireframe && styles.wireframeText,
-            ]}
-          >
-            View Order
-          </Text>
-
-          <Text
-            style={[
-              styles.arrow,
-              isWireframe && styles.wireframeText,
-            ]}
-          >
-            →
-          </Text>
-        </View>
-      </TouchableOpacity>
-    );
-  };
-
   if (loading) {
     return (
-      <View
-        style={[
-          styles.centered,
-          isWireframe && styles.wireframeBackground,
-        ]}
-      >
+      <View style={styles.centerContainer}>
         <ActivityIndicator size="large" />
-
-        <Text
-          style={[
-            styles.loadingText,
-            isWireframe && styles.wireframeText,
-          ]}
-        >
+        <Text style={styles.loadingText}>
           Loading available orders...
         </Text>
       </View>
@@ -594,45 +432,11 @@ setOrders(availableOrders);
   }
 
   return (
-    <View
-      style={[
-        styles.container,
-        isWireframe && styles.wireframeBackground,
-      ]}
-    >
-      <View style={styles.header}>
-        <View>
-          <Text
-            style={[
-              styles.title,
-              isWireframe && styles.wireframeText,
-            ]}
-          >
-            Available Orders
-          </Text>
-
-          <Text
-            style={[
-              styles.subtitle,
-              isWireframe && styles.wireframeText,
-            ]}
-          >
-            Paid orders ready for delivery
-          </Text>
-        </View>
-
-        <View style={styles.countBadge}>
-          <Text style={styles.countText}>{orders.length}</Text>
-        </View>
-      </View>
-
-      <FlatList
-        data={orders}
-        keyExtractor={(item) => item.order_id}
-        renderItem={renderOrder}
+    <View style={styles.container}>
+      <ScrollView
         contentContainerStyle={[
-          styles.listContent,
-          orders.length === 0 && styles.emptyListContent,
+          styles.scrollContent,
+          orders.length === 0 && styles.emptyScrollContent,
         ]}
         refreshControl={
           <RefreshControl
@@ -641,94 +445,234 @@ setOrders(availableOrders);
           />
         }
         showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
+      >
+        <View style={styles.header}>
+          <Text style={styles.title}>Available Orders</Text>
+          <Text style={styles.subtitle}>
+            Paid orders waiting for a driver
+          </Text>
+        </View>
+
+        {orders.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Text
-              style={[
-                styles.emptyTitle,
-                isWireframe && styles.wireframeText,
-              ]}
-            >
+            <Text style={styles.emptyTitle}>
               No available orders
             </Text>
 
-            <Text
-              style={[
-                styles.emptyText,
-                isWireframe && styles.wireframeText,
-              ]}
-            >
-              Paid orders that are available for delivery will appear here.
+            <Text style={styles.emptyText}>
+              There are currently no paid orders available for delivery.
             </Text>
+
+            <TouchableOpacity
+              style={styles.refreshButton}
+              onPress={handleRefresh}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.refreshButtonText}>
+                Refresh
+              </Text>
+            </TouchableOpacity>
           </View>
-        }
-      />
+        ) : (
+          orders.map(order => (
+            <TouchableOpacity
+              key={order.orderId}
+              style={styles.orderCard}
+              onPress={() => handleOrderPress(order)}
+              activeOpacity={0.85}
+            >
+              <View style={styles.cardHeader}>
+                <View style={styles.customerSection}>
+                  <Text style={styles.customerName}>
+                    {order.customerName}
+                  </Text>
+
+                  <Text style={styles.deliveryType}>
+                    {order.deliveryType}
+                  </Text>
+                </View>
+
+                <Text style={styles.totalAmount}>
+                  {formatCurrency(order.totalAmount)}
+                </Text>
+              </View>
+
+              <View style={styles.divider} />
+
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Fuel</Text>
+                <Text style={styles.detailValue}>
+                  {order.fuelType}
+                </Text>
+              </View>
+
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Volume</Text>
+                <Text style={styles.detailValue}>
+                  {order.volumeLitres.toFixed(2)} L
+                </Text>
+              </View>
+
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Address</Text>
+                <Text
+                  style={[
+                    styles.detailValue,
+                    styles.addressValue,
+                  ]}
+                >
+                  {order.address}
+                </Text>
+              </View>
+
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Distance</Text>
+                <Text style={styles.detailValue}>
+                  {order.distance}
+                </Text>
+              </View>
+
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>ETA</Text>
+                <Text style={styles.detailValue}>
+                  {order.eta}
+                </Text>
+              </View>
+
+              {order.deliveryType === 'Scheduled' &&
+                order.scheduledDateTime && (
+                  <View style={styles.scheduledBox}>
+                    <Text style={styles.scheduledLabel}>
+                      Scheduled for
+                    </Text>
+
+                    <Text style={styles.scheduledValue}>
+                      {new Date(
+                        order.scheduledDateTime
+                      ).toLocaleString()}
+                    </Text>
+                  </View>
+                )}
+
+              <View style={styles.priceSection}>
+                <View style={styles.priceRow}>
+                  <Text style={styles.priceLabel}>
+                    Fuel Subtotal
+                  </Text>
+
+                  <Text style={styles.priceValue}>
+                    {formatCurrency(order.fuelSubtotal)}
+                  </Text>
+                </View>
+
+                <View style={styles.priceRow}>
+                  <Text style={styles.priceLabel}>
+                    Delivery Fee
+                  </Text>
+
+                  <Text style={styles.priceValue}>
+                    {formatCurrency(order.deliveryFee)}
+                  </Text>
+                </View>
+
+                {order.serviceFee > 0 && (
+                  <View style={styles.priceRow}>
+                    <Text style={styles.priceLabel}>
+                      Service Fee
+                    </Text>
+
+                    <Text style={styles.priceValue}>
+                      {formatCurrency(order.serviceFee)}
+                    </Text>
+                  </View>
+                )}
+
+                {order.vatAmount > 0 && (
+                  <View style={styles.priceRow}>
+                    <Text style={styles.priceLabel}>
+                      VAT
+                    </Text>
+
+                    <Text style={styles.priceValue}>
+                      {formatCurrency(order.vatAmount)}
+                    </Text>
+                  </View>
+                )}
+
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>
+                    Total
+                  </Text>
+
+                  <Text style={styles.totalValue}>
+                    {formatCurrency(order.totalAmount)}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.viewButton}>
+                <Text style={styles.viewButtonText}>
+                  View Order
+                </Text>
+              </View>
+            </TouchableOpacity>
+          ))
+        )}
+      </ScrollView>
     </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    backgroundColor: '#F7F8FA',
+    backgroundColor: '#F5F7FA',
   },
 
-  wireframeBackground: {
-    backgroundColor: '#FFFFFF',
+  scrollContent: {
+    padding: 16,
+    paddingBottom: 32,
+  },
+
+  emptyScrollContent: {
+    flexGrow: 1,
+  },
+
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F5F7FA',
+    padding: 24,
+  },
+
+  loadingText: {
+    marginTop: 12,
+    fontSize: 15,
+    color: '#666666',
   },
 
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 20,
+    marginBottom: 18,
   },
 
   title: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: '700',
     color: '#111111',
   },
 
   subtitle: {
-    marginTop: 4,
+    marginTop: 5,
     fontSize: 14,
-    color: '#666666',
+    color: '#707070',
   },
 
-  countBadge: {
-    minWidth: 40,
-    height: 40,
-    paddingHorizontal: 10,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#111111',
-  },
-
-  countText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-
-  listContent: {
-    paddingBottom: 30,
-  },
-
-  emptyListContent: {
-    flexGrow: 1,
-    justifyContent: 'center',
-  },
-
-  card: {
-    marginBottom: 14,
-    padding: 18,
-    borderRadius: 16,
+  orderCard: {
     backgroundColor: '#FFFFFF',
-
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 14,
     shadowColor: '#000000',
     shadowOffset: {
       width: 0,
@@ -739,155 +683,180 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
 
-  wireframeCard: {
-    borderWidth: 1,
-    borderColor: '#111111',
-    shadowOpacity: 0,
-    elevation: 0,
-  },
-
   cardHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'flex-start',
   },
 
-  orderIdContainer: {
+  customerSection: {
     flex: 1,
+    paddingRight: 12,
   },
 
-  orderLabel: {
-    fontSize: 11,
+  customerName: {
+    fontSize: 18,
     fontWeight: '700',
+    color: '#111111',
+  },
+
+  deliveryType: {
+    marginTop: 4,
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#2E7D32',
+  },
+
+  totalAmount: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111111',
+  },
+
+  divider: {
+    height: 1,
+    backgroundColor: '#EEEEEE',
+    marginVertical: 14,
+  },
+
+  detailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 9,
+  },
+
+  detailLabel: {
+    fontSize: 13,
+    color: '#777777',
+    marginRight: 12,
+  },
+
+  detailValue: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#222222',
+    textAlign: 'right',
+  },
+
+  addressValue: {
+    maxWidth: '70%',
+  },
+
+  scheduledBox: {
+    backgroundColor: '#F1F6FF',
+    borderRadius: 10,
+    padding: 12,
+    marginTop: 4,
+    marginBottom: 12,
+  },
+
+  scheduledLabel: {
+    fontSize: 12,
+    color: '#55709A',
+    marginBottom: 3,
+  },
+
+  scheduledValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1E3A5F',
+  },
+
+  priceSection: {
+    borderTopWidth: 1,
+    borderTopColor: '#EEEEEE',
+    marginTop: 6,
+    paddingTop: 12,
+  },
+
+  priceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 7,
+  },
+
+  priceLabel: {
+    fontSize: 13,
     color: '#777777',
   },
 
-  orderId: {
-    marginTop: 2,
+  priceValue: {
+    fontSize: 13,
+    color: '#333333',
+    fontWeight: '500',
+  },
+
+  totalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 5,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#EEEEEE',
+  },
+
+  totalLabel: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#111111',
+  },
+
+  totalValue: {
     fontSize: 16,
     fontWeight: '700',
     color: '#111111',
   },
 
-  paidBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
-    backgroundColor: '#DFF5E5',
-  },
-
-  paidText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#237A3B',
-  },
-
-  divider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: '#DDDDDD',
-    marginVertical: 16,
-  },
-
-  detailsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-
-  detailBlock: {
-    flex: 1,
-  },
-
-  detailLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#777777',
-  },
-
-  detailValue: {
-    marginTop: 4,
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#111111',
-  },
-
-  deliveryContainer: {
-    marginTop: 18,
-  },
-
-  deliveryValue: {
-    marginTop: 4,
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#111111',
-  },
-
-  addressContainer: {
-    marginTop: 18,
-  },
-
-  addressText: {
-    marginTop: 4,
-    fontSize: 14,
-    lineHeight: 20,
-    color: '#333333',
-  },
-
-  actionRow: {
-    flexDirection: 'row',
+  viewButton: {
+    marginTop: 15,
+    borderRadius: 10,
+    paddingVertical: 12,
     alignItems: 'center',
-    justifyContent: 'flex-end',
-    marginTop: 18,
+    backgroundColor: '#111111',
   },
 
-  viewText: {
+  viewButtonText: {
+    color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '700',
-    color: '#111111',
-  },
-
-  arrow: {
-    marginLeft: 8,
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#111111',
-  },
-
-  centered: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
-    backgroundColor: '#F7F8FA',
-  },
-
-  loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: '#555555',
   },
 
   emptyContainer: {
-    alignItems: 'center',
+    flex: 1,
     justifyContent: 'center',
+    alignItems: 'center',
     paddingHorizontal: 30,
   },
 
   emptyTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '700',
-    textAlign: 'center',
-    color: '#111111',
+    color: '#222222',
+    marginBottom: 8,
   },
 
   emptyText: {
-    marginTop: 8,
     fontSize: 14,
-    lineHeight: 20,
+    lineHeight: 21,
+    color: '#777777',
     textAlign: 'center',
-    color: '#666666',
+    marginBottom: 20,
   },
 
-  wireframeText: {
-    color: '#111111',
+  refreshButton: {
+    paddingHorizontal: 22,
+    paddingVertical: 11,
+    borderRadius: 9,
+    backgroundColor: '#111111',
+  },
+
+  refreshButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
   },
 });
+
+export default AvailableOrdersScreen;

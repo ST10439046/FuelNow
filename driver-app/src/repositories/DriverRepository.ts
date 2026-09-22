@@ -62,201 +62,226 @@ export class DriverRepository {
 
   public static getInstance(): DriverRepository {
     if (!DriverRepository.instance) {
-      DriverRepository.instance = new DriverRepository();
+      DriverRepository.instance =
+        new DriverRepository();
     }
 
     return DriverRepository.instance;
   }
 
-  /**
-   * Gets the public.users.user_id belonging to the currently
-   * authenticated Supabase Auth user.
-   *
-   * FuelFlow uses:
-   *
-   * auth.users.id
-   *      ↓
-   * users.auth_id
-   *      ↓
-   * users.user_id
-   *      ↓
-   * drivers.driver_id
-   *      ↓
-   * orders.driver_id
-   */
-  private async getAuthenticatedDriverId(): Promise<string> {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      throw new Error('No authenticated driver found.');
-    }
-
-    const { data, error } = await supabase
-      .from('users')
-      .select('user_id')
-      .eq('auth_id', user.id)
-      .single();
-
-    if (error || !data?.user_id) {
-      console.error(
-        'DriverRepository: failed to resolve authenticated driver',
-        error
-      );
-
-      throw new Error('Driver account could not be resolved.');
-    }
-
-    return data.user_id;
-  }
-
   private mapDriver(
     row: any,
-    user: any,
-    vehicle: any,
-    documents: DriverDocumentModel[] = [],
-    earnings?: DriverEarnings
+    documents: DriverDocumentModel[] = []
   ): DriverModel {
-    const driverStatus = String(row.status ?? '');
-
     return {
-      id: row.driver_id ?? '',
-      name: user?.full_name ?? 'Driver',
-      phone: user?.phone_number ?? '',
-      rating: Number(row.rating ?? 0),
-      totalDeliveries: earnings?.totalDeliveries ?? 0,
-      vehicleReg: vehicle?.registration_number ?? '',
-      vehicleModel: vehicle
-        ? `${vehicle.make ?? ''} ${vehicle.model ?? ''}`.trim()
-        : '',
-      vehicleColor: '',
-      stationName: row.zone ?? '',
+      id: row.driver_id ?? row.id ?? '',
+      name:
+        row.full_name ??
+        row.users?.full_name ??
+        'Driver',
+
+      phone:
+        row.phone_number ??
+        row.users?.phone_number ??
+        '',
+
+      rating: Number(
+        row.average_rating ?? 5
+      ),
+
+      totalDeliveries: Number(
+        row.total_deliveries ?? 0
+      ),
+
+      vehicleReg:
+        row.vehicle_registration ?? '',
+
+      vehicleModel:
+        row.vehicle_model ?? '',
+
+      vehicleColor:
+        row.vehicle_color ?? '',
+
+      stationName:
+        row.station_name ?? '',
+
       isOnDuty:
-        driverStatus.toLowerCase() === 'available' ||
-        driverStatus.toLowerCase() === 'on duty' ||
-        driverStatus.toLowerCase() === 'on_duty',
+        row.is_on_duty ?? false,
+
       isApproved:
-        driverStatus.toLowerCase() !== 'inactive' &&
-        driverStatus.toLowerCase() !== 'suspended',
+        row.is_approved ?? false,
+
       coordinates: {
-        lat: Number(row.latitude ?? -29.8587),
-        lng: Number(row.longitude ?? 31.0218),
+        lat: Number(
+          row.current_latitude ??
+          -29.8587
+        ),
+        lng: Number(
+          row.current_longitude ??
+          31.0218
+        ),
       },
-      dailyTarget: earnings?.dailyTarget ?? 1500,
-      todayEarnings: earnings?.todayEarnings ?? 0,
-      weekEarnings: earnings?.weekEarnings ?? 0,
-      monthEarnings: earnings?.monthEarnings ?? 0,
+
+      dailyTarget: Number(
+        row.daily_target ?? 1500
+      ),
+
+      todayEarnings: 0,
+      weekEarnings: 0,
+      monthEarnings: 0,
+
       documents,
     };
   }
 
-  private mapDocument(doc: any): DriverDocumentModel {
-    const expiryDate = doc.expiry_date ?? '';
+  private mapDocument(
+    doc: any
+  ): DriverDocumentModel {
+    const expiryDate =
+      doc.expiry_date ?? '';
 
     const now = new Date();
-    const expiry = new Date(expiryDate);
+    const expiry =
+      new Date(expiryDate);
 
     const daysUntilExpiry =
-      (expiry.getTime() - now.getTime()) /
+      (
+        expiry.getTime() -
+        now.getTime()
+      ) /
       (1000 * 60 * 60 * 24);
 
     const isExpired =
-      Boolean(expiryDate) && daysUntilExpiry < 0;
+      daysUntilExpiry < 0;
 
     const isExpiringSoon =
-      Boolean(expiryDate) &&
       !isExpired &&
       daysUntilExpiry <= 30;
 
     return {
-      id: doc.document_id ?? '',
-      type: doc.document_type as DriverDocumentModel['type'],
-      number: doc.document_number ?? '',
+      id:
+        doc.document_id ??
+        doc.id ??
+        '',
+
+      type:
+        doc.document_type as
+          DriverDocumentModel['type'],
+
+      number:
+        doc.document_number ?? '',
+
       expiryDate,
+
       isExpired,
+
       isExpiringSoon,
     };
   }
 
   /**
-   * Fetches the currently authenticated driver's profile.
+   * Resolves the application-level users.user_id
+   * belonging to the currently authenticated
+   * Supabase auth user.
+   */
+  private async getCurrentUserId(): Promise<string> {
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError) {
+      throw authError;
+    }
+
+    if (!user) {
+      throw new Error(
+        'No authenticated driver found.'
+      );
+    }
+
+    const {
+      data,
+      error,
+    } = await supabase
+      .from('users')
+      .select('user_id')
+      .eq('auth_id', user.id)
+      .single();
+
+    if (error || !data) {
+      throw (
+        error ??
+        new Error(
+          'Application user profile not found.'
+        )
+      );
+    }
+
+    return data.user_id;
+  }
+
+  /**
+   * Fetches the authenticated driver's own profile.
    */
   public async getActiveDriver(): Promise<DriverModel> {
-    const driverId = await this.getAuthenticatedDriverId();
+    const userId =
+      await this.getCurrentUserId();
 
-    const { data: driver, error: driverError } = await supabase
+    const {
+      data,
+      error,
+    } = await supabase
       .from('drivers')
-      .select('*')
-      .eq('driver_id', driverId)
-      .single();
-
-    if (driverError || !driver) {
-      console.error(
-        'DriverRepository: failed to fetch driver',
-        driverError
-      );
-
-      throw driverError ?? new Error('Driver profile not found.');
-    }
-
-    const { data: user, error: userError } = await supabase
-      .from('users')
-      .select('user_id, full_name, email, phone_number, status')
-      .eq('user_id', driverId)
-      .single();
-
-    if (userError || !user) {
-      console.error(
-        'DriverRepository: failed to fetch driver user',
-        userError
-      );
-
-      throw userError ?? new Error('Driver user profile not found.');
-    }
-
-    const { data: vehicle, error: vehicleError } = await supabase
-      .from('vehicles')
-      .select(
-        'vehicle_id, driver_id, registration_number, make, model, capacity_litres'
+      .select(`
+        *,
+        users (
+          full_name,
+          phone_number
+        )
+      `)
+      .eq(
+        'driver_id',
+        userId
       )
-      .eq('driver_id', driverId)
-      .maybeSingle();
+      .single();
 
-    if (vehicleError) {
-      console.error(
-        'DriverRepository: failed to fetch vehicle',
-        vehicleError
+    if (error || !data) {
+      throw (
+        error ??
+        new Error(
+          'Driver profile not found.'
+        )
       );
     }
 
-    const { data: docs, error: docsError } = await supabase
+    const {
+      data: docs,
+      error: docsError,
+    } = await supabase
       .from('compliance_documents')
-      .select(
-        'document_id, driver_id, document_type, document_number, issue_date, expiry_date, status'
-      )
-      .eq('driver_id', driverId)
-      .order('expiry_date', { ascending: true });
+      .select('*')
+      .eq(
+        'driver_id',
+        userId
+      );
 
     if (docsError) {
       console.error(
-        'DriverRepository: failed to fetch compliance documents',
+        'DriverRepository: failed to fetch driver documents',
         docsError
       );
     }
 
-    const documents = (docs ?? []).map((doc: any) =>
-      this.mapDocument(doc)
-    );
-
-    const earnings = await this.getEarnings();
+    const documents =
+      (docs ?? []).map(
+        (document: any) =>
+          this.mapDocument(document)
+      );
 
     return this.mapDriver(
-      driver,
-      user,
-      vehicle,
-      documents,
-      earnings
+      data,
+      documents
     );
   }
 
@@ -264,9 +289,18 @@ export class DriverRepository {
    * Fetches all drivers.
    */
   public async getAllDrivers(): Promise<DriverModel[]> {
-    const { data: drivers, error } = await supabase
+    const {
+      data,
+      error,
+    } = await supabase
       .from('drivers')
-      .select('*');
+      .select(`
+        *,
+        users (
+          full_name,
+          phone_number
+        )
+      `);
 
     if (error) {
       console.error(
@@ -277,220 +311,218 @@ export class DriverRepository {
       return [];
     }
 
-    if (!drivers?.length) {
-      return [];
-    }
-
-    const driverIds = drivers.map((driver: any) => driver.driver_id);
-
-    const { data: users } = await supabase
-      .from('users')
-      .select('user_id, full_name, email, phone_number')
-      .in('user_id', driverIds);
-
-    const { data: vehicles } = await supabase
-      .from('vehicles')
-      .select(
-        'vehicle_id, driver_id, registration_number, make, model, capacity_litres'
-      )
-      .in('driver_id', driverIds);
-
-    return drivers.map((driver: any) => {
-      const user = (users ?? []).find(
-        (item: any) => item.user_id === driver.driver_id
-      );
-
-      const vehicle = (vehicles ?? []).find(
-        (item: any) => item.driver_id === driver.driver_id
-      );
-
-      return this.mapDriver(driver, user, vehicle);
-    });
+    return (data ?? []).map(
+      (row: any) =>
+        this.mapDriver(row)
+    );
   }
 
   /**
-   * Fetches real earnings from completed FuelFlow deliveries.
-   *
-   * Driver earnings are based on the delivery_fee recorded
-   * against each completed order.
+   * Fetches driver earnings and delivery history.
    */
   public async getEarnings(): Promise<DriverEarnings> {
-    const driverId = await this.getAuthenticatedDriverId();
+    const driverId =
+      await this.getCurrentUserId();
 
     const now = new Date();
 
-    const startOfToday = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate()
-    );
+    const startOfToday =
+      new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate()
+      ).toISOString();
 
-    const startOfWeek = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate() - now.getDay()
-    );
+    const startOfWeek =
+      new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate() -
+          now.getDay()
+      ).toISOString();
 
-    const startOfMonth = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      1
-    );
+    const startOfMonth =
+      new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        1
+      ).toISOString();
 
-    const { data: orders, error } = await supabase
+    const {
+      data: orders,
+      error,
+    } = await supabase
       .from('orders')
       .select(`
-        order_id,
-        driver_id,
-        volume_litres,
-        status,
-        placed_at,
-        delivered_at,
+        *,
+        payments (
+          delivery_fee,
+          fuel_subtotal,
+          total_amount
+        ),
         fuel_types (
           name
         ),
         addresses (
           street_name,
-          suburb,
-          city
-        ),
-        payments (
-          delivery_fee
+          suburb
         )
       `)
-      .eq('driver_id', driverId)
-      .eq('status', 'DELIVERED')
-      .order('delivered_at', {
-        ascending: false,
-      });
+      .eq(
+        'driver_id',
+        driverId
+      )
+      .eq(
+        'status',
+        'DELIVERED'
+      );
 
     if (error) {
       console.error(
         'DriverRepository: failed to fetch earnings',
         error
       );
-
-      throw error;
     }
 
-    const delivered = orders ?? [];
+    const delivered =
+      orders ?? [];
 
-    const getDeliveryFee = (order: any): number => {
-      const payment = Array.isArray(order.payments)
-        ? order.payments[0]
-        : order.payments;
+    const todayEarnings =
+      delivered
+        .filter(
+          (order: any) =>
+            order.delivered_at >=
+            startOfToday
+        )
+        .reduce(
+          (
+            total: number,
+            order: any
+          ) =>
+            total +
+            Number(
+              order.payments?.[0]
+                ?.delivery_fee ?? 0
+            ),
+          0
+        );
 
-      return Number(payment?.delivery_fee ?? 0);
-    };
+    const weekEarnings =
+      delivered
+        .filter(
+          (order: any) =>
+            order.delivered_at >=
+            startOfWeek
+        )
+        .reduce(
+          (
+            total: number,
+            order: any
+          ) =>
+            total +
+            Number(
+              order.payments?.[0]
+                ?.delivery_fee ?? 0
+            ),
+          0
+        );
 
-    const todayEarnings = delivered
-      .filter((order: any) => {
-        if (!order.delivered_at) {
-          return false;
-        }
+    const monthEarnings =
+      delivered
+        .filter(
+          (order: any) =>
+            order.delivered_at >=
+            startOfMonth
+        )
+        .reduce(
+          (
+            total: number,
+            order: any
+          ) =>
+            total +
+            Number(
+              order.payments?.[0]
+                ?.delivery_fee ?? 0
+            ),
+          0
+        );
 
-        return new Date(order.delivered_at) >= startOfToday;
-      })
-      .reduce(
-        (total: number, order: any) =>
-          total + getDeliveryFee(order),
-        0
-      );
-
-    const weekEarnings = delivered
-      .filter((order: any) => {
-        if (!order.delivered_at) {
-          return false;
-        }
-
-        return new Date(order.delivered_at) >= startOfWeek;
-      })
-      .reduce(
-        (total: number, order: any) =>
-          total + getDeliveryFee(order),
-        0
-      );
-
-    const monthEarnings = delivered
-      .filter((order: any) => {
-        if (!order.delivered_at) {
-          return false;
-        }
-
-        return new Date(order.delivered_at) >= startOfMonth;
-      })
-      .reduce(
-        (total: number, order: any) =>
-          total + getDeliveryFee(order),
-        0
-      );
-
-    const deliveryHistory: DriverEarningsEntry[] =
-      delivered.slice(0, 20).map((order: any) => {
-        const address = order.addresses;
-
-        const addressParts = [
-          address?.street_name,
-          address?.suburb,
-          address?.city,
-        ].filter(Boolean);
-
-        return {
+    const deliveryHistory:
+      DriverEarningsEntry[] =
+      delivered
+        .slice(0, 20)
+        .map((order: any) => ({
           id: order.order_id,
+
           address:
-            addressParts.length > 0
-              ? addressParts.join(', ')
-              : 'Delivery address unavailable',
+            `${order.addresses?.street_name ?? ''}, ` +
+            `${order.addresses?.suburb ?? ''}`,
+
           date:
             order.delivered_at ??
             order.placed_at ??
             new Date().toISOString(),
-          litres: Number(order.volume_litres ?? 0),
+
+          litres:
+            Number(
+              order.volume_litres ?? 0
+            ),
+
           fuelType:
-            order.fuel_types?.name ?? 'Fuel',
-          amount: getDeliveryFee(order),
-        };
-      });
+            order.fuel_types?.name ??
+            'Fuel',
+
+          amount:
+            Number(
+              order.payments?.[0]
+                ?.delivery_fee ?? 0
+            ),
+        }));
 
     return {
       todayEarnings,
       weekEarnings,
       monthEarnings,
       dailyTarget: 1500,
-      totalDeliveries: delivered.length,
+      totalDeliveries:
+        delivered.length,
       deliveryHistory,
     };
   }
 
   /**
-   * Fetches compliance documents for the authenticated driver.
+   * Fetches documents for the authenticated driver.
    */
-  public async getDriverDocuments(): Promise<DriverDocumentModel[]> {
+  public async getDriverDocuments(): Promise<
+    DriverDocumentModel[]
+  > {
     try {
       const driverId =
-        await this.getAuthenticatedDriverId();
+        await this.getCurrentUserId();
 
-      const { data, error } = await supabase
+      const {
+        data,
+        error,
+      } = await supabase
         .from('compliance_documents')
-        .select(
-          'document_id, driver_id, document_type, document_number, issue_date, expiry_date, status'
-        )
-        .eq('driver_id', driverId)
-        .order('expiry_date', {
-          ascending: true,
-        });
+        .select('*')
+        .eq(
+          'driver_id',
+          driverId
+        );
 
       if (error) {
         console.error(
-          'DriverRepository: failed to fetch compliance documents',
+          'DriverRepository: failed to fetch documents',
           error
         );
 
         return [];
       }
 
-      return (data ?? []).map((document: any) =>
-        this.mapDocument(document)
+      return (data ?? []).map(
+        (document: any) =>
+          this.mapDocument(document)
       );
     } catch (error) {
       console.error(
@@ -503,26 +535,30 @@ export class DriverRepository {
   }
 
   /**
-   * Toggles the driver's availability.
+   * Toggles the driver's on-duty status.
    *
-   * FuelFlow stores driver availability using the drivers.status field.
+   * This method only updates columns that exist in the
+   * current production schema.
    */
   public async toggleOnDutyStatus(
     isOnDuty: boolean
   ): Promise<boolean> {
     const driverId =
-      await this.getAuthenticatedDriverId();
+      await this.getCurrentUserId();
 
-    const status = isOnDuty
-      ? 'Available'
-      : 'Inactive';
-
-    const { error } = await supabase
+    const {
+      error,
+    } = await supabase
       .from('drivers')
       .update({
-        status,
+        status: isOnDuty
+          ? 'Active'
+          : 'Offline',
       })
-      .eq('driver_id', driverId);
+      .eq(
+        'driver_id',
+        driverId
+      );
 
     if (error) {
       throw error;
@@ -533,28 +569,24 @@ export class DriverRepository {
 
   /**
    * Updates the driver's GPS coordinates.
+   *
+   * The current database schema does not expose
+   * current_latitude/current_longitude columns,
+   * so this method only publishes the location
+   * through the realtime hub until those columns
+   * are added to the database.
    */
   public async updateGpsCoordinates(
     lat: number,
     lng: number
   ): Promise<void> {
     const driverId =
-      await this.getAuthenticatedDriverId();
-
-    const { error } = await supabase
-      .from('drivers')
-      .update({
-        latitude: lat,
-        longitude: lng,
-      })
-      .eq('driver_id', driverId);
-
-    if (error) {
-      throw error;
-    }
+      await this.getCurrentUserId();
 
     realtimeHub
-      .getDriverGpsChannel(driverId)
+      .getDriverGpsChannel(
+        driverId
+      )
       .notify({
         driverId,
         coordinates: {
@@ -567,47 +599,125 @@ export class DriverRepository {
   }
 
   /**
-   * Assigns the current driver to an order.
+   * Accepts an available order as the
+   * authenticated driver.
    */
   public async acceptOrder(
     orderId: string
   ): Promise<void> {
     const driverId =
-      await this.getAuthenticatedDriverId();
+      await this.getCurrentUserId();
 
-    const { error } = await supabase
+    const {
+      data: order,
+      error: orderLookupError,
+    } = await supabase
+      .from('orders')
+      .select(
+        'order_id, driver_id, status'
+      )
+      .eq(
+        'order_id',
+        orderId
+      )
+      .maybeSingle();
+
+    if (orderLookupError) {
+      throw orderLookupError;
+    }
+
+    if (!order) {
+      throw new Error(
+        'Order could not be found.'
+      );
+    }
+
+    if (order.driver_id) {
+      throw new Error(
+        'This order has already been assigned to another driver.'
+      );
+    }
+
+    if (
+      String(order.status)
+        .toUpperCase() !==
+      'PAID'
+    ) {
+      throw new Error(
+        'This order is no longer available.'
+      );
+    }
+
+    const {
+      data: updatedOrder,
+      error,
+    } = await supabase
       .from('orders')
       .update({
         driver_id: driverId,
         status: 'ACCEPTED',
       })
-      .eq('order_id', orderId);
+      .eq(
+        'order_id',
+        orderId
+      )
+      .is(
+        'driver_id',
+        null
+      )
+      .eq(
+        'status',
+        'PAID'
+      )
+      .select(
+        'order_id, driver_id, status'
+      )
+      .maybeSingle();
 
     if (error) {
       throw error;
     }
+
+    if (!updatedOrder) {
+      throw new Error(
+        'The order could not be accepted. It may have been assigned to another driver.'
+      );
+    }
   }
 
   /**
-   * Updates an order's delivery status.
+   * Updates an order status.
    */
   public async updateOrderStatus(
     orderId: string,
     status: string,
     deliveredAt?: string
   ): Promise<void> {
-    const update: Record<string, any> = {
+    const driverId =
+      await this.getCurrentUserId();
+
+    const update: any = {
       status,
     };
 
     if (deliveredAt) {
-      update.delivered_at = deliveredAt;
+      update.delivered_at =
+        deliveredAt;
     }
 
-    const { error } = await supabase
+    const {
+      error,
+    } = await supabase
       .from('orders')
       .update(update)
-      .eq('order_id', orderId);
+      .eq(
+        'order_id',
+        orderId
+      )
+      .eq(
+        'driver_id',
+        driverId
+      );
 
     if (error) {
       throw error;

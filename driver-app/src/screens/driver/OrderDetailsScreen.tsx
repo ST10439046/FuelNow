@@ -10,34 +10,59 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useDesignMode } from '../../context/DesignModeContext';
-import { FontSizes, Spacing, Radius, Shadow } from '../../theme/tokens';
+import {
+  FontSizes,
+  Spacing,
+  Radius,
+  Shadow,
+} from '../../theme/tokens';
+import { AvailableOrder } from './AvailableOrdersScreen';
 import { driverRepository } from '../../repositories/DriverRepository';
-import type { AvailableOrder } from './AvailableOrdersScreen';
 
 interface Props {
-  navigation: any;
-  route: any;
+  readonly navigation: any;
+  readonly route: any;
 }
 
-const DELIVERY_FEE = 45.00;
+interface DestinationMapProps {
+  readonly suburb: string;
+  readonly isDiesel: boolean;
+  readonly isWireframe: boolean;
+}
 
-// ── Static destination map ────────────────────────────────────────────────────
+interface DividerProps {
+  readonly colors: any;
+  readonly isWireframe: boolean;
+}
+
+interface InfoRowProps {
+  readonly icon: string;
+  readonly label: string;
+  readonly value: string;
+  readonly bold?: boolean;
+  readonly accent?: boolean;
+  readonly colors: any;
+  readonly font: any;
+  readonly isWireframe: boolean;
+}
+
 function DestinationMap({
   suburb,
   isDiesel,
   isWireframe,
-}: {
-  suburb: string;
-  isDiesel: boolean;
-  isWireframe: boolean;
-}) {
-  const pinColor = isWireframe
-    ? '#888'
-    : (isDiesel ? '#2563EB' : '#F97316');
+}: DestinationMapProps) {
+  let pinColor = '#F97316';
+
+  if (isWireframe) {
+    pinColor = '#888';
+  } else if (isDiesel) {
+    pinColor = '#2563EB';
+  }
 
   if (isWireframe) {
     return (
@@ -59,7 +84,7 @@ function DestinationMap({
             fontSize: 13,
           }}
         >
-          [ Destination Map — {suburb} ]
+          [ Destination Map - {suburb} ]
         </Text>
       </View>
     );
@@ -191,7 +216,6 @@ function DestinationMap({
             left: 280,
             width: 85,
             height: 25,
-            borderRadius: 4,
           },
         ]}
       />
@@ -216,7 +240,6 @@ function DestinationMap({
             left: 145,
             width: 95,
             height: 45,
-            borderRadius: 6,
           },
         ]}
       />
@@ -244,7 +267,11 @@ function DestinationMap({
           },
         ]}
       >
-        <Feather name="map-pin" size={14} color="#FFF" />
+        <Feather
+          name="map-pin"
+          size={14}
+          color="#FFF"
+        />
       </View>
 
       <View
@@ -270,26 +297,25 @@ function DestinationMap({
   );
 }
 
-// ── Divider ───────────────────────────────────────────────────────────────────
 function Divider({
   colors,
   isWireframe,
-}: {
-  colors: any;
-  isWireframe: boolean;
-}) {
+}: DividerProps) {
+  const backgroundColor = isWireframe
+    ? '#DDDDDD'
+    : colors.divider;
+
   return (
     <View
       style={{
         height: 1,
-        backgroundColor: isWireframe ? '#DDDDDD' : colors.divider,
+        backgroundColor,
         marginVertical: Spacing.md,
       }}
     />
   );
 }
 
-// ── Info row ──────────────────────────────────────────────────────────────────
 function InfoRow({
   icon,
   label,
@@ -299,16 +325,27 @@ function InfoRow({
   colors,
   font,
   isWireframe,
-}: {
-  icon: string;
-  label: string;
-  value: string;
-  bold?: boolean;
-  accent?: boolean;
-  colors: any;
-  font: any;
-  isWireframe: boolean;
-}) {
+}: InfoRowProps) {
+  let valueColor: string;
+
+  if (accent) {
+    valueColor = isWireframe
+      ? '#1A1A1A'
+      : colors.petrolDeep;
+  } else {
+    valueColor = isWireframe
+      ? '#1A1A1A'
+      : colors.charcoalInk;
+  }
+
+  const valueFont = bold
+    ? font('displayBold')
+    : font('bodyMedium');
+
+  const valueFontSize = bold
+    ? FontSizes.md
+    : FontSizes.sm;
+
   return (
     <View style={styles.infoRow}>
       <View
@@ -324,7 +361,11 @@ function InfoRow({
         <Feather
           name={icon as any}
           size={14}
-          color={isWireframe ? '#666' : colors.inkLight}
+          color={
+            isWireframe
+              ? '#666'
+              : colors.inkLight
+          }
         />
       </View>
 
@@ -332,7 +373,9 @@ function InfoRow({
         style={[
           styles.infoLabel,
           {
-            color: isWireframe ? '#666' : colors.inkLight,
+            color: isWireframe
+              ? '#666'
+              : colors.inkLight,
             fontFamily: font('body'),
             fontSize: FontSizes.sm,
           },
@@ -345,15 +388,9 @@ function InfoRow({
         style={[
           styles.infoValue,
           {
-            color: accent
-              ? (isWireframe ? '#1A1A1A' : colors.petrolDeep)
-              : (isWireframe ? '#1A1A1A' : colors.charcoalInk),
-            fontFamily: bold
-              ? font('displayBold')
-              : font('bodyMedium'),
-            fontSize: bold
-              ? FontSizes.md
-              : FontSizes.sm,
+            color: valueColor,
+            fontFamily: valueFont,
+            fontSize: valueFontSize,
           },
         ]}
       >
@@ -363,7 +400,67 @@ function InfoRow({
   );
 }
 
-// ── Main screen ───────────────────────────────────────────────────────────────
+function getCustomerInitials(
+  customerName: string
+): string {
+  const name = customerName.trim();
+
+  if (!name) {
+    return 'C';
+  }
+
+  const parts = name
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (parts.length === 1) {
+    return parts[0]
+      .slice(0, 2)
+      .toUpperCase();
+  }
+
+  return (
+    parts[0].charAt(0) +
+    parts[parts.length - 1].charAt(0)
+  ).toUpperCase();
+}
+
+function getSuburbFromAddress(
+  address: string
+): string {
+  const parts = address
+    .split(',')
+    .map(part => part.trim())
+    .filter(Boolean);
+
+  if (parts.length >= 2) {
+    return parts[parts.length - 2];
+  }
+
+  if (parts.length === 1) {
+    return parts[0];
+  }
+
+  return 'Destination';
+}
+
+function getDistanceDisplay(
+  order: AvailableOrder
+): string | null {
+  if (!order.distance) {
+    return null;
+  }
+
+  if (
+    order.distance === 'Distance unavailable' ||
+    order.distance === 'Location available'
+  ) {
+    return order.distance;
+  }
+
+  return order.distance;
+}
+
 export default function OrderDetailsScreen({
   navigation,
   route,
@@ -374,54 +471,13 @@ export default function OrderDetailsScreen({
     isWireframe,
   } = useDesignMode();
 
-  const order: AvailableOrder =
-    route?.params?.order;
+  const order =
+    route?.params?.order as
+      | AvailableOrder
+      | undefined;
 
-  const [accepting, setAccepting] = useState(false);
-
-  const isDiesel =
-    order?.fuelType?.startsWith('Diesel') ?? false;
-
-  const fmt = (n: number) =>
-    'R ' +
-    n.toLocaleString('en-ZA', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
-
-  const subtotal =
-    order?.totalZAR ?? 0;
-
-  const total =
-    subtotal + DELIVERY_FEE;
-
-  const handleAccept = async () => {
-    if (!order?.id || accepting) {
-      return;
-    }
-
-    try {
-      setAccepting(true);
-
-      await driverRepository.acceptOrder(
-        order.id
-      );
-
-      navigation.navigate(
-        'ActiveNavigation',
-        {
-          order,
-        }
-      );
-    } catch (error) {
-      console.error(
-        'OrderDetailsScreen: failed to accept order',
-        error
-      );
-    } finally {
-      setAccepting(false);
-    }
-  };
+  const [accepting, setAccepting] =
+    useState(false);
 
   if (!order) {
     return (
@@ -435,43 +491,17 @@ export default function OrderDetailsScreen({
           },
         ]}
       >
-        <View style={styles.emptyState}>
-          <Feather
-            name="alert-circle"
-            size={40}
-            color={
-              isWireframe
-                ? '#666'
-                : colors.inkLight
-            }
-          />
-
+        <View style={styles.missingOrder}>
           <Text
-            style={[
-              styles.emptyTitle,
-              {
-                color: isWireframe
-                  ? '#1A1A1A'
-                  : colors.charcoalInk,
-                fontFamily: font('displayBold'),
-              },
-            ]}
+            style={{
+              color: isWireframe
+                ? '#1A1A1A'
+                : colors.charcoalInk,
+              fontFamily: font('bodyMedium'),
+              fontSize: FontSizes.base,
+            }}
           >
-            Order unavailable
-          </Text>
-
-          <Text
-            style={[
-              styles.emptyText,
-              {
-                color: isWireframe
-                  ? '#666'
-                  : colors.inkLight,
-                fontFamily: font('body'),
-              },
-            ]}
-          >
-            This order could not be loaded.
+            Order information is unavailable.
           </Text>
 
           <TouchableOpacity
@@ -480,18 +510,17 @@ export default function OrderDetailsScreen({
               styles.backToOrdersButton,
               {
                 backgroundColor: isWireframe
-                  ? '#B0B0B0'
+                  ? '#888'
                   : colors.petrolDeep,
               },
             ]}
           >
             <Text
-              style={[
-                styles.backToOrdersText,
-                {
-                  fontFamily: font('bodySemiBold'),
-                },
-              ]}
+              style={{
+                color: '#FFFFFF',
+                fontFamily: font('bodySemiBold'),
+                fontSize: FontSizes.sm,
+              }}
             >
               Go Back
             </Text>
@@ -500,6 +529,65 @@ export default function OrderDetailsScreen({
       </SafeAreaView>
     );
   }
+
+  const isDiesel =
+    order.fuelType.startsWith('Diesel');
+
+  const suburb = getSuburbFromAddress(
+    order.address
+  );
+
+  const customerInitials =
+    getCustomerInitials(
+      order.customerName
+    );
+
+  const distanceDisplay =
+    getDistanceDisplay(order);
+
+  const fmt = (n: number) =>
+    'R ' +
+    n.toLocaleString('en-ZA', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+
+  const handleAccept = async () => {
+    if (accepting) {
+      return;
+    }
+
+    setAccepting(true);
+
+    try {
+      await driverRepository.acceptOrder(
+        order.orderId
+      );
+
+      navigation.navigate(
+        'ActiveNavigation',
+        {
+          order: {
+            ...order,
+            status: 'ACCEPTED',
+          },
+        }
+      );
+    } catch (error: any) {
+      console.error(
+        'OrderDetailsScreen: failed to accept order',
+        error
+      );
+
+      Alert.alert(
+        'Unable to Accept Order',
+        error?.message ??
+          'The order could not be accepted. Please try again.'
+      );
+    } finally {
+      setAccepting(false);
+    }
+  };
 
   return (
     <SafeAreaView
@@ -513,7 +601,6 @@ export default function OrderDetailsScreen({
       ]}
       edges={['top', 'bottom']}
     >
-      {/* Top bar */}
       <View
         style={[
           styles.topBar,
@@ -521,12 +608,12 @@ export default function OrderDetailsScreen({
             backgroundColor: isWireframe
               ? '#FFFFFF'
               : colors.white,
-            borderBottomWidth: isWireframe
-              ? 1.5
-              : 1,
-            borderBottomColor: isWireframe
-              ? '#CCCCCC'
-              : colors.divider,
+            borderBottomWidth:
+              isWireframe ? 1.5 : 1,
+            borderBottomColor:
+              isWireframe
+                ? '#CCCCCC'
+                : colors.divider,
           },
         ]}
       >
@@ -547,17 +634,19 @@ export default function OrderDetailsScreen({
 
         <View style={{ flex: 1 }}>
           <Text
-            style={[
-              {
-                color: isWireframe
-                  ? '#1A1A1A'
-                  : colors.charcoalInk,
-                fontFamily: font('displayBold'),
-                fontSize: FontSizes.md,
-              },
-            ]}
+            style={{
+              color: isWireframe
+                ? '#1A1A1A'
+                : colors.charcoalInk,
+              fontFamily: font('displayBold'),
+              fontSize: FontSizes.md,
+            }}
+            numberOfLines={1}
           >
-            Order #{order.id}
+            Order #
+            {order.orderId
+              .slice(0, 8)
+              .toUpperCase()}
           </Text>
         </View>
 
@@ -572,15 +661,13 @@ export default function OrderDetailsScreen({
           ]}
         >
           <Text
-            style={[
-              {
-                color: isWireframe
-                  ? '#555'
-                  : colors.petrolDeep,
-                fontFamily: font('bodySemiBold'),
-                fontSize: FontSizes.xs,
-              },
-            ]}
+            style={{
+              color: isWireframe
+                ? '#555'
+                : colors.petrolDeep,
+              fontFamily: font('bodySemiBold'),
+              fontSize: FontSizes.xs,
+            }}
           >
             New Order
           </Text>
@@ -591,14 +678,12 @@ export default function OrderDetailsScreen({
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
       >
-        {/* Destination map */}
         <DestinationMap
-          suburb={order.suburb}
+          suburb={suburb}
           isDiesel={isDiesel}
           isWireframe={isWireframe}
         />
 
-        {/* Order info card */}
         <View
           style={[
             styles.card,
@@ -609,9 +694,8 @@ export default function OrderDetailsScreen({
               borderRadius: isWireframe
                 ? Radius.sm
                 : Radius.lg,
-              borderWidth: isWireframe
-                ? 1.5
-                : 0,
+              borderWidth:
+                isWireframe ? 1.5 : 0,
               borderColor: '#CCCCCC',
               ...(isWireframe
                 ? {}
@@ -619,60 +703,55 @@ export default function OrderDetailsScreen({
             },
           ]}
         >
-          {/* Customer */}
           <View style={styles.customerRow}>
             <View
               style={[
                 styles.initialsCircle,
                 {
-                  backgroundColor: isWireframe
-                    ? '#D0D0D0'
-                    : colors.petrolLight,
+                  backgroundColor:
+                    isWireframe
+                      ? '#D0D0D0'
+                      : colors.petrolLight,
                 },
               ]}
             >
               <Text
-                style={[
-                  {
-                    color: isWireframe
-                      ? '#555'
-                      : colors.petrolDeep,
-                    fontFamily: font('displayBold'),
-                    fontSize: FontSizes.sm,
-                  },
-                ]}
+                style={{
+                  color: isWireframe
+                    ? '#555'
+                    : colors.petrolDeep,
+                  fontFamily: font('displayBold'),
+                  fontSize: FontSizes.sm,
+                }}
               >
-                {order.customerInitials}
+                {customerInitials}
               </Text>
             </View>
 
-            <View>
+            <View style={{ flex: 1 }}>
               <Text
-                style={[
-                  {
-                    color: isWireframe
-                      ? '#666'
-                      : colors.inkLight,
-                    fontFamily: font('body'),
-                    fontSize: FontSizes.xs,
-                  },
-                ]}
+                style={{
+                  color: isWireframe
+                    ? '#666'
+                    : colors.inkLight,
+                  fontFamily: font('body'),
+                  fontSize: FontSizes.xs,
+                }}
               >
                 Customer
               </Text>
 
               <Text
-                style={[
-                  {
-                    color: isWireframe
-                      ? '#1A1A1A'
-                      : colors.charcoalInk,
-                    fontFamily: font('bodyMedium'),
-                    fontSize: FontSizes.base,
-                  },
-                ]}
+                style={{
+                  color: isWireframe
+                    ? '#1A1A1A'
+                    : colors.charcoalInk,
+                  fontFamily: font('bodyMedium'),
+                  fontSize: FontSizes.base,
+                }}
+                numberOfLines={1}
               >
-                Customer {order.customerInitials}
+                {order.customerName}
               </Text>
             </View>
           </View>
@@ -682,7 +761,6 @@ export default function OrderDetailsScreen({
             isWireframe={isWireframe}
           />
 
-          {/* Order details */}
           <InfoRow
             icon="droplet"
             label="Fuel Type"
@@ -695,7 +773,7 @@ export default function OrderDetailsScreen({
           <InfoRow
             icon="layers"
             label="Quantity"
-            value={`${order.litres} litres`}
+            value={`${order.volumeLitres} litres`}
             colors={colors}
             font={font}
             isWireframe={isWireframe}
@@ -704,86 +782,135 @@ export default function OrderDetailsScreen({
           <InfoRow
             icon="map-pin"
             label="Address"
-            value={`${order.address}, ${order.suburb}`}
+            value={order.address}
             colors={colors}
             font={font}
             isWireframe={isWireframe}
           />
 
-          <InfoRow
-            icon="navigation"
-            label="Distance"
-            value={`${order.distanceKm} km · ${order.estimatedMinutes} min ETA`}
-            colors={colors}
-            font={font}
-            isWireframe={isWireframe}
-          />
+          {distanceDisplay && (
+            <InfoRow
+              icon="navigation"
+              label="Distance"
+              value={distanceDisplay}
+              colors={colors}
+              font={font}
+              isWireframe={isWireframe}
+            />
+          )}
 
           <Divider
             colors={colors}
             isWireframe={isWireframe}
           />
 
-          {/* Pricing */}
           <View style={styles.priceRow}>
             <Text
-              style={[
-                {
-                  color: isWireframe
-                    ? '#666'
-                    : colors.inkLight,
-                  fontFamily: font('body'),
-                  fontSize: FontSizes.sm,
-                },
-              ]}
+              style={{
+                color: isWireframe
+                  ? '#666'
+                  : colors.inkLight,
+                fontFamily: font('body'),
+                fontSize: FontSizes.sm,
+              }}
             >
-              Subtotal
+              Fuel Subtotal
             </Text>
 
             <Text
-              style={[
-                {
-                  color: isWireframe
-                    ? '#1A1A1A'
-                    : colors.charcoalInk,
-                  fontFamily: font('bodyMedium'),
-                  fontSize: FontSizes.sm,
-                },
-              ]}
+              style={{
+                color: isWireframe
+                  ? '#1A1A1A'
+                  : colors.charcoalInk,
+                fontFamily: font('bodyMedium'),
+                fontSize: FontSizes.sm,
+              }}
             >
-              {fmt(subtotal)}
+              {fmt(order.fuelSubtotal)}
             </Text>
           </View>
 
           <View style={styles.priceRow}>
             <Text
-              style={[
-                {
-                  color: isWireframe
-                    ? '#666'
-                    : colors.inkLight,
-                  fontFamily: font('body'),
-                  fontSize: FontSizes.sm,
-                },
-              ]}
+              style={{
+                color: isWireframe
+                  ? '#666'
+                  : colors.inkLight,
+                fontFamily: font('body'),
+                fontSize: FontSizes.sm,
+              }}
             >
               Delivery Fee
             </Text>
 
             <Text
-              style={[
-                {
+              style={{
+                color: isWireframe
+                  ? '#1A1A1A'
+                  : colors.charcoalInk,
+                fontFamily: font('bodyMedium'),
+                fontSize: FontSizes.sm,
+              }}
+            >
+              {fmt(order.deliveryFee)}
+            </Text>
+          </View>
+
+          {order.serviceFee > 0 && (
+            <View style={styles.priceRow}>
+              <Text
+                style={{
+                  color: isWireframe
+                    ? '#666'
+                    : colors.inkLight,
+                  fontFamily: font('body'),
+                  fontSize: FontSizes.sm,
+                }}
+              >
+                Service Fee
+              </Text>
+
+              <Text
+                style={{
                   color: isWireframe
                     ? '#1A1A1A'
                     : colors.charcoalInk,
                   fontFamily: font('bodyMedium'),
                   fontSize: FontSizes.sm,
-                },
-              ]}
-            >
-              {fmt(DELIVERY_FEE)}
-            </Text>
-          </View>
+                }}
+              >
+                {fmt(order.serviceFee)}
+              </Text>
+            </View>
+          )}
+
+          {order.vatAmount > 0 && (
+            <View style={styles.priceRow}>
+              <Text
+                style={{
+                  color: isWireframe
+                    ? '#666'
+                    : colors.inkLight,
+                  fontFamily: font('body'),
+                  fontSize: FontSizes.sm,
+                }}
+              >
+                VAT
+              </Text>
+
+              <Text
+                style={{
+                  color: isWireframe
+                    ? '#1A1A1A'
+                    : colors.charcoalInk,
+                  fontFamily: font('bodyMedium'),
+                  fontSize: FontSizes.sm,
+                }}
+              >
+                {fmt(order.vatAmount)}
+              </Text>
+            </View>
+          )}
 
           <Divider
             colors={colors}
@@ -792,37 +919,32 @@ export default function OrderDetailsScreen({
 
           <View style={styles.priceRow}>
             <Text
-              style={[
-                {
-                  color: isWireframe
-                    ? '#1A1A1A'
-                    : colors.charcoalInk,
-                  fontFamily: font('displayBold'),
-                  fontSize: FontSizes.base,
-                },
-              ]}
+              style={{
+                color: isWireframe
+                  ? '#1A1A1A'
+                  : colors.charcoalInk,
+                fontFamily: font('displayBold'),
+                fontSize: FontSizes.base,
+              }}
             >
               Total
             </Text>
 
             <Text
-              style={[
-                {
-                  color: isWireframe
-                    ? '#1A1A1A'
-                    : colors.petrolDeep,
-                  fontFamily: font('displayBold'),
-                  fontSize: FontSizes.lg,
-                },
-              ]}
+              style={{
+                color: isWireframe
+                  ? '#1A1A1A'
+                  : colors.petrolDeep,
+                fontFamily: font('displayBold'),
+                fontSize: FontSizes.lg,
+              }}
             >
-              {fmt(total)}
+              {fmt(order.totalAmount)}
             </Text>
           </View>
         </View>
       </ScrollView>
 
-      {/* Action buttons */}
       <View
         style={[
           styles.actionBar,
@@ -830,21 +952,21 @@ export default function OrderDetailsScreen({
             backgroundColor: isWireframe
               ? '#FFFFFF'
               : colors.white,
-            borderTopWidth: isWireframe
-              ? 1.5
-              : 1,
-            borderTopColor: isWireframe
-              ? '#CCCCCC'
-              : colors.divider,
+            borderTopWidth:
+              isWireframe ? 1.5 : 1,
+            borderTopColor:
+              isWireframe
+                ? '#CCCCCC'
+                : colors.divider,
             ...(isWireframe
               ? {}
               : Shadow.lg),
           },
         ]}
       >
-        {/* Decline */}
         <TouchableOpacity
           onPress={() => navigation.goBack()}
+          disabled={accepting}
           activeOpacity={0.82}
           style={[
             styles.declineBtn,
@@ -856,26 +978,23 @@ export default function OrderDetailsScreen({
               borderRadius: isWireframe
                 ? Radius.sm
                 : Radius.md,
-              backgroundColor: 'transparent',
+              opacity: accepting ? 0.5 : 1,
             },
           ]}
         >
           <Text
-            style={[
-              {
-                color: isWireframe
-                  ? '#555'
-                  : colors.petrolDeep,
-                fontFamily: font('bodySemiBold'),
-                fontSize: FontSizes.base,
-              },
-            ]}
+            style={{
+              color: isWireframe
+                ? '#555'
+                : colors.petrolDeep,
+              fontFamily: font('bodySemiBold'),
+              fontSize: FontSizes.base,
+            }}
           >
             Decline
           </Text>
         </TouchableOpacity>
 
-        {/* Accept */}
         <TouchableOpacity
           onPress={handleAccept}
           disabled={accepting}
@@ -890,13 +1009,10 @@ export default function OrderDetailsScreen({
               borderRadius: isWireframe
                 ? Radius.sm
                 : Radius.md,
-              borderWidth: isWireframe
-                ? 1.5
-                : 0,
+              borderWidth:
+                isWireframe ? 1.5 : 0,
               borderColor: '#666',
-              opacity: accepting
-                ? 0.7
-                : 1,
+              opacity: accepting ? 0.7 : 1,
             },
           ]}
         >
@@ -914,13 +1030,11 @@ export default function OrderDetailsScreen({
               />
 
               <Text
-                style={[
-                  {
-                    color: '#FFFFFF',
-                    fontFamily: font('bodySemiBold'),
-                    fontSize: FontSizes.base,
-                  },
-                ]}
+                style={{
+                  color: '#FFFFFF',
+                  fontFamily: font('bodySemiBold'),
+                  fontSize: FontSizes.base,
+                }}
               >
                 Accept Order
               </Text>
@@ -1063,7 +1177,7 @@ const styles = StyleSheet.create({
 
   infoValue: {
     textAlign: 'right',
-    flex: 1,
+    flex: 1.4,
   },
 
   priceRow: {
@@ -1095,33 +1209,17 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
 
-  emptyState: {
+  missingOrder: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: Spacing.xl,
-  },
-
-  emptyTitle: {
-    marginTop: Spacing.md,
-    fontSize: FontSizes.lg,
-  },
-
-  emptyText: {
-    marginTop: Spacing.xs,
-    fontSize: FontSizes.sm,
-    textAlign: 'center',
+    padding: Spacing.xl,
   },
 
   backToOrdersButton: {
-    marginTop: Spacing.lg,
+    marginTop: Spacing.md,
     paddingHorizontal: Spacing.xl,
     paddingVertical: Spacing.md,
     borderRadius: Radius.md,
-  },
-
-  backToOrdersText: {
-    color: '#FFFFFF',
-    fontSize: FontSizes.base,
   },
 });
