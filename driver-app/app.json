@@ -26,7 +26,8 @@
             "node_modules/@expo-google-fonts/inter/Inter_700Bold.ttf"
           ]
         }
-      ]
+      ],
+      "expo-sqlite"
     ]
   }
 }

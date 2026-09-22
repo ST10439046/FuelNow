@@ -1,10 +1,19 @@
+import 'react-native-url-polyfill/auto';
+import 'expo-sqlite/localStorage/install';
+
 import { createClient } from '@supabase/supabase-js';
+import { AppState, Platform } from 'react-native';
 
-declare const process: { env: Record<string, string | undefined> };
+declare const process: {
+  env: Record<string, string | undefined>;
+};
 
-// Supabase Configuration — loaded from .env (EXPO_PUBLIC_ prefix)
-export const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
-export const SUPABASE_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
+// Supabase Configuration
+export const SUPABASE_URL =
+  process.env.EXPO_PUBLIC_SUPABASE_URL!;
+
+export const SUPABASE_KEY =
+  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
   throw new Error(
@@ -12,18 +21,45 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
   );
 }
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+export const supabase = createClient(
+  SUPABASE_URL,
+  SUPABASE_KEY,
+  {
+    auth: {
+      storage: localStorage,
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: false,
+    },
+  }
+);
+
+if (Platform.OS !== 'web') {
+  AppState.addEventListener(
+    'change',
+    (state) => {
+      if (state === 'active') {
+        supabase.auth.startAutoRefresh();
+      } else {
+        supabase.auth.stopAutoRefresh();
+      }
+    }
+  );
+}
 
 export class SupabaseService {
   private static instance: SupabaseService;
+
   public client = supabase;
 
   private constructor() {}
 
   public static getInstance(): SupabaseService {
     if (!SupabaseService.instance) {
-      SupabaseService.instance = new SupabaseService();
+      SupabaseService.instance =
+        new SupabaseService();
     }
+
     return SupabaseService.instance;
   }
 
@@ -38,27 +74,48 @@ export class SupabaseService {
   public async invokeFunction<T = any>(
     functionName: string,
     body: Record<string, any>
-  ): Promise<{ data: T | null; error: Error | null }> {
+  ): Promise<{
+    data: T | null;
+    error: Error | null;
+  }> {
     try {
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/${functionName}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${SUPABASE_KEY}`,
-          apikey: SUPABASE_KEY,
-        },
-        body: JSON.stringify(body),
-      });
+      const response = await fetch(
+        `${SUPABASE_URL}/functions/v1/${functionName}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${SUPABASE_KEY}`,
+            apikey: SUPABASE_KEY,
+          },
+          body: JSON.stringify(body),
+        }
+      );
 
       const result = await response.json();
+
       if (!response.ok) {
-        return { data: null, error: new Error(result.error || `HTTP ${response.status}: Failed to invoke ${functionName}`) };
+        return {
+          data: null,
+          error: new Error(
+            result.error ||
+              `HTTP ${response.status}: Failed to invoke ${functionName}`
+          ),
+        };
       }
-      return { data: result, error: null };
+
+      return {
+        data: result,
+        error: null,
+      };
     } catch (err: any) {
-      return { data: null, error: err };
+      return {
+        data: null,
+        error: err,
+      };
     }
   }
 }
 
-export const supabaseService = SupabaseService.getInstance();
+export const supabaseService =
+  SupabaseService.getInstance();
