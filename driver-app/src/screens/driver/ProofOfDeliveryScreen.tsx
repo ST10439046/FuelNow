@@ -1,19 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  Platform,
-  ScrollView,
+  Alert,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { useDesignMode } from '../../context/DesignModeContext';
 import { FontSizes, Spacing, Radius } from '../../theme/tokens';
-import { MOCK_DRIVER } from '../../services/mockApi';
-
 import { orderRepository } from '../../repositories/OrderRepository';
 
 interface Props {
@@ -22,273 +21,406 @@ interface Props {
 }
 
 export default function ProofOfDeliveryScreen({ navigation, route }: Props) {
-  const { colors, font, isWireframe } = useDesignMode();
-  const order = route?.params?.order ?? { id: 'ord_7821', pin: '5821' };
+  const { colors, font, isWireframe: isWF } = useDesignMode();
+  const order = route.params?.order;
 
-  const [photoTaken, setPhotoTaken] = useState(false);
-  const [photoUrl, setPhotoUrl] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [enteredPin, setEnteredPin] = useState('');
-  const [errorMessage, setErrorMessage] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
-  const isDisabled = !photoTaken || enteredPin.length !== 4 || loading;
+  const takePhoto = async () => {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
 
-  const handleDigitPress = (digit: string) => {
-    if (enteredPin.length < 4) {
-      setErrorMessage('');
-      setEnteredPin((prev) => prev + digit);
+    if (!permission.granted) {
+      Alert.alert(
+        'Camera Permission',
+        'Camera access is required to capture proof of delivery.'
+      );
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets.length > 0) {
+      setPhotoUri(result.assets[0].uri);
     }
   };
 
-  const handleDeleteDigit = () => {
-    setErrorMessage('');
-    setEnteredPin((prev) => prev.slice(0, -1));
-  };
+  const submitDelivery = async () => {
+    if (!order?.id) {
+      Alert.alert('Error', 'Order information is missing.');
+      return;
+    }
 
-  const handleTakePhoto = () => {
-    setPhotoTaken((prev) => !prev);
-    setPhotoUrl('https://images.unsplash.com/photo-1545454675-3531b543be5d?w=800');
-  };
+    if (!enteredPin.trim()) {
+      Alert.alert('PIN Required', 'Enter the customer delivery PIN.');
+      return;
+    }
 
-  const handleConfirm = async () => {
-    setLoading(true);
-    setErrorMessage('');
+    if (!photoUri) {
+      Alert.alert(
+        'Proof Required',
+        'Please capture a photo before completing the delivery.'
+      );
+      return;
+    }
+
     try {
-      const result = await orderRepository.confirmDeliveryWithPin(order.id, enteredPin, photoUrl);
-      if (result.success) {
-        navigation.navigate('DeliveryComplete', { order: result.order || order });
-      } else {
-        setErrorMessage(result.error || 'Invalid 4-digit PIN. Please ask customer for correct PIN.');
-      }
-    } catch {
-      setErrorMessage('Verification failed. Check network or PIN.');
+      setSubmitting(true);
+
+      await orderRepository.confirmDeliveryWithPin(
+        order.id,
+        enteredPin.trim(),
+        photoUri
+      );
+
+      navigation.replace('DeliveryComplete', {
+        order,
+      });
+    } catch (error) {
+      console.error('ProofOfDeliveryScreen: failed to confirm delivery', error);
+
+      Alert.alert(
+        'Delivery Failed',
+        error instanceof Error
+          ? error.message
+          : 'Unable to confirm the delivery. Please try again.'
+      );
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.warmAsh }]} edges={['top', 'bottom']}>
-      {/* ── Header ──────────────────────────────────────────────────────────── */}
-      <View style={[styles.header, { backgroundColor: colors.white, borderBottomColor: colors.divider }]}>
+    <SafeAreaView
+      style={[
+        styles.container,
+        {
+          backgroundColor: isWF ? '#F0F0F0' : colors.warmAsh,
+        },
+      ]}
+    >
+      <View style={styles.header}>
         <TouchableOpacity
-          style={[styles.backBtn, { backgroundColor: colors.ashDark }]}
           onPress={() => navigation.goBack()}
-          activeOpacity={0.8}
+          style={styles.backButton}
+          disabled={submitting}
         >
-          <Feather name="arrow-left" size={20} color={colors.charcoalInk} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { fontFamily: font('displayBold'), color: colors.charcoalInk }]}>
-          Proof of Delivery
-        </Text>
-        <View style={{ width: 40 }} />
-      </View>
-
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* ── Photo capture ─────────────────────────────────────────────────── */}
-        <Text style={[styles.sectionLabel, { fontFamily: font('bodyBold'), color: colors.charcoalInk }]}>
-          Delivery Photo
-        </Text>
-
-        <TouchableOpacity
-          style={[
-            styles.photoBox,
-            {
-              borderColor: photoTaken
-                ? colors.dieselGreen
-                : isWireframe ? '#AAAAAA' : colors.petrolDeep,
-              backgroundColor: photoTaken
-                ? '#E0EAE2'
-                : colors.white,
-            },
-          ]}
-          activeOpacity={0.85}
-          onPress={handleTakePhoto}
-        >
-          {photoTaken ? (
-            <>
-              <Feather name="check-circle" size={40} color="#22C55E" />
-              <Text style={[styles.photoText, { fontFamily: font('bodyMedium'), color: '#15803D', marginTop: Spacing.sm }]}>
-                Photo captured
-              </Text>
-              <Text style={[styles.photoHint, { fontFamily: font('body'), color: '#16A34A' }]}>
-                Tap to retake
-              </Text>
-            </>
-          ) : (
-            <>
-              <Feather
-                name="camera"
-                size={40}
-                color={isWireframe ? '#888888' : colors.petrolDeep}
-              />
-              <Text
-                style={[
-                  styles.photoText,
-                  {
-                    fontFamily: font('bodyMedium'),
-                    color: isWireframe ? '#888888' : colors.petrolDeep,
-                    marginTop: Spacing.sm,
-                  },
-                ]}
-              >
-                Tap to capture photo
-              </Text>
-            </>
-          )}
+          <Feather
+            name="arrow-left"
+            size={22}
+            color={isWF ? '#222' : colors.charcoalInk}
+          />
         </TouchableOpacity>
 
-        {/* ── PIN verification ──────────────────────────────────────────────── */}
         <Text
           style={[
-            styles.sectionLabel,
-            { fontFamily: font('bodyBold'), color: colors.charcoalInk, marginTop: Spacing.lg },
+            styles.headerTitle,
+            {
+              color: isWF ? '#1A1A1A' : colors.charcoalInk,
+              fontFamily: font('displayBold'),
+              fontSize: FontSizes.lg,
+            },
           ]}
         >
-          Customer PIN Verification
-        </Text>
-        <Text style={[styles.sectionSub, { fontFamily: font('body'), color: colors.inkLight }]}>
-          Ask the customer for their unique 4-digit confirmation PIN shown in their FuelNow app.
+          Proof of Delivery
         </Text>
 
-        <View style={styles.pinRow}>
-          {[0, 1, 2, 3].map((idx) => {
-            const digit = enteredPin[idx] || '';
-            return (
-              <View
-                key={idx}
-                style={[
-                  styles.pinBox,
-                  {
-                    borderColor: digit
-                      ? colors.petrolDeep
-                      : isWireframe ? '#CCCCCC' : colors.divider,
-                    backgroundColor: colors.white,
-                  },
-                ]}
-              >
-                <Text
-                  style={{
-                    color: colors.charcoalInk,
-                    fontFamily: font('displayBold'),
-                    fontSize: FontSizes['3xl'],
-                  }}
-                >
-                  {digit ? '•' : ''}
-                </Text>
-              </View>
-            );
-          })}
-        </View>
+        <View style={styles.headerSpacer} />
+      </View>
 
-        {errorMessage ? (
-          <View style={{ backgroundColor: '#FEE2E2', padding: Spacing.md, borderRadius: Radius.md, marginBottom: Spacing.md }}>
-            <Text style={{ color: '#DC2626', fontFamily: font('bodyMedium'), fontSize: FontSizes.sm, textAlign: 'center' }}>
-              {errorMessage}
-            </Text>
-          </View>
-        ) : null}
-
-        {/* Custom Numeric Keypad */}
-        <View style={{ marginTop: Spacing.md, marginBottom: Spacing.lg }}>
-          {[
-            ['1', '2', '3'],
-            ['4', '5', '6'],
-            ['7', '8', '9'],
-            ['', '0', 'delete'],
-          ].map((row, rIdx) => (
-            <View key={rIdx} style={{ flexDirection: 'row', justifyContent: 'center', gap: 16, marginBottom: 10 }}>
-              {row.map((item, cIdx) => {
-                if (item === '') {
-                  return <View key={cIdx} style={{ width: 70, height: 48 }} />;
-                }
-                if (item === 'delete') {
-                  return (
-                    <TouchableOpacity
-                      key={cIdx}
-                      style={{
-                        width: 70,
-                        height: 48,
-                        borderRadius: Radius.md,
-                        backgroundColor: colors.ashDark,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                      onPress={handleDeleteDigit}
-                      activeOpacity={0.7}
-                    >
-                      <Feather name="delete" size={20} color={colors.charcoalInk} />
-                    </TouchableOpacity>
-                  );
-                }
-                return (
-                  <TouchableOpacity
-                    key={cIdx}
-                    style={{
-                      width: 70,
-                      height: 48,
-                      borderRadius: Radius.md,
-                      backgroundColor: colors.white,
-                      borderWidth: 1,
-                      borderColor: colors.divider,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                    onPress={() => handleDigitPress(item)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={{ fontSize: 20, fontFamily: font('displayBold'), color: colors.charcoalInk }}>
-                      {item}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          ))}
-        </View>
-
-        {/* ── Order reminder ────────────────────────────────────────────────── */}
-        <View style={[styles.orderReminder, { backgroundColor: colors.petrolLight, borderRadius: Radius.lg }]}>
-          <Feather name="info" size={14} color={colors.petrolDeep} />
-          <Text style={[styles.orderReminderText, { fontFamily: font('body'), color: colors.petrolMid }]}>
-            {'  '}Order {order?.id} · Petrol 95 · 50 L · R 1,221.50
-          </Text>
-        </View>
-
-        <View style={{ height: Spacing['2xl'] }} />
-      </ScrollView>
-
-      {/* ── Footer CTA ──────────────────────────────────────────────────────── */}
-      <View style={[styles.footer, { backgroundColor: colors.white, borderTopColor: colors.divider }]}>
-        <TouchableOpacity
+      <View style={styles.content}>
+        <View
           style={[
-            styles.confirmButton,
-            { backgroundColor: isDisabled ? (isWireframe ? '#CCCCCC' : colors.divider) : colors.petrolDeep },
+            styles.orderCard,
+            {
+              backgroundColor: isWF ? '#FFFFFF' : colors.white,
+              borderColor: isWF ? '#D0D0D0' : colors.divider,
+            },
           ]}
-          onPress={handleConfirm}
-          disabled={isDisabled}
-          activeOpacity={0.85}
         >
-          {loading ? (
-            <ActivityIndicator color="#FFFFFF" size="small" />
-          ) : (
-            <>
-              <Feather name="shield" size={18} color={isDisabled ? colors.inkFaint : '#FFFFFF'} />
+          <Text
+            style={[
+              styles.orderLabel,
+              {
+                color: isWF ? '#777' : colors.inkLight,
+                fontFamily: font('bodyMedium'),
+              },
+            ]}
+          >
+            Order
+          </Text>
+
+          <Text
+            style={[
+              styles.orderId,
+              {
+                color: isWF ? '#111' : colors.charcoalInk,
+                fontFamily: font('displayBold'),
+              },
+            ]}
+          >
+            #{order?.id ?? 'Unknown'}
+          </Text>
+
+          {order?.customerName && (
+            <Text
+              style={[
+                styles.customerName,
+                {
+                  color: isWF ? '#555' : colors.inkLight,
+                  fontFamily: font('body'),
+                },
+              ]}
+            >
+              {order.customerName}
+            </Text>
+          )}
+        </View>
+
+        <View style={styles.section}>
+          <Text
+            style={[
+              styles.sectionTitle,
+              {
+                color: isWF ? '#1A1A1A' : colors.charcoalInk,
+                fontFamily: font('displayBold'),
+              },
+            ]}
+          >
+            Delivery PIN
+          </Text>
+
+          <Text
+            style={[
+              styles.sectionDescription,
+              {
+                color: isWF ? '#666' : colors.inkLight,
+                fontFamily: font('body'),
+              },
+            ]}
+          >
+            Ask the customer for their delivery PIN and enter it below.
+          </Text>
+
+          <View
+            style={[
+              styles.pinInput,
+              {
+                backgroundColor: isWF ? '#FFFFFF' : colors.white,
+                borderColor: isWF ? '#BBBBBB' : colors.divider,
+              },
+            ]}
+          >
+            <Feather
+              name="key"
+              size={20}
+              color={isWF ? '#555' : colors.petrolDeep}
+            />
+
+            <View style={styles.pinInputContainer}>
               <Text
                 style={[
-                  styles.confirmText,
+                  styles.pinLabel,
                   {
-                    fontFamily: font('bodyBold'),
-                    color: isDisabled ? colors.inkFaint : '#FFFFFF',
+                    color: isWF ? '#888' : colors.inkFaint,
+                    fontFamily: font('body'),
                   },
                 ]}
               >
-                {'  '}Confirm Delivery
+                Delivery PIN
+              </Text>
+
+              <Text
+                style={[
+                  styles.pinValue,
+                  {
+                    color: isWF ? '#111' : colors.charcoalInk,
+                    fontFamily: font('displayBold'),
+                  },
+                ]}
+              >
+                {enteredPin || 'Enter PIN'}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.pinButtons}>
+            {['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'].map(
+              (digit) => (
+                <TouchableOpacity
+                  key={digit}
+                  style={[
+                    styles.pinButton,
+                    {
+                      backgroundColor: isWF ? '#FFFFFF' : colors.white,
+                      borderColor: isWF ? '#CCCCCC' : colors.divider,
+                    },
+                  ]}
+                  onPress={() => {
+                    if (enteredPin.length < 6) {
+                      setEnteredPin((current) => current + digit);
+                    }
+                  }}
+                  disabled={submitting}
+                >
+                  <Text
+                    style={[
+                      styles.pinButtonText,
+                      {
+                        color: isWF ? '#222' : colors.charcoalInk,
+                        fontFamily: font('displayBold'),
+                      },
+                    ]}
+                  >
+                    {digit}
+                  </Text>
+                </TouchableOpacity>
+              )
+            )}
+
+            <TouchableOpacity
+              style={[
+                styles.pinButton,
+                {
+                  backgroundColor: isWF ? '#E8E8E8' : colors.warmAsh,
+                  borderColor: isWF ? '#CCCCCC' : colors.divider,
+                },
+              ]}
+              onPress={() =>
+                setEnteredPin((current) => current.slice(0, -1))
+              }
+              disabled={submitting}
+            >
+              <Feather
+                name="delete"
+                size={20}
+                color={isWF ? '#222' : colors.charcoalInk}
+              />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text
+            style={[
+              styles.sectionTitle,
+              {
+                color: isWF ? '#1A1A1A' : colors.charcoalInk,
+                fontFamily: font('displayBold'),
+              },
+            ]}
+          >
+            Delivery Photo
+          </Text>
+
+          <Text
+            style={[
+              styles.sectionDescription,
+              {
+                color: isWF ? '#666' : colors.inkLight,
+                fontFamily: font('body'),
+              },
+            ]}
+          >
+            Capture a photo as proof that the fuel was delivered.
+          </Text>
+
+          {photoUri ? (
+            <View style={styles.photoContainer}>
+              <Image
+                source={{ uri: photoUri }}
+                style={styles.photo}
+                resizeMode="cover"
+              />
+
+              <TouchableOpacity
+                style={[
+                  styles.retakeButton,
+                  {
+                    backgroundColor: isWF ? '#333' : colors.petrolDeep,
+                  },
+                ]}
+                onPress={takePhoto}
+                disabled={submitting}
+              >
+                <Feather name="camera" size={18} color="#FFFFFF" />
+
+                <Text
+                  style={[
+                    styles.retakeText,
+                    {
+                      fontFamily: font('bodyMedium'),
+                    },
+                  ]}
+                >
+                  Retake Photo
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={[
+                styles.cameraButton,
+                {
+                  backgroundColor: isWF ? '#FFFFFF' : colors.white,
+                  borderColor: isWF ? '#AAAAAA' : colors.petrolDeep,
+                },
+              ]}
+              onPress={takePhoto}
+              disabled={submitting}
+            >
+              <Feather
+                name="camera"
+                size={28}
+                color={isWF ? '#333' : colors.petrolDeep}
+              />
+
+              <Text
+                style={[
+                  styles.cameraButtonText,
+                  {
+                    color: isWF ? '#333' : colors.petrolDeep,
+                    fontFamily: font('bodyMedium'),
+                  },
+                ]}
+              >
+                Take Delivery Photo
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        <TouchableOpacity
+          style={[
+            styles.submitButton,
+            {
+              backgroundColor: isWF ? '#333333' : colors.petrolDeep,
+              opacity: submitting ? 0.6 : 1,
+            },
+          ]}
+          onPress={submitDelivery}
+          disabled={submitting}
+        >
+          {submitting ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <>
+              <Feather name="check-circle" size={20} color="#FFFFFF" />
+
+              <Text
+                style={[
+                  styles.submitText,
+                  {
+                    fontFamily: font('bodyMedium'),
+                  },
+                ]}
+              >
+                Complete Delivery
               </Text>
             </>
           )}
@@ -301,111 +433,169 @@ export default function ProofOfDeliveryScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    height: Platform.OS === 'web' ? ('100vh' as any) : '100%',
   },
-  // ── Header ─────────────────────────────────────────────────────────────────
+
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: Spacing.base,
     paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
   },
-  backBtn: {
+
+  backButton: {
     width: 40,
     height: 40,
-    borderRadius: Radius.md,
     alignItems: 'center',
     justifyContent: 'center',
   },
+
   headerTitle: {
     flex: 1,
     textAlign: 'center',
-    fontSize: FontSizes.md,
   },
-  // ── Scroll ─────────────────────────────────────────────────────────────────
-  scroll: {
+
+  headerSpacer: {
+    width: 40,
+  },
+
+  content: {
     flex: 1,
-  },
-  scrollContent: {
     paddingHorizontal: Spacing.base,
-    paddingTop: Spacing.lg,
-    paddingBottom: Spacing.xl,
+    paddingBottom: Spacing.base,
   },
-  // ── Section labels ─────────────────────────────────────────────────────────
-  sectionLabel: {
-    fontSize: FontSizes.base,
-    marginBottom: Spacing.sm,
-  },
-  sectionSub: {
-    fontSize: FontSizes.sm,
-    marginBottom: Spacing.base,
-    lineHeight: 18,
-  },
-  // ── Photo box ──────────────────────────────────────────────────────────────
-  photoBox: {
-    height: 180,
+
+  orderCard: {
+    borderWidth: 1,
     borderRadius: Radius.lg,
-    borderWidth: 2,
-    borderStyle: 'dashed',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: Spacing.sm,
+    padding: Spacing.md,
+    marginBottom: Spacing.lg,
   },
-  photoText: {
-    fontSize: FontSizes.base,
-  },
-  photoHint: {
+
+  orderLabel: {
     fontSize: FontSizes.xs,
+    marginBottom: 4,
+  },
+
+  orderId: {
+    fontSize: FontSizes.lg,
+  },
+
+  customerName: {
+    fontSize: FontSizes.sm,
     marginTop: 4,
   },
-  // ── PIN ────────────────────────────────────────────────────────────────────
-  pinRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: Spacing.md,
+
+  section: {
+    marginBottom: Spacing.lg,
+  },
+
+  sectionTitle: {
+    fontSize: FontSizes.base,
+    marginBottom: Spacing.xs,
+  },
+
+  sectionDescription: {
+    fontSize: FontSizes.sm,
+    lineHeight: 20,
     marginBottom: Spacing.md,
   },
-  pinBox: {
-    width: 60,
-    height: 60,
-    borderRadius: Radius.md,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  timerContainer: {
+
+  pinInput: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.xs,
-  },
-  timerText: {},
-  // ── Order reminder ─────────────────────────────────────────────────────────
-  orderReminder: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: Spacing.md,
-    marginTop: Spacing.lg,
-  },
-  orderReminderText: {
-    fontSize: FontSizes.sm,
-    flex: 1,
-  },
-  // ── Footer ─────────────────────────────────────────────────────────────────
-  footer: {
-    padding: Spacing.base,
-    borderTopWidth: 1,
-  },
-  confirmButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderWidth: 1,
     borderRadius: Radius.lg,
-    paddingVertical: Spacing.base,
-    minHeight: 52,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
   },
-  confirmText: {
+
+  pinInputContainer: {
+    marginLeft: Spacing.md,
+  },
+
+  pinLabel: {
+    fontSize: FontSizes.xs,
+  },
+
+  pinValue: {
+    fontSize: FontSizes.base,
+    marginTop: 2,
+  },
+
+  pinButtons: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: Spacing.sm,
+  },
+
+  pinButton: {
+    width: '18%',
+    aspectRatio: 1,
+    borderWidth: 1,
+    borderRadius: Radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  pinButtonText: {
+    fontSize: FontSizes.lg,
+  },
+
+  photoContainer: {
+    borderRadius: Radius.lg,
+    overflow: 'hidden',
+  },
+
+  photo: {
+    width: '100%',
+    height: 200,
+    borderRadius: Radius.lg,
+  },
+
+  retakeButton: {
+    position: 'absolute',
+    bottom: Spacing.md,
+    right: Spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.md,
+  },
+
+  retakeText: {
+    color: '#FFFFFF',
+    fontSize: FontSizes.sm,
+  },
+
+  cameraButton: {
+    height: 140,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderRadius: Radius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+  },
+
+  cameraButtonText: {
+    fontSize: FontSizes.sm,
+  },
+
+  submitButton: {
+    marginTop: 'auto',
+    minHeight: 54,
+    borderRadius: Radius.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+  },
+
+  submitText: {
+    color: '#FFFFFF',
     fontSize: FontSizes.base,
   },
 });
