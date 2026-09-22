@@ -313,22 +313,63 @@ export default function AvailableOrdersScreen() {
         .is('driver_id', null)
         .order('placed_at', { ascending: false });
 
-      if (error) {
-        console.error(
-          'AvailableOrdersScreen: failed to fetch available orders',
+        console.log(
+          'AVAILABLE ORDERS RAW DATA:',
+          JSON.stringify(data, null, 2)
+        );
+        
+        console.log(
+          'AVAILABLE ORDERS QUERY ERROR:',
           error
         );
-        setOrders([]);
-        return;
-      }
+        
+        if (error) {
+          console.error(
+            'AvailableOrdersScreen: failed to fetch available orders',
+            error
+          );
+          setOrders([]);
+          return;
+        }
 
       const now = new Date();
 
-      const availableOrders = ((data ?? []) as RawOrder[])
-        .filter((order) => isOrderAvailable(order, now))
-        .map(mapOrder);
+      const rawOrders = (data ?? []) as RawOrder[];
 
-      setOrders(availableOrders);
+console.log(
+  'AVAILABLE ORDERS RAW COUNT:',
+  rawOrders.length
+);
+
+rawOrders.forEach((order) => {
+  console.log(
+    'ORDER CHECK:',
+    order.order_id,
+    {
+      status: order.status,
+      driver_id: order.driver_id,
+      delivery_type: order.delivery_type,
+      placed_at: order.placed_at,
+      scheduled_date_time: order.scheduled_date_time,
+    }
+  );
+
+  console.log(
+    'ORDER AVAILABLE:',
+    isOrderAvailable(order, now)
+  );
+});
+
+const availableOrders = rawOrders
+  .filter((order) => isOrderAvailable(order, now))
+  .map(mapOrder);
+
+console.log(
+  'AVAILABLE ORDERS FINAL COUNT:',
+  availableOrders.length
+);
+
+setOrders(availableOrders);
     } catch (error) {
       console.error(
         'AvailableOrdersScreen: unexpected error while fetching orders',

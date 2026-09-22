@@ -478,68 +478,48 @@ export class OrderRepository {
 
 
   // ==========================================================================
-  // GET AVAILABLE ORDERS
+  // GET AVAILABLE DRIVER ORDERS
   // ==========================================================================
   //
-  // Driver-side order discovery.
-  //
-  // Available orders are orders that:
-  //
-  // - Have not yet been assigned to a driver
-  // - Are PAID or FINDING_DRIVER
-  //
-  // The returned shape matches AvailableOrdersScreen.
+  // Available orders are:
+  // - PAID
+  // - Not assigned to a driver
+  // - Deliver Now orders placed today
+  // - Scheduled orders whose scheduled time has not passed
   //
   // ==========================================================================
 
-  public async getAvailableOrders(): Promise<AvailableOrderModel[]> {
-
-    const {
-      data,
-      error,
-    } = await supabase
+  public async getAvailableOrders(): Promise<any[]> {
+    const { data, error } = await supabase
       .from('orders')
-      .select(
-        `
-          order_id,
-          customer_id,
-          driver_id,
-          volume_litres,
-          rand_amount,
-          status,
-          address_id,
-          fuel_type_id,
-          fuel_types (
-            name
-          ),
-          addresses (
-            unit_number,
-            street_number,
-            street_name,
-            suburb,
-            city,
-            latitude,
-            longitude
-          )
-        `
-      )
-      .is(
-        'driver_id',
-        null
-      )
-      .in(
-        'status',
-        [
-          'PAID',
-          'FINDING_DRIVER',
-        ]
-      )
-      .order(
-        'placed_at',
-        {
-          ascending: false,
-        }
-      );
+      .select(`
+        order_id,
+        customer_id,
+        driver_id,
+        address_id,
+        fuel_type_id,
+        volume_litres,
+        rand_amount,
+        delivery_type,
+        scheduled_date_time,
+        status,
+        placed_at,
+        fuel_types (
+          name
+        ),
+        addresses (
+          unit_number,
+          street_number,
+          street_name,
+          suburb,
+          city,
+          latitude,
+          longitude
+        )
+      `)
+      .eq('status', 'PAID')
+      .is('driver_id', null)
+      .order('placed_at', { ascending: false });
 
     if (error) {
       console.error(
@@ -550,71 +530,90 @@ export class OrderRepository {
       throw error;
     }
 
-    const availableOrders: AvailableOrderModel[] =
-      (data ?? []).map(
-        (row: any) => {
+    const now = new Date();
 
-          const address =
-            Array.isArray(row.addresses)
-              ? row.addresses[0]
-              : row.addresses;
+    const startOfToday = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      0,
+      0,
+      0,
+      0
+    );
 
-          const fuelType =
-            Array.isArray(row.fuel_types)
-              ? row.fuel_types[0]
-              : row.fuel_types;
+    const endOfToday = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      23,
+      59,
+      59,
+      999
+    );
 
-              const litres =
-              Number(
-                row.volume_litres ??
-                0
-              );
-            
-            const totalZAR =
-              Number(
-                row.rand_amount ??
-                0
-              );
-            
-            const customerInitials =
-              'C.';
-            
-            const addressParts = [
-              address?.unit_number,
-              address?.street_number,
-              address?.street_name,
-            ].filter(Boolean);
-            
-            return {
-              id:
-                row.order_id,
-            
-              fuelType:
-                fuelType?.name ??
-                'Unknown Fuel',
-            
-              litres,
-            
-              address:
-                addressParts.join(' ') ||
-                'Address unavailable',
-            
-              suburb:
-                address?.suburb ??
-                '',
-            
-              customerInitials,
-            
-              distanceKm:
-                0,
-            
-              estimatedMinutes:
-                0,
-            
-              totalZAR,
-            };
+    const availableOrders = (data ?? []).filter((order: any) => {
+      if (order.status !== 'PAID') {
+        return false;
+      }
+
+      if (order.driver_id !== null) {
+        return false;
+      }
+
+      const deliveryType = String(
+        order.delivery_type ?? ''
+      )
+        .trim()
+        .toLowerCase();
+
+      // --------------------------------------------------------------
+      // Deliver Now
+      // --------------------------------------------------------------
+
+      if (
+        deliveryType === 'deliver now' ||
+        deliveryType === 'now' ||
+        deliveryType === 'immediate'
+      ) {
+        if (!order.placed_at) {
+          return false;
         }
-      );
+
+        const placedAt = new Date(order.placed_at);
+
+        if (Number.isNaN(placedAt.getTime())) {
+          return false;
+        }
+
+        return (
+          placedAt >= startOfToday &&
+          placedAt <= endOfToday
+        );
+      }
+
+      // --------------------------------------------------------------
+      // Scheduled
+      // --------------------------------------------------------------
+
+      if (deliveryType === 'scheduled') {
+        if (!order.scheduled_date_time) {
+          return false;
+        }
+
+        const scheduledAt = new Date(
+          order.scheduled_date_time
+        );
+
+        if (Number.isNaN(scheduledAt.getTime())) {
+          return false;
+        }
+
+        return scheduledAt.getTime() >= now.getTime();
+      }
+
+      return false;
+    });
 
     return availableOrders;
   }
