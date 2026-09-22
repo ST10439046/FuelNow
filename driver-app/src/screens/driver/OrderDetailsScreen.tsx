@@ -25,44 +25,24 @@ import { AvailableOrder } from './AvailableOrdersScreen';
 import { driverRepository } from '../../repositories/DriverRepository';
 
 interface Props {
-  readonly navigation: any;
-  readonly route: any;
-}
-
-interface DestinationMapProps {
-  readonly suburb: string;
-  readonly isDiesel: boolean;
-  readonly isWireframe: boolean;
-}
-
-interface DividerProps {
-  readonly colors: any;
-  readonly isWireframe: boolean;
-}
-
-interface InfoRowProps {
-  readonly icon: string;
-  readonly label: string;
-  readonly value: string;
-  readonly bold?: boolean;
-  readonly accent?: boolean;
-  readonly colors: any;
-  readonly font: any;
-  readonly isWireframe: boolean;
+  navigation: any;
+  route: any;
 }
 
 function DestinationMap({
   suburb,
   isDiesel,
   isWireframe,
-}: DestinationMapProps) {
-  let pinColor = '#F97316';
-
-  if (isWireframe) {
-    pinColor = '#888';
-  } else if (isDiesel) {
-    pinColor = '#2563EB';
-  }
+}: {
+  suburb: string;
+  isDiesel: boolean;
+  isWireframe: boolean;
+}) {
+  const pinColor = isWireframe
+    ? '#888'
+    : isDiesel
+      ? '#2563EB'
+      : '#F97316';
 
   if (isWireframe) {
     return (
@@ -84,7 +64,7 @@ function DestinationMap({
             fontSize: 13,
           }}
         >
-          [ Destination Map - {suburb} ]
+          [ Destination Map — {suburb} ]
         </Text>
       </View>
     );
@@ -300,16 +280,17 @@ function DestinationMap({
 function Divider({
   colors,
   isWireframe,
-}: DividerProps) {
-  const backgroundColor = isWireframe
-    ? '#DDDDDD'
-    : colors.divider;
-
+}: {
+  colors: any;
+  isWireframe: boolean;
+}) {
   return (
     <View
       style={{
         height: 1,
-        backgroundColor,
+        backgroundColor: isWireframe
+          ? '#DDDDDD'
+          : colors.divider,
         marginVertical: Spacing.md,
       }}
     />
@@ -325,27 +306,16 @@ function InfoRow({
   colors,
   font,
   isWireframe,
-}: InfoRowProps) {
-  let valueColor: string;
-
-  if (accent) {
-    valueColor = isWireframe
-      ? '#1A1A1A'
-      : colors.petrolDeep;
-  } else {
-    valueColor = isWireframe
-      ? '#1A1A1A'
-      : colors.charcoalInk;
-  }
-
-  const valueFont = bold
-    ? font('displayBold')
-    : font('bodyMedium');
-
-  const valueFontSize = bold
-    ? FontSizes.md
-    : FontSizes.sm;
-
+}: {
+  icon: string;
+  label: string;
+  value: string;
+  bold?: boolean;
+  accent?: boolean;
+  colors: any;
+  font: any;
+  isWireframe: boolean;
+}) {
   return (
     <View style={styles.infoRow}>
       <View
@@ -388,9 +358,19 @@ function InfoRow({
         style={[
           styles.infoValue,
           {
-            color: valueColor,
-            fontFamily: valueFont,
-            fontSize: valueFontSize,
+            color: accent
+              ? isWireframe
+                ? '#1A1A1A'
+                : colors.petrolDeep
+              : isWireframe
+                ? '#1A1A1A'
+                : colors.charcoalInk,
+            fontFamily: bold
+              ? font('displayBold')
+              : font('bodyMedium'),
+            fontSize: bold
+              ? FontSizes.md
+              : FontSizes.sm,
           },
         ]}
       >
@@ -398,67 +378,6 @@ function InfoRow({
       </Text>
     </View>
   );
-}
-
-function getCustomerInitials(
-  customerName: string
-): string {
-  const name = customerName.trim();
-
-  if (!name) {
-    return 'C';
-  }
-
-  const parts = name
-    .split(/\s+/)
-    .filter(Boolean);
-
-  if (parts.length === 1) {
-    return parts[0]
-      .slice(0, 2)
-      .toUpperCase();
-  }
-
-  return (
-    parts[0].charAt(0) +
-    parts[parts.length - 1].charAt(0)
-  ).toUpperCase();
-}
-
-function getSuburbFromAddress(
-  address: string
-): string {
-  const parts = address
-    .split(',')
-    .map(part => part.trim())
-    .filter(Boolean);
-
-  if (parts.length >= 2) {
-    return parts[parts.length - 2];
-  }
-
-  if (parts.length === 1) {
-    return parts[0];
-  }
-
-  return 'Destination';
-}
-
-function getDistanceDisplay(
-  order: AvailableOrder
-): string | null {
-  if (!order.distance) {
-    return null;
-  }
-
-  if (
-    order.distance === 'Distance unavailable' ||
-    order.distance === 'Location available'
-  ) {
-    return order.distance;
-  }
-
-  return order.distance;
 }
 
 export default function OrderDetailsScreen({
@@ -532,18 +451,6 @@ export default function OrderDetailsScreen({
 
   const isDiesel =
     order.fuelType.startsWith('Diesel');
-
-  const suburb = getSuburbFromAddress(
-    order.address
-  );
-
-  const customerInitials =
-    getCustomerInitials(
-      order.customerName
-    );
-
-  const distanceDisplay =
-    getDistanceDisplay(order);
 
   const fmt = (n: number) =>
     'R ' +
@@ -679,7 +586,7 @@ export default function OrderDetailsScreen({
         showsVerticalScrollIndicator={false}
       >
         <DestinationMap
-          suburb={suburb}
+          suburb={order.suburb}
           isDiesel={isDiesel}
           isWireframe={isWireframe}
         />
@@ -724,7 +631,7 @@ export default function OrderDetailsScreen({
                   fontSize: FontSizes.sm,
                 }}
               >
-                {customerInitials}
+                {order.customerInitials}
               </Text>
             </View>
 
@@ -773,7 +680,7 @@ export default function OrderDetailsScreen({
           <InfoRow
             icon="layers"
             label="Quantity"
-            value={`${order.volumeLitres} litres`}
+            value={`${order.litres} litres`}
             colors={colors}
             font={font}
             isWireframe={isWireframe}
@@ -782,17 +689,17 @@ export default function OrderDetailsScreen({
           <InfoRow
             icon="map-pin"
             label="Address"
-            value={order.address}
+            value={order.fullAddress}
             colors={colors}
             font={font}
             isWireframe={isWireframe}
           />
 
-          {distanceDisplay && (
+          {order.distanceKm > 0 && (
             <InfoRow
               icon="navigation"
               label="Distance"
-              value={distanceDisplay}
+              value={`${order.distanceKm} km · ${order.estimatedMinutes} min ETA`}
               colors={colors}
               font={font}
               isWireframe={isWireframe}
@@ -939,7 +846,7 @@ export default function OrderDetailsScreen({
                 fontSize: FontSizes.lg,
               }}
             >
-              {fmt(order.totalAmount)}
+              {fmt(order.totalZAR)}
             </Text>
           </View>
         </View>
