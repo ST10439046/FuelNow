@@ -695,16 +695,16 @@ export default function OrderDetailsScreen({
             isWireframe={isWireframe}
           />
 
-          {order.distanceKm > 0 && (
-            <InfoRow
-              icon="navigation"
-              label="Distance"
-              value={`${order.distanceKm} km · ${order.estimatedMinutes} min ETA`}
-              colors={colors}
-              font={font}
-              isWireframe={isWireframe}
-            />
-          )}
+{order.distance !== 'Distance unavailable' && (
+  <InfoRow
+    icon="navigation"
+    label="Distance"
+    value={order.distance}
+    colors={colors}
+    font={font}
+    isWireframe={isWireframe}
+  />
+)}
 
           <Divider
             colors={colors}

@@ -2,6 +2,7 @@ import React, {
   useCallback,
   useState,
 } from 'react';
+
 import {
   ActivityIndicator,
   Alert,
@@ -12,33 +13,51 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+
 import {
   useFocusEffect,
   useNavigation,
 } from '@react-navigation/native';
+
 import { supabase } from '../../services/supabase';
 
 export interface AvailableOrder {
   orderId: string;
   customerId: string;
   customerName: string;
+  customerInitials: string;
+
   address: string;
+  fullAddress: string;
+
   suburb: string;
   city: string;
+
   fuelType: string;
+
   volumeLitres: number;
+  litres: number;
+
   deliveryType: string;
   scheduledDateTime?: string | null;
   placedAt: string;
+
   latitude?: number | null;
   longitude?: number | null;
+
   distance: string;
   eta: string;
+
+  distanceKm?: number | null;
+  estimatedMinutes?: number | null;
+
   fuelSubtotal: number;
   deliveryFee: number;
   serviceFee: number;
   vatAmount: number;
+
   totalAmount: number;
+  totalZAR: number;
 }
 
 type Navigation = {
@@ -51,23 +70,33 @@ type Navigation = {
 type RawAvailableOrder = {
   order_id: string;
   customer_id: string;
+
   customer_name: string | null;
   customer_initials: string | null;
+
   fuel_type: string | null;
+
   litres: number | string | null;
+
   delivery_type: string | null;
+
   scheduled_date_time: string | null;
   placed_at: string;
+
   suburb: string | null;
   full_address: string | null;
+
   latitude: number | null;
   longitude: number | null;
+
   distance_km: number | string | null;
   estimated_minutes: number | null;
+
   fuel_subtotal: number | string | null;
   delivery_fee: number | string | null;
   service_fee: number | string | null;
   vat_amount: number | string | null;
+
   total_zar: number | string | null;
 };
 
@@ -87,7 +116,9 @@ const formatDistance = (
     return 'Distance unavailable';
   }
 
-  const distance = Number(distanceKm);
+  const distance = Number(
+    distanceKm
+  );
 
   if (!Number.isFinite(distance)) {
     return 'Distance unavailable';
@@ -127,20 +158,14 @@ const formatEta = (
 const normalizeDeliveryType = (
   deliveryType: string | null
 ): string => {
-  const normalized =
-    (
-      deliveryType ?? ''
-    )
-      .trim()
-      .toUpperCase();
+  const normalized = (
+    deliveryType ?? ''
+  )
+    .trim()
+    .toUpperCase();
 
   if (
-    normalized === 'DELIVER_NOW'
-  ) {
-    return 'Deliver Now';
-  }
-
-  if (
+    normalized === 'DELIVER_NOW' ||
     normalized === 'DELIVER NOW'
   ) {
     return 'Deliver Now';
@@ -152,9 +177,7 @@ const normalizeDeliveryType = (
     return 'Scheduled';
   }
 
-  return (
-    deliveryType ?? 'Unknown'
-  );
+  return deliveryType ?? 'Unknown';
 };
 
 const AvailableOrdersScreen =
@@ -162,14 +185,22 @@ const AvailableOrdersScreen =
     const navigation =
       useNavigation<Navigation>();
 
-    const [orders, setOrders] =
-      useState<AvailableOrder[]>([]);
+    const [
+      orders,
+      setOrders,
+    ] = useState<AvailableOrder[]>(
+      []
+    );
 
-    const [loading, setLoading] =
-      useState(true);
+    const [
+      loading,
+      setLoading,
+    ] = useState(true);
 
-    const [refreshing, setRefreshing] =
-      useState(false);
+    const [
+      refreshing,
+      setRefreshing,
+    ] = useState(false);
 
     const loadAvailableOrders =
       useCallback(async () => {
@@ -178,20 +209,6 @@ const AvailableOrdersScreen =
             'AvailableOrdersScreen: loading available orders via RPC'
           );
 
-          /*
-           * All order-related data is now fetched by
-           * get_driver_available_orders().
-           *
-           * The RPC performs the joins for:
-           * - orders
-           * - users
-           * - addresses
-           * - fuel_types
-           * - payments
-           *
-           * This means the app makes one Supabase request
-           * instead of several independent requests.
-           */
           const {
             data,
             error,
@@ -211,12 +228,6 @@ const AvailableOrdersScreen =
           const rawOrders =
             (data ?? []) as RawAvailableOrder[];
 
-          console.log(
-            'AvailableOrdersScreen: RPC returned',
-            rawOrders.length,
-            'orders'
-          );
-
           if (
             rawOrders.length === 0
           ) {
@@ -224,22 +235,36 @@ const AvailableOrdersScreen =
             return;
           }
 
-          /*
-           * Convert the database response into the
-           * AvailableOrder model used by the rest of
-           * the driver application.
-           */
           const mappedOrders =
             rawOrders.map(
               order => {
-                const distance =
-                  formatDistance(
-                    order.distance_km
+                const litres =
+                  Number(
+                    order.litres ?? 0
                   );
 
-                const eta =
-                  formatEta(
-                    order.estimated_minutes
+                const distanceKm =
+                  order.distance_km ===
+                    null ||
+                  order.distance_km ===
+                    undefined
+                    ? null
+                    : Number(
+                        order.distance_km
+                      );
+
+                const estimatedMinutes =
+                  order.estimated_minutes ??
+                  null;
+
+                const fullAddress =
+                  order.full_address ??
+                  'Address unavailable';
+
+                const totalZAR =
+                  Number(
+                    order.total_zar ??
+                      0
                   );
 
                 return {
@@ -253,17 +278,22 @@ const AvailableOrdersScreen =
                     order.customer_name ??
                     'Customer',
 
+                  customerInitials:
+                    order.customer_initials ??
+                    'CU',
+
                   address:
-                    order.full_address ??
-                    'Address unavailable',
+                    fullAddress,
+
+                  fullAddress,
 
                   suburb:
                     order.suburb ??
                     'Destination',
 
                   city:
-                    order.full_address
-                      ?.split(',')
+                    fullAddress
+                      .split(',')
                       .pop()
                       ?.trim() ??
                     'Durban',
@@ -273,9 +303,9 @@ const AvailableOrdersScreen =
                     'Fuel',
 
                   volumeLitres:
-                    Number(
-                      order.litres ?? 0
-                    ),
+                    litres,
+
+                  litres,
 
                   deliveryType:
                     normalizeDeliveryType(
@@ -296,9 +326,19 @@ const AvailableOrdersScreen =
                     order.longitude ??
                     null,
 
-                  distance,
+                  distance:
+                    formatDistance(
+                      order.distance_km
+                    ),
 
-                  eta,
+                  eta:
+                    formatEta(
+                      order.estimated_minutes
+                    ),
+
+                  distanceKm,
+
+                  estimatedMinutes,
 
                   fuelSubtotal:
                     Number(
@@ -325,24 +365,16 @@ const AvailableOrdersScreen =
                     ),
 
                   totalAmount:
-                    Number(
-                      order.total_zar ??
-                        0
-                    ),
+                    totalZAR,
+
+                  totalZAR,
                 };
               }
             );
 
-          console.log(
-            'AvailableOrdersScreen: final orders',
-            JSON.stringify(
-              mappedOrders,
-              null,
-              2
-            )
+          setOrders(
+            mappedOrders
           );
-
-          setOrders(mappedOrders);
         } catch (error) {
           console.error(
             'AvailableOrdersScreen: failed to load orders',
@@ -372,11 +404,14 @@ const AvailableOrdersScreen =
     const handleRefresh =
       async () => {
         setRefreshing(true);
+
         await loadAvailableOrders();
       };
 
     const handleOrderPress =
-      (order: AvailableOrder) => {
+      (
+        order: AvailableOrder
+      ) => {
         navigation.navigate(
           'DriverOrderDetails',
           {

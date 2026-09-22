@@ -182,151 +182,164 @@ export default function StatusUpdateScreen({
         : index;
     }, [currentStatus]);
 
-  const handleAdvance =
-    async () => {
-      if (
-        !order ||
-        loading
-      ) {
-        return;
-      }
+const handleAdvance =
+  async () => {
+    if (
+      !order ||
+      loading
+    ) {
+      return;
+    }
 
-      if (
-        currentStatus ===
-        'DISPENSING'
-      ) {
-        try {
-          setLoading(true);
-
-          const result =
-            await driverRepository.revealDeliveryPin(
-              order.orderId
-            );
-
-          setDeliveryPin(
-            result.deliveryPin
-          );
-
-          setOrder(
-            current => ({
-              ...(current as DriverActiveOrder),
-              status:
-                'COMPLETION_PENDING',
-            })
-          );
-        } catch (error: any) {
-          console.error(
-            'StatusUpdateScreen: failed to reveal delivery PIN',
-            error
-          );
-
-          Alert.alert(
-            'Unable to Complete',
-            error?.message ??
-              'The delivery PIN could not be displayed.'
-          );
-        } finally {
-          setLoading(false);
-        }
-
-        return;
-      }
-
-      if (
-        currentStatus ===
-        'COMPLETION_PENDING'
-      ) {
-        try {
-          setLoading(true);
-
-          await driverRepository.confirmDelivery(
-            order.orderId
-          );
-
-          navigation.replace(
-            'DeliveryComplete',
-            {
-              order: {
-                ...order,
-                status:
-                  'DELIVERED',
-              },
-            }
-          );
-        } catch (error: any) {
-          console.error(
-            'StatusUpdateScreen: failed to confirm delivery',
-            error
-          );
-
-          Alert.alert(
-            'Delivery Failed',
-            error?.message ??
-              'The delivery could not be confirmed.'
-          );
-        } finally {
-          setLoading(false);
-        }
-
-        return;
-      }
-
-      let nextStatus:
-        | 'IN_TRANSIT'
-        | 'ARRIVED'
-        | 'DISPENSING';
-
-      switch (
-        currentStatus
-      ) {
-        case 'ACCEPTED':
-          nextStatus =
-            'IN_TRANSIT';
-          break;
-
-        case 'IN_TRANSIT':
-          nextStatus =
-            'ARRIVED';
-          break;
-
-        case 'ARRIVED':
-          nextStatus =
-            'DISPENSING';
-          break;
-
-        default:
-          return;
-      }
-
+    if (
+      currentStatus ===
+      'DISPENSING'
+    ) {
       try {
         setLoading(true);
 
-        const updated =
-          await driverRepository.updateDriverOrderStatus(
-            order.orderId,
-            nextStatus
+        const result =
+          await driverRepository.revealDeliveryPin(
+            order.orderId
           );
 
-        if (updated) {
-          setOrder(
-            updated
-          );
-        }
+        setDeliveryPin(
+          result.deliveryPin
+        );
+
+        setOrder(
+          current => {
+            if (!current) {
+              return current;
+            }
+
+            return {
+              ...current,
+              status:
+                'COMPLETION_PENDING',
+            };
+          }
+        );
       } catch (error: any) {
         console.error(
-          'StatusUpdateScreen: failed to update order status',
+          'StatusUpdateScreen: failed to reveal delivery PIN',
           error
         );
 
         Alert.alert(
-          'Status Update Failed',
+          'Unable to Complete',
           error?.message ??
-            'The order status could not be updated.'
+            'The delivery PIN could not be displayed.'
         );
       } finally {
         setLoading(false);
       }
-    };
+
+      return;
+    }
+
+    if (
+      currentStatus ===
+      'COMPLETION_PENDING'
+    ) {
+      try {
+        setLoading(true);
+
+        await driverRepository.confirmDelivery(
+          order.orderId
+        );
+
+        navigation.replace(
+          'DeliveryComplete',
+          {
+            order: {
+              ...order,
+              status:
+                'DELIVERED',
+            },
+          }
+        );
+      } catch (error: any) {
+        console.error(
+          'StatusUpdateScreen: failed to confirm delivery',
+          error
+        );
+
+        Alert.alert(
+          'Delivery Failed',
+          error?.message ??
+            'The delivery could not be confirmed.'
+        );
+      } finally {
+        setLoading(false);
+      }
+
+      return;
+    }
+
+    let nextStatus:
+      | 'IN_TRANSIT'
+      | 'ARRIVED'
+      | 'DISPENSING';
+
+    switch (
+      currentStatus
+    ) {
+      case 'ACCEPTED':
+        nextStatus =
+          'IN_TRANSIT';
+        break;
+
+      case 'IN_TRANSIT':
+        nextStatus =
+          'ARRIVED';
+        break;
+
+      case 'ARRIVED':
+        nextStatus =
+          'DISPENSING';
+        break;
+
+      default:
+        return;
+    }
+
+    try {
+      setLoading(true);
+
+      await driverRepository.updateOrderStatus(
+        order.orderId,
+        nextStatus
+      );
+
+      setOrder(
+        current => {
+          if (!current) {
+            return current;
+          }
+
+          return {
+            ...current,
+            status:
+              nextStatus,
+          };
+        }
+      );
+    } catch (error: any) {
+      console.error(
+        'StatusUpdateScreen: failed to update order status',
+        error
+      );
+
+      Alert.alert(
+        'Status Update Failed',
+        error?.message ??
+          'The order status could not be updated.'
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const formatCurrency =
     (value: number) =>

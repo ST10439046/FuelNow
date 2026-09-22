@@ -55,6 +55,49 @@ export interface DriverEarnings {
   deliveryHistory: DriverEarningsEntry[];
 }
 
+export interface DriverActiveOrder {
+  orderId: string;
+  customerId: string;
+  customerName: string;
+  customerInitials?: string;
+
+  fuelType: string;
+
+  litres: number;
+  volumeLitres?: number;
+
+  deliveryType: string;
+
+  scheduledDateTime?: string | null;
+  placedAt?: string;
+
+  suburb: string;
+  fullAddress: string;
+  address?: string;
+
+  latitude?: number | null;
+  longitude?: number | null;
+
+  distanceKm?: number | null;
+  estimatedMinutes?: number | null;
+
+  status: string;
+
+  fuelSubtotal: number;
+  deliveryFee: number;
+  serviceFee: number;
+  vatAmount: number;
+
+  totalZar: number;
+  totalZAR?: number;
+}
+
+export interface DeliveryPinResult {
+  orderId: string;
+  deliveryPin: string;
+  status: string;
+}
+
 export class DriverRepository {
   private static instance: DriverRepository;
 
@@ -74,7 +117,11 @@ export class DriverRepository {
     documents: DriverDocumentModel[] = []
   ): DriverModel {
     return {
-      id: row.driver_id ?? row.id ?? '',
+      id:
+        row.driver_id ??
+        row.id ??
+        '',
+
       name:
         row.full_name ??
         row.users?.full_name ??
@@ -89,42 +136,52 @@ export class DriverRepository {
         row.average_rating ?? 5
       ),
 
-      totalDeliveries: Number(
-        row.total_deliveries ?? 0
-      ),
+      totalDeliveries:
+        Number(
+          row.total_deliveries ?? 0
+        ),
 
       vehicleReg:
-        row.vehicle_registration ?? '',
+        row.vehicle_registration ??
+        '',
 
       vehicleModel:
-        row.vehicle_model ?? '',
+        row.vehicle_model ??
+        '',
 
       vehicleColor:
-        row.vehicle_color ?? '',
+        row.vehicle_color ??
+        '',
 
       stationName:
-        row.station_name ?? '',
+        row.station_name ??
+        '',
 
       isOnDuty:
-        row.is_on_duty ?? false,
+        row.is_on_duty ??
+        false,
 
       isApproved:
-        row.is_approved ?? false,
+        row.is_approved ??
+        false,
 
       coordinates: {
         lat: Number(
           row.current_latitude ??
           -29.8587
         ),
+
         lng: Number(
           row.current_longitude ??
           31.0218
         ),
       },
 
-      dailyTarget: Number(
-        row.daily_target ?? 1500
-      ),
+      dailyTarget:
+        Number(
+          row.daily_target ??
+          1500
+        ),
 
       todayEarnings: 0,
       weekEarnings: 0,
@@ -141,6 +198,7 @@ export class DriverRepository {
       doc.expiry_date ?? '';
 
     const now = new Date();
+
     const expiry =
       new Date(expiryDate);
 
@@ -169,7 +227,8 @@ export class DriverRepository {
           DriverDocumentModel['type'],
 
       number:
-        doc.document_number ?? '',
+        doc.document_number ??
+        '',
 
       expiryDate,
 
@@ -179,16 +238,12 @@ export class DriverRepository {
     };
   }
 
-  /**
-   * Resolves the application-level users.user_id
-   * belonging to the currently authenticated
-   * Supabase auth user.
-   */
   private async getCurrentUserId(): Promise<string> {
     const {
       data: { user },
       error: authError,
-    } = await supabase.auth.getUser();
+    } =
+      await supabase.auth.getUser();
 
     if (authError) {
       throw authError;
@@ -206,7 +261,10 @@ export class DriverRepository {
     } = await supabase
       .from('users')
       .select('user_id')
-      .eq('auth_id', user.id)
+      .eq(
+        'auth_id',
+        user.id
+      )
       .single();
 
     if (error || !data) {
@@ -221,9 +279,6 @@ export class DriverRepository {
     return data.user_id;
   }
 
-  /**
-   * Fetches the authenticated driver's own profile.
-   */
   public async getActiveDriver(): Promise<DriverModel> {
     const userId =
       await this.getCurrentUserId();
@@ -275,8 +330,10 @@ export class DriverRepository {
 
     const documents =
       (docs ?? []).map(
-        (document: any) =>
-          this.mapDocument(document)
+        document =>
+          this.mapDocument(
+            document
+          )
       );
 
     return this.mapDriver(
@@ -285,10 +342,9 @@ export class DriverRepository {
     );
   }
 
-  /**
-   * Fetches all drivers.
-   */
-  public async getAllDrivers(): Promise<DriverModel[]> {
+  public async getAllDrivers(): Promise<
+    DriverModel[]
+  > {
     const {
       data,
       error,
@@ -311,15 +367,14 @@ export class DriverRepository {
       return [];
     }
 
-    return (data ?? []).map(
-      (row: any) =>
+    return (
+      data ?? []
+    ).map(
+      row =>
         this.mapDriver(row)
     );
   }
 
-  /**
-   * Fetches driver earnings and delivery history.
-   */
   public async getEarnings(): Promise<DriverEarnings> {
     const driverId =
       await this.getCurrentUserId();
@@ -387,97 +442,81 @@ export class DriverRepository {
     const delivered =
       orders ?? [];
 
+    const calculateEarnings =
+      (
+        startDate: string
+      ): number =>
+        delivered
+          .filter(
+            (order: any) =>
+              order.delivered_at >=
+              startDate
+          )
+          .reduce(
+            (
+              total: number,
+              order: any
+            ) =>
+              total +
+              Number(
+                order.payments?.[0]
+                  ?.delivery_fee ??
+                  0
+              ),
+            0
+          );
+
     const todayEarnings =
-      delivered
-        .filter(
-          (order: any) =>
-            order.delivered_at >=
-            startOfToday
-        )
-        .reduce(
-          (
-            total: number,
-            order: any
-          ) =>
-            total +
-            Number(
-              order.payments?.[0]
-                ?.delivery_fee ?? 0
-            ),
-          0
-        );
+      calculateEarnings(
+        startOfToday
+      );
 
     const weekEarnings =
-      delivered
-        .filter(
-          (order: any) =>
-            order.delivered_at >=
-            startOfWeek
-        )
-        .reduce(
-          (
-            total: number,
-            order: any
-          ) =>
-            total +
-            Number(
-              order.payments?.[0]
-                ?.delivery_fee ?? 0
-            ),
-          0
-        );
+      calculateEarnings(
+        startOfWeek
+      );
 
     const monthEarnings =
-      delivered
-        .filter(
-          (order: any) =>
-            order.delivered_at >=
-            startOfMonth
-        )
-        .reduce(
-          (
-            total: number,
-            order: any
-          ) =>
-            total +
-            Number(
-              order.payments?.[0]
-                ?.delivery_fee ?? 0
-            ),
-          0
-        );
+      calculateEarnings(
+        startOfMonth
+      );
 
     const deliveryHistory:
       DriverEarningsEntry[] =
       delivered
         .slice(0, 20)
-        .map((order: any) => ({
-          id: order.order_id,
+        .map(
+          (order: any) => ({
+            id:
+              order.order_id,
 
-          address:
-            `${order.addresses?.street_name ?? ''}, ` +
-            `${order.addresses?.suburb ?? ''}`,
+            address:
+              `${order.addresses?.street_name ?? ''}, ` +
+              `${order.addresses?.suburb ?? ''}`,
 
-          date:
-            order.delivered_at ??
-            order.placed_at ??
-            new Date().toISOString(),
+            date:
+              order.delivered_at ??
+              order.placed_at ??
+              new Date().toISOString(),
 
-          litres:
-            Number(
-              order.volume_litres ?? 0
-            ),
+            litres:
+              Number(
+                order.volume_litres ??
+                  0
+              ),
 
-          fuelType:
-            order.fuel_types?.name ??
-            'Fuel',
+            fuelType:
+              order.fuel_types?.name ??
+              'Fuel',
 
-          amount:
-            Number(
-              order.payments?.[0]
-                ?.delivery_fee ?? 0
-            ),
-        }));
+            amount:
+              Number(
+                order.payments?.[0]
+                  ?.delivery_fee ??
+                  0
+              ),
+          })
+        );
 
     return {
       todayEarnings,
@@ -490,9 +529,6 @@ export class DriverRepository {
     };
   }
 
-  /**
-   * Fetches documents for the authenticated driver.
-   */
   public async getDriverDocuments(): Promise<
     DriverDocumentModel[]
   > {
@@ -504,7 +540,9 @@ export class DriverRepository {
         data,
         error,
       } = await supabase
-        .from('compliance_documents')
+        .from(
+          'compliance_documents'
+        )
         .select('*')
         .eq(
           'driver_id',
@@ -520,9 +558,13 @@ export class DriverRepository {
         return [];
       }
 
-      return (data ?? []).map(
-        (document: any) =>
-          this.mapDocument(document)
+      return (
+        data ?? []
+      ).map(
+        document =>
+          this.mapDocument(
+            document
+          )
       );
     } catch (error) {
       console.error(
@@ -534,12 +576,6 @@ export class DriverRepository {
     }
   }
 
-  /**
-   * Toggles the driver's on-duty status.
-   *
-   * This method only updates columns that exist in the
-   * current production schema.
-   */
   public async toggleOnDutyStatus(
     isOnDuty: boolean
   ): Promise<boolean> {
@@ -567,15 +603,6 @@ export class DriverRepository {
     return isOnDuty;
   }
 
-  /**
-   * Updates the driver's GPS coordinates.
-   *
-   * The current database schema does not expose
-   * current_latitude/current_longitude columns,
-   * so this method only publishes the location
-   * through the realtime hub until those columns
-   * are added to the database.
-   */
   public async updateGpsCoordinates(
     lat: number,
     lng: number
@@ -598,10 +625,6 @@ export class DriverRepository {
       });
   }
 
-  /**
-   * Accepts an available order as the
-   * authenticated driver.
-   */
   public async acceptOrder(
     orderId: string
   ): Promise<void> {
@@ -639,8 +662,9 @@ export class DriverRepository {
     }
 
     if (
-      String(order.status)
-        .toUpperCase() !==
+      String(
+        order.status
+      ).toUpperCase() !==
       'PAID'
     ) {
       throw new Error(
@@ -654,8 +678,10 @@ export class DriverRepository {
     } = await supabase
       .from('orders')
       .update({
-        driver_id: driverId,
-        status: 'ACCEPTED',
+        driver_id:
+          driverId,
+        status:
+          'ACCEPTED',
       })
       .eq(
         'order_id',
@@ -685,9 +711,237 @@ export class DriverRepository {
     }
   }
 
-  /**
-   * Updates an order status.
-   */
+  public async updateDriverOrderStatus(
+    orderId: string,
+    status:
+      | 'IN_TRANSIT'
+      | 'ARRIVED'
+      | 'DISPENSING'
+  ): Promise<DriverActiveOrder> {
+    const driverId =
+      await this.getCurrentUserId();
+
+    const {
+      data,
+      error,
+    } = await supabase
+      .from('orders')
+      .update({
+        status,
+      })
+      .eq(
+        'order_id',
+        orderId
+      )
+      .eq(
+        'driver_id',
+        driverId
+      )
+      .select(`
+        order_id,
+        customer_id,
+        volume_litres,
+        delivery_type,
+        scheduled_date_time,
+        placed_at,
+        status,
+        rand_amount,
+        address_id,
+        fuel_type_id
+      `)
+      .maybeSingle();
+
+    if (error) {
+      throw error;
+    }
+
+    if (!data) {
+      throw new Error(
+        'The order status could not be updated.'
+      );
+    }
+
+    const {
+      data: fullOrder,
+      error: fullOrderError,
+    } =
+      await supabase
+        .rpc(
+          'get_driver_order_by_id',
+          {
+            p_order_id:
+              orderId,
+          }
+        );
+
+    if (!fullOrderError) {
+      const row =
+        Array.isArray(
+          fullOrder
+        )
+          ? fullOrder[0]
+          : fullOrder;
+
+      if (row) {
+        return this.mapActiveOrder(
+          row
+        );
+      }
+    }
+
+    return {
+      orderId:
+        data.order_id,
+
+      customerId:
+        data.customer_id,
+
+      customerName:
+        'Customer',
+
+      fuelType:
+        'Fuel',
+
+      litres:
+        Number(
+          data.volume_litres ??
+            0
+        ),
+
+      deliveryType:
+        data.delivery_type ??
+        'Deliver Now',
+
+      scheduledDateTime:
+        data.scheduled_date_time,
+
+      placedAt:
+        data.placed_at,
+
+      suburb:
+        '',
+
+      fullAddress:
+        'Address unavailable',
+
+      latitude:
+        null,
+
+      longitude:
+        null,
+
+      status:
+        data.status ??
+        status,
+
+      fuelSubtotal:
+        Math.max(
+          Number(
+            data.rand_amount ??
+              0
+          ) - 49,
+          0
+        ),
+
+      deliveryFee:
+        49,
+
+      serviceFee:
+        0,
+
+      vatAmount:
+        0,
+
+      totalZar:
+        Number(
+          data.rand_amount ??
+            0
+        ),
+    };
+  }
+
+  public async revealDeliveryPin(
+    orderId: string
+  ): Promise<DeliveryPinResult> {
+    const {
+      data,
+      error,
+    } = await supabase.rpc(
+      'reveal_delivery_pin',
+      {
+        p_order_id:
+          orderId,
+      }
+    );
+
+    if (error) {
+      throw error;
+    }
+
+    const result =
+      Array.isArray(data)
+        ? data[0]
+        : data;
+
+    if (
+      !result ||
+      !result.delivery_pin
+    ) {
+      throw new Error(
+        'The delivery PIN could not be retrieved.'
+      );
+    }
+
+    return {
+      orderId:
+        result.order_id ??
+        orderId,
+
+      deliveryPin:
+        String(
+          result.delivery_pin
+        ),
+
+      status:
+        result.status ??
+        'COMPLETION_PENDING',
+    };
+  }
+
+  public async confirmDelivery(
+    orderId: string
+  ): Promise<void> {
+    const {
+      data,
+      error,
+    } = await supabase.rpc(
+      'confirm_delivery',
+      {
+        p_order_id:
+          orderId,
+      }
+    );
+
+    if (error) {
+      throw error;
+    }
+
+    const result =
+      Array.isArray(data)
+        ? data[0]
+        : data;
+
+    if (
+      !result ||
+      result.status !==
+        'DELIVERED'
+    ) {
+      throw new Error(
+        'The delivery could not be confirmed.'
+      );
+    }
+  }
+
   public async updateOrderStatus(
     orderId: string,
     status: string,
@@ -722,6 +976,132 @@ export class DriverRepository {
     if (error) {
       throw error;
     }
+  }
+
+  private mapActiveOrder(
+    row: any
+  ): DriverActiveOrder {
+    const litres =
+      Number(
+        row.litres ??
+          row.volume_litres ??
+          0
+      );
+
+    const total =
+      Number(
+        row.total_zar ??
+          row.totalZar ??
+          row.rand_amount ??
+          0
+      );
+
+    return {
+      orderId:
+        row.order_id ??
+        row.orderId,
+
+      customerId:
+        row.customer_id ??
+        row.customerId,
+
+      customerName:
+        row.customer_name ??
+        row.customerName ??
+        'Customer',
+
+      customerInitials:
+        row.customer_initials ??
+        'CU',
+
+      fuelType:
+        row.fuel_type ??
+        row.fuelType ??
+        'Fuel',
+
+      litres,
+
+      volumeLitres:
+        litres,
+
+      deliveryType:
+        row.delivery_type ??
+        row.deliveryType ??
+        'Deliver Now',
+
+      scheduledDateTime:
+        row.scheduled_date_time ??
+        row.scheduledDateTime ??
+        null,
+
+      placedAt:
+        row.placed_at ??
+        row.placedAt,
+
+      suburb:
+        row.suburb ??
+        '',
+
+      fullAddress:
+        row.full_address ??
+        row.fullAddress ??
+        'Address unavailable',
+
+      address:
+        row.full_address ??
+        row.fullAddress ??
+        'Address unavailable',
+
+      latitude:
+        row.latitude ??
+        null,
+
+      longitude:
+        row.longitude ??
+        null,
+
+      distanceKm:
+        row.distance_km ??
+        null,
+
+      estimatedMinutes:
+        row.estimated_minutes ??
+        null,
+
+      status:
+        row.status ??
+        'ACCEPTED',
+
+      fuelSubtotal:
+        Number(
+          row.fuel_subtotal ??
+            0
+        ),
+
+      deliveryFee:
+        Number(
+          row.delivery_fee ??
+            0
+        ),
+
+      serviceFee:
+        Number(
+          row.service_fee ??
+            0
+        ),
+
+      vatAmount:
+        Number(
+          row.vat_amount ??
+            0
+        ),
+
+      totalZar:
+        total,
+
+      totalZAR:
+        total,
+    };
   }
 }
 
