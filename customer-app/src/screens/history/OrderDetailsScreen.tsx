@@ -60,13 +60,6 @@ function formatDateTime(iso?: string): string {
   });
 }
 
-/**
- * Simple visual tracking map.
- *
- * This uses the same visual approach as your existing LiveTrackingScreen.
- * Later this can be replaced with Google Maps / Mapbox without changing
- * the rest of the order-details experience.
- */
 function TrackingMap({
   isWireframe,
   colors,
@@ -316,13 +309,14 @@ function TimelineStep({
           style={[
             styles.timelineDot,
             {
-              backgroundColor: completed || active
-                ? isWireframe
-                  ? "#555"
-                  : colors.petrolDeep
-                : isWireframe
-                  ? "#D0D0D0"
-                  : colors.divider,
+              backgroundColor:
+                completed || active
+                  ? isWireframe
+                    ? "#555"
+                    : colors.petrolDeep
+                  : isWireframe
+                    ? "#D0D0D0"
+                    : colors.divider,
               borderColor: isWireframe
                 ? "#FFFFFF"
                 : colors.white,
@@ -411,11 +405,14 @@ export default function OrderDetailsScreen({
     }
 
     try {
-      const result = await orderRepository.getOrderById(orderId);
+      const result =
+        await orderRepository.getOrderById(orderId);
 
       if (result) {
         setOrder(result);
-        setEtaMinutes(result.estimatedArrivalMinutes ?? 0);
+        setEtaMinutes(
+          result.estimatedArrivalMinutes ?? 0,
+        );
       }
     } catch (error) {
       console.error(
@@ -430,13 +427,6 @@ export default function OrderDetailsScreen({
   useEffect(() => {
     loadOrder();
 
-    /**
-     * Polling keeps this screen feeling live while using the
-     * current repository implementation.
-     *
-     * Later this can be replaced by the realtime observer
-     * without changing the UI.
-     */
     const interval = setInterval(() => {
       loadOrder();
     }, 5000);
@@ -445,7 +435,11 @@ export default function OrderDetailsScreen({
   }, [orderId]);
 
   useEffect(() => {
-    if (!order || order.status === "COMPLETED") {
+    if (
+      !order ||
+      order.status === "COMPLETED" ||
+      order.status === "DELIVERED"
+    ) {
       return;
     }
 
@@ -544,16 +538,35 @@ export default function OrderDetailsScreen({
     );
   }
 
-  const isCompleted = order.status === "COMPLETED";
+  /*
+   * IMPORTANT:
+   *
+   * DELIVERED is NOT the final state.
+   *
+   * The driver has completed the physical delivery and shows the customer
+   * the delivery PIN. The customer must enter that PIN before the order
+   * becomes COMPLETED.
+   */
+  const isCompleted =
+    order.status === "COMPLETED";
+
+  const isDeliveredAwaitingPin =
+    order.status === "DELIVERED";
+
+  const isCancelled =
+    order.status === "CANCELLED";
 
   const isActive =
     !isCompleted &&
+    !isDeliveredAwaitingPin &&
+    !isCancelled &&
     [
+      "PAID",
       "FINDING_DRIVER",
-      "DRIVER_ASSIGNED",
-      "EN_ROUTE",
+      "ACCEPTED",
+      "NAVIGATING",
       "ARRIVED",
-      "DELIVERING",
+      "DISPENSING",
     ].includes(order.status);
 
   const hasDriver = !!order.driver;
@@ -600,16 +613,26 @@ export default function OrderDetailsScreen({
   ) => {
     const status = order.status;
 
+    /*
+     * DELIVERED deliberately stops at the Delivery step.
+     *
+     * COMPLETED is the only status that completes the final step.
+     */
     const progress: Record<string, number> = {
+      PENDING_PAYMENT: 0,
+      PAID: 1,
       FINDING_DRIVER: 1,
-      DRIVER_ASSIGNED: 2,
-      EN_ROUTE: 3,
+      ACCEPTED: 2,
+      NAVIGATING: 3,
       ARRIVED: 4,
-      DELIVERING: 4,
+      DISPENSING: 4,
+      DELIVERED: 4,
       COMPLETED: 5,
+      CANCELLED: 0,
     };
 
-    const current = progress[status] ?? 1;
+    const current =
+      progress[status] ?? 0;
 
     const indexes = {
       placed: 1,
@@ -619,13 +642,33 @@ export default function OrderDetailsScreen({
       completed: 5,
     };
 
-    const index = indexes[step];
+    const index =
+      indexes[step];
 
     return {
-      completed: current > index,
-      active: current === index,
+      completed:
+        current > index,
+
+      active:
+        current === index,
     };
   };
+
+  const statusHeroTitle = isCompleted
+    ? "Delivery completed"
+    : isDeliveredAwaitingPin
+      ? "Delivery received"
+      : isCancelled
+        ? "Order cancelled"
+        : "Your order is on its way";
+
+  const statusHeroSubtitle = isCompleted
+    ? "Your fuel delivery has been confirmed."
+    : isDeliveredAwaitingPin
+      ? "Enter the PIN provided by your driver to complete the order."
+      : isCancelled
+        ? "This order has been cancelled."
+        : "We're keeping an eye on your fuel.";
 
   return (
     <SafeAreaView
@@ -638,7 +681,6 @@ export default function OrderDetailsScreen({
         },
       ]}
     >
-      {/* Header */}
       <View style={styles.topBar}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
@@ -712,19 +754,30 @@ export default function OrderDetailsScreen({
                 ? "#4A4A4A"
                 : isCompleted
                   ? colors.dieselGreen
-                  : colors.petrolDeep,
+                  : isDeliveredAwaitingPin
+                    ? colors.petrolMid
+                    : isCancelled
+                      ? colors.signalRed
+                      : colors.petrolDeep,
               borderRadius: isWF
                 ? Radius.sm
                 : Radius.xl,
             },
           ]}
         >
-          {!isWF && !isCompleted && (
+          {!isWF && !isCompleted && !isCancelled && (
             <LinearGradient
-              colors={[
-                colors.petrolDeep,
-                colors.petrolMid,
-              ]}
+              colors={
+                isDeliveredAwaitingPin
+                  ? [
+                      colors.petrolMid,
+                      colors.petrolDeep,
+                    ]
+                  : [
+                      colors.petrolDeep,
+                      colors.petrolMid,
+                    ]
+              }
               style={StyleSheet.absoluteFill}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
@@ -736,7 +789,11 @@ export default function OrderDetailsScreen({
               name={
                 isCompleted
                   ? "check-circle"
-                  : "truck"
+                  : isDeliveredAwaitingPin
+                    ? "key"
+                    : isCancelled
+                      ? "x-circle"
+                      : "truck"
               }
               size={28}
               color="#FFFFFF"
@@ -750,11 +807,10 @@ export default function OrderDetailsScreen({
                 : "rgba(255,255,255,0.75)",
               fontFamily: font("body"),
               fontSize: FontSizes.sm,
+              textAlign: "center",
             }}
           >
-            {isCompleted
-              ? "Delivery completed"
-              : "Your order is on its way"}
+            {statusHeroSubtitle}
           </Text>
 
           <Text
@@ -785,9 +841,86 @@ export default function OrderDetailsScreen({
               marginTop: 4,
             }}
           >
+            {statusHeroTitle}
+          </Text>
+
+          <Text
+            style={{
+              color: isWF
+                ? "#CCCCCC"
+                : "rgba(255,255,255,0.75)",
+              fontFamily: font("body"),
+              fontSize: FontSizes.xs,
+              marginTop: 1,
+            }}
+          >
             Placed {formatDateTime(order.createdAt)}
           </Text>
         </View>
+
+        {/* Delivery awaiting PIN */}
+        {isDeliveredAwaitingPin && (
+          <View
+            style={[
+              styles.confirmationBanner,
+              {
+                backgroundColor: isWF
+                  ? "#E0E0E0"
+                  : colors.amberLight,
+                borderColor: isWF
+                  ? "#CCCCCC"
+                  : colors.ignitionAmber,
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.confirmationIcon,
+                {
+                  backgroundColor: isWF
+                    ? "#C8C8C8"
+                    : colors.ignitionAmber,
+                },
+              ]}
+            >
+              <Feather
+                name="key"
+                size={20}
+                color="#FFFFFF"
+              />
+            </View>
+
+            <View style={{ flex: 1 }}>
+              <Text
+                style={{
+                  color: isWF
+                    ? "#222"
+                    : colors.charcoalInk,
+                  fontFamily: font("bodyMedium"),
+                  fontSize: FontSizes.base,
+                }}
+              >
+                Confirm your delivery
+              </Text>
+
+              <Text
+                style={{
+                  color: isWF
+                    ? "#555"
+                    : colors.inkLight,
+                  fontFamily: font("body"),
+                  fontSize: FontSizes.xs,
+                  lineHeight: 18,
+                  marginTop: 3,
+                }}
+              >
+                Your driver has completed the delivery.
+                Ask them for the 4-digit PIN and enter it
+                below to mark the order as completed.
+              </Text>
+            </View>
+          </View>
+        )}
 
         {/* Live tracking */}
         {isActive && (
@@ -913,7 +1046,9 @@ export default function OrderDetailsScreen({
                       marginTop: 2,
                     }}
                   >
-                    {etaMinutes || order.estimatedArrivalMinutes} min
+                    {etaMinutes ||
+                      order.estimatedArrivalMinutes}{" "}
+                    min
                   </Text>
 
                   <Text
@@ -991,7 +1126,9 @@ export default function OrderDetailsScreen({
             title="Driver en route"
             subtitle={
               hasDriver
-                ? `${driver?.vehicleColor ?? ""} ${driver?.vehicleModel ?? ""}`
+                ? `${driver?.vehicleColor ?? ""} ${
+                    driver?.vehicleModel ?? ""
+                  }`
                 : "We'll notify you when your driver is on the way"
             }
             {...getTimelineState("enroute")}
@@ -1004,8 +1141,12 @@ export default function OrderDetailsScreen({
             title="Delivery"
             subtitle={
               isCompleted
-                ? `Delivered ${formatDateTime(order.deliveredAt)}`
-                : "Your driver will arrive at your delivery address"
+                ? `Delivered ${formatDateTime(
+                    order.deliveredAt,
+                  )}`
+                : isDeliveredAwaitingPin
+                  ? "Driver has delivered your fuel. PIN confirmation required."
+                  : "Your driver will arrive at your delivery address"
             }
             {...getTimelineState("delivery")}
             isWireframe={isWF}
@@ -1017,8 +1158,10 @@ export default function OrderDetailsScreen({
             title="Completed"
             subtitle={
               isCompleted
-                ? "Fuel successfully delivered"
-                : "Waiting for delivery confirmation"
+                ? "Fuel successfully delivered and confirmed"
+                : isDeliveredAwaitingPin
+                  ? "Enter the delivery PIN to complete this order"
+                  : "Waiting for delivery confirmation"
             }
             {...getTimelineState("completed")}
             isLast
@@ -1117,29 +1260,30 @@ export default function OrderDetailsScreen({
                 </Text>
               </View>
 
-              {!isCompleted && (
-                <TouchableOpacity
-                  onPress={handleCallDriver}
-                  style={[
-                    styles.actionBtn,
-                    {
-                      backgroundColor: isWF
-                        ? "#D0D0D0"
-                        : colors.petrolLight,
-                    },
-                  ]}
-                >
-                  <Feather
-                    name="phone"
-                    size={18}
-                    color={
-                      isWF
-                        ? "#555"
-                        : colors.petrolDeep
-                    }
-                  />
-                </TouchableOpacity>
-              )}
+              {!isCompleted &&
+                !isDeliveredAwaitingPin && (
+                  <TouchableOpacity
+                    onPress={handleCallDriver}
+                    style={[
+                      styles.actionBtn,
+                      {
+                        backgroundColor: isWF
+                          ? "#D0D0D0"
+                          : colors.petrolLight,
+                      },
+                    ]}
+                  >
+                    <Feather
+                      name="phone"
+                      size={18}
+                      color={
+                        isWF
+                          ? "#555"
+                          : colors.petrolDeep
+                      }
+                    />
+                  </TouchableOpacity>
+                )}
             </View>
 
             <View
@@ -1180,7 +1324,7 @@ export default function OrderDetailsScreen({
           </Card>
         )}
 
-        {/* Fuel delivered */}
+        {/* Fuel order */}
         <Card style={styles.section}>
           <Text
             style={{
@@ -1352,79 +1496,80 @@ export default function OrderDetailsScreen({
         </Card>
 
         {/* Delivery PIN */}
-        {!isCompleted && (
-          <View
-            style={[
-              styles.pinCard,
-              {
-                backgroundColor: isWF
-                  ? "#4A4A4A"
-                  : colors.petrolDeep,
-                borderRadius: isWF
-                  ? Radius.sm
-                  : Radius.xl,
-              },
-            ]}
-          >
+        {isDeliveredAwaitingPin && (
+          <>
             <View
               style={[
-                styles.pinIcon,
+                styles.pinCard,
                 {
                   backgroundColor: isWF
-                    ? "#666"
-                    : colors.petrolMid,
+                    ? "#4A4A4A"
+                    : colors.petrolDeep,
+                  borderRadius: isWF
+                    ? Radius.sm
+                    : Radius.xl,
                 },
               ]}
             >
-              <Feather
-                name="lock"
-                size={22}
-                color={
-                  isWF
-                    ? "#DDD"
-                    : colors.ignitionAmber
-                }
-              />
+              <View
+                style={[
+                  styles.pinIcon,
+                  {
+                    backgroundColor: isWF
+                      ? "#666"
+                      : colors.petrolMid,
+                  },
+                ]}
+              >
+                <Feather
+                  name="lock"
+                  size={22}
+                  color={
+                    isWF
+                      ? "#DDD"
+                      : colors.ignitionAmber
+                  }
+                />
+              </View>
+
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={{
+                    color: "#FFFFFF",
+                    fontFamily: font("display"),
+                    fontSize: FontSizes.base,
+                  }}
+                >
+                  Delivery PIN required
+                </Text>
+
+                <Text
+                  style={{
+                    color: isWF
+                      ? "#CCCCCC"
+                      : "rgba(255,255,255,0.72)",
+                    fontFamily: font("body"),
+                    fontSize: FontSizes.xs,
+                    lineHeight: 18,
+                    marginTop: 3,
+                  }}
+                >
+                  Your driver has delivered the fuel.
+                  Ask the driver for the 4-digit PIN
+                  and enter it to complete your order.
+                </Text>
+              </View>
             </View>
 
-            <View style={{ flex: 1 }}>
-              <Text
-                style={{
-                  color: "#FFFFFF",
-                  fontFamily: font("display"),
-                  fontSize: FontSizes.base,
-                }}
-              >
-                Delivery PIN
-              </Text>
-
-              <Text
-                style={{
-                  color: isWF
-                    ? "#CCCCCC"
-                    : "rgba(255,255,255,0.72)",
-                  fontFamily: font("body"),
-                  fontSize: FontSizes.xs,
-                  lineHeight: 18,
-                  marginTop: 3,
-                }}
-              >
-                Only enter your PIN after your fuel
-                has arrived.
-              </Text>
-            </View>
-          </View>
-        )}
-
-        {!isCompleted && (
-          <Button
-            label="Enter Delivery PIN"
-            onPress={handleConfirmDelivery}
-            size="lg"
-            style={{
-              marginTop: -Spacing.xs,
-            }}
-          />
+            <Button
+              label="Enter Delivery PIN"
+              onPress={handleConfirmDelivery}
+              size="lg"
+              style={{
+                marginTop: -Spacing.xs,
+              }}
+            />
+          </>
         )}
 
         {/* Receipt */}
@@ -1743,6 +1888,23 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 2,
+  },
+
+  confirmationBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    padding: Spacing.md,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+  },
+
+  confirmationIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   section: {

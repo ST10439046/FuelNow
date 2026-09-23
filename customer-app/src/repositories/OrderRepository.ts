@@ -27,6 +27,13 @@ import {
 
 
 // ============================================================================
+// CONSTANTS
+// ============================================================================
+
+const DELIVERY_FEE = 49;
+
+
+// ============================================================================
 // ORDER MODELS
 // ============================================================================
 
@@ -115,618 +122,643 @@ export class OrderRepository {
   }
 
 
-// ==========================================================================
-// MAP JOINED ORDER
-// ==========================================================================
-//
-// Maps the result of get_customer_orders().
-//
-// IMPORTANT:
-// This function performs NO Supabase requests.
-// Everything it needs has already been returned by the RPC.
-//
-// ==========================================================================
-
-private mapJoinedOrder(
-  row: any
-): OrderModel {
-
-  // ------------------------------------------------------------------------
-  // ADDRESS
-  // ------------------------------------------------------------------------
-
-  const address: AddressModel = {
-
-    id:
-      row.address_id ??
-      '',
-
-    label:
-      this.mapAddressLabel(
-        row.address_label
-      ),
-
-    unitNumber:
-      row.unit_number ??
-      undefined,
-
-    streetNumber:
-      row.street_number ??
-      undefined,
-
-    streetName:
-      row.street_name ??
-      undefined,
-
-    street:
-      [
-        row.unit_number,
-        row.street_number,
-        row.street_name,
-      ]
-        .filter(Boolean)
-        .join(' '),
-
-    suburb:
-      row.suburb ??
-      '',
-
-    city:
-      row.city ??
-      '',
-
-    province:
-      row.province ??
-      '',
-
-    postalCode:
-      row.postal_code ??
-      '',
-
-    coordinates:
-      row.latitude != null &&
-      row.longitude != null
-        ? {
-            lat:
-              Number(row.latitude),
-
-            lng:
-              Number(row.longitude),
-          }
-        : undefined,
-  };
-
-
-  // ------------------------------------------------------------------------
-  // PAYMENT
-  // ------------------------------------------------------------------------
+  // ==========================================================================
+  // MAP JOINED ORDER
+  // ==========================================================================
   //
-  // payments DOES NOT contain payment_method_id.
+  // Maps the result returned by get_customer_orders().
   //
-  // So don't attempt to read it.
+  // The RPC already returns:
   //
+  // - Order information
+  // - Fuel information
+  // - Address information
+  // - Payment information
+  // - Driver information
+  // - Review information
+  //
+  // No additional Supabase requests are made here.
+  //
+  // ==========================================================================
 
-  const paymentMethod: PaymentMethodModel = {
+  private mapJoinedOrder(
+    row: any
+  ): OrderModel {
 
-    id:
-      row.payment_id ??
-      'unknown',
+    // ------------------------------------------------------------------------
+    // ADDRESS
+    // ------------------------------------------------------------------------
 
-    type:
-      'card',
-
-    label:
-      row.payment_status ??
-      'Payment',
-
-    isDefault:
-      false,
-  };
-
-
-  // ------------------------------------------------------------------------
-  // DRIVER
-  // ------------------------------------------------------------------------
-
-  let driver:
-    DriverModel |
-    undefined;
-
-
-  if (row.driver_id) {
-
-    driver = {
-
+    const address: AddressModel = {
       id:
-        row.driver_id,
-
-      name:
-        row.driver_name ??
-        'Driver',
-
-      phone:
-        row.driver_phone ??
+        row.address_id ??
         '',
 
-      rating:
-        Number(
-          row.driver_rating ??
-          5
+      label:
+        this.mapAddressLabel(
+          row.address_label
         ),
 
-      totalDeliveries:
-        0,
+      unitNumber:
+        row.unit_number ??
+        undefined,
 
-      vehicleReg:
+      streetNumber:
+        row.street_number ??
+        undefined,
+
+      streetName:
+        row.street_name ??
+        undefined,
+
+      street:
+        [
+          row.unit_number,
+          row.street_number,
+          row.street_name,
+        ]
+          .filter(Boolean)
+          .join(' '),
+
+      suburb:
+        row.suburb ??
         '',
 
-      vehicleModel:
+      city:
+        row.city ??
         '',
 
-      vehicleColor:
+      province:
+        row.province ??
         '',
 
-      stationName:
+      postalCode:
+        row.postal_code ??
         '',
 
-      isOnDuty:
-        row.driver_status ===
-        'Online',
+      coordinates:
+        row.latitude != null &&
+        row.longitude != null
+          ? {
+              lat:
+                Number(row.latitude),
 
-      isApproved:
-        true,
+              lng:
+                Number(row.longitude),
+            }
+          : undefined,
+    };
 
-      coordinates: {
-        lat: 0,
-        lng: 0,
+
+    // ------------------------------------------------------------------------
+    // PAYMENT METHOD
+    // ------------------------------------------------------------------------
+    //
+    // The current get_customer_orders() RPC does not return a payment method
+    // identifier, so we use the payment status as the display label.
+    //
+    // ------------------------------------------------------------------------
+
+    const paymentMethod: PaymentMethodModel = {
+      id:
+        row.payment_id ??
+        'unknown',
+
+      type:
+        'card',
+
+      label:
+        row.payment_status ??
+        'Payment',
+
+      isDefault:
+        false,
+    };
+
+
+    // ------------------------------------------------------------------------
+    // DRIVER
+    // ------------------------------------------------------------------------
+
+    let driver:
+      DriverModel |
+      undefined;
+
+
+    if (row.driver_id) {
+
+      driver = {
+        id:
+          row.driver_id,
+
+        name:
+          row.driver_name ??
+          'Driver',
+
+        phone:
+          row.driver_phone ??
+          '',
+
+        rating:
+          Number(
+            row.driver_rating ??
+            5
+          ),
+
+        totalDeliveries:
+          0,
+
+        vehicleReg:
+          '',
+
+        vehicleModel:
+          '',
+
+        vehicleColor:
+          '',
+
+        stationName:
+          '',
+
+        isOnDuty:
+          row.driver_status ===
+          'Online',
+
+        isApproved:
+          true,
+
+        coordinates: {
+          lat:
+            Number(row.latitude ?? 0),
+
+          lng:
+            Number(row.longitude ?? 0),
+        },
+
+        dailyTarget:
+          0,
+
+        todayEarnings:
+          0,
+
+        weekEarnings:
+          0,
+
+        monthEarnings:
+          0,
+
+        documents:
+          [],
+      };
+    }
+
+
+    // ------------------------------------------------------------------------
+    // ORDER AMOUNTS
+    // ------------------------------------------------------------------------
+
+    const litres =
+      Number(
+        row.volume_litres ??
+        0
+      );
+
+
+    /*
+     * Payment totals are authoritative when a payment row exists.
+     *
+     * When no payment row exists, rand_amount is treated as the ACTUAL
+     * order total, including the R49 delivery fee.
+     *
+     * This is important for older/live orders where rand_amount is already
+     * something like R1000.00. We must NOT display:
+     *
+     *     R1000 + R49
+     *
+     * Instead:
+     *
+     *     Fuel = R951
+     *     Delivery = R49
+     *     Total = R1000
+     */
+
+    const hasPayment =
+      row.payment_id != null ||
+      row.total_amount != null;
+
+
+    let fuelSubtotal: number;
+
+    let deliveryFee: number;
+
+    let vatAmount: number;
+
+    let totalAmount: number;
+
+
+    if (hasPayment) {
+
+      totalAmount =
+        Number(
+          row.total_amount ??
+          row.rand_amount ??
+          0
+        );
+
+
+      deliveryFee =
+        DELIVERY_FEE;
+
+
+      fuelSubtotal =
+        Number(
+          row.fuel_subtotal ??
+          Math.max(
+            totalAmount -
+              deliveryFee,
+            0
+          )
+        );
+
+
+      vatAmount =
+        Number(
+          row.vat_amount ??
+          0
+        );
+
+    } else {
+
+      totalAmount =
+        Number(
+          row.rand_amount ??
+          0
+        );
+
+
+      deliveryFee =
+        DELIVERY_FEE;
+
+
+      fuelSubtotal =
+        Math.max(
+          totalAmount -
+            deliveryFee,
+          0
+        );
+
+
+      vatAmount =
+        Number(
+          row.vat_amount ??
+          0
+        );
+    }
+
+
+    const pricePerLitre =
+      litres > 0
+        ? +(
+            fuelSubtotal /
+            litres
+          ).toFixed(2)
+        : 0;
+
+
+    // ------------------------------------------------------------------------
+    // RETURN MODEL
+    // ------------------------------------------------------------------------
+
+    return {
+      id:
+        row.order_id,
+
+      orderNumber:
+        this.createOrderNumber(
+          row.order_id
+        ),
+
+      status:
+        this.mapOrderStatus(
+          row.status
+        ),
+
+      item: {
+        fuelType:
+          (
+            row.fuel_type_name ??
+            'Unknown Fuel'
+          ) as FuelRateModel['type'],
+
+        litres,
+
+        pricePerLitre,
+
+        subtotal:
+          fuelSubtotal,
       },
 
-      dailyTarget:
+      deliveryAddress:
+        address,
+
+      scheduledAt:
+        row.scheduled_date_time ??
+        null,
+
+      paymentMethod,
+
+      deliveryFee,
+
+      vatAmount,
+
+      totalAmount,
+
+      driver,
+
+      pin:
+        row.delivery_pin ??
+        '',
+
+      podPhotoUrl:
+        row.pod_photo_url ??
+        undefined,
+
+      createdAt:
+        row.placed_at,
+
+      deliveredAt:
+        row.delivered_at ??
+        undefined,
+
+      estimatedArrivalMinutes:
         0,
 
-      todayEarnings:
+      distanceKm:
         0,
 
-      weekEarnings:
-        0,
+      rating:
+        row.review_rating ??
+        undefined,
 
-      monthEarnings:
-        0,
-
-      documents:
-        [],
+      ratingComment:
+        row.review_comment ??
+        undefined,
     };
   }
 
 
-  // ------------------------------------------------------------------------
-  // AMOUNTS
-  // ------------------------------------------------------------------------
-
-  const litres =
-    Number(
-      row.volume_litres ??
-      0
-    );
-
-
-  const fuelSubtotal =
-    Number(
-      row.fuel_subtotal ??
-      row.rand_amount ??
-      0
-    );
-
-
-  const pricePerLitre =
-    litres > 0
-      ? +(
-          fuelSubtotal /
-          litres
-        ).toFixed(2)
-      : 0;
-
-
-  const deliveryFee =
-    Number(
-      row.delivery_fee ??
-      49
-    );
-
-
-  const vatAmount =
-    Number(
-      row.vat_amount ??
-      0
-    );
-
-
-  const totalAmount =
-    Number(
-      row.total_amount ??
-      (
-        fuelSubtotal +
-        deliveryFee
-      )
-    );
-
-
-  // ------------------------------------------------------------------------
-  // RETURN
-  // ------------------------------------------------------------------------
-
-  return {
-
-    id:
-      row.order_id,
-
-    orderNumber:
-      this.createOrderNumber(
-        row.order_id
-      ),
-
-    status:
-      this.mapOrderStatus(
-        row.status
-      ),
-
-    item: {
-
-      fuelType:
-        (
-          row.fuel_type_name ??
-          'Unknown Fuel'
-        ) as FuelRateModel['type'],
-
-      litres,
-
-      pricePerLitre,
-
-      subtotal:
-        fuelSubtotal,
-    },
-
-    deliveryAddress:
-      address,
-
-    scheduledAt:
-      row.scheduled_date_time ??
-      null,
-
-    paymentMethod,
-
-    deliveryFee,
-
-    vatAmount,
-
-    totalAmount,
-
-    driver,
-
-    pin:
-      row.delivery_pin ??
-      '',
-
-    podPhotoUrl:
-      undefined,
-
-    createdAt:
-      row.placed_at,
-
-    deliveredAt:
-      row.delivered_at ??
-      undefined,
-
-    estimatedArrivalMinutes:
-      0,
-
-    distanceKm:
-      0,
-
-    rating:
-      row.review_rating ??
-      undefined,
-
-    ratingComment:
-      row.review_comment ??
-      undefined,
-  };
-}
-
   // ==========================================================================
-// GET ALL ORDERS
-// ==========================================================================
-//
-// ONE SUPABASE REQUEST.
-//
-// The RPC returns orders together with fuel type, address, payment,
-// driver and review information.
-//
-// ==========================================================================
+  // GET ALL ORDERS
+  // ==========================================================================
 
-public async getOrders(): Promise<OrderModel[]> {
+  public async getOrders(): Promise<OrderModel[]> {
 
-  const {
-    data,
-    error,
-  } = await supabase.rpc(
-    'get_customer_orders'
-  );
-
-  if (error) {
-
-    console.error(
-      'OrderRepository: failed to fetch customer orders:',
-      error
+    const {
+      data,
+      error,
+    } = await supabase.rpc(
+      'get_customer_orders'
     );
 
-    throw error;
+
+    if (error) {
+
+      console.error(
+        'OrderRepository: failed to fetch customer orders:',
+        error
+      );
+
+      throw error;
+    }
+
+
+    const orders =
+      (data ?? []).map(
+        (row: any) =>
+          this.mapJoinedOrder(row)
+      );
+
+
+    this.orders =
+      orders;
+
+
+    return [
+      ...orders,
+    ];
   }
-
-
-  const orders =
-    (data ?? []).map(
-      (row: any) =>
-        this.mapJoinedOrder(row)
-    );
-
-
-  this.orders =
-    orders;
-
-
-  return [
-    ...orders,
-  ];
-}
 
 
   // ==========================================================================
   // GET RECENT ORDERS
   // ==========================================================================
-  //
-  // Returns orders placed within the specified number of days.
-  //
-  // HomeScreen will call:
-  //
-  //     getRecentOrders(30)
-  //
-  // ==========================================================================
 
-public async getRecentOrders(days: number = 14): Promise<OrderModel[]> {
-  const cutoffDate = new Date(
-    Date.now() - days * 24 * 60 * 60 * 1000,
-  );
+  public async getRecentOrders(
+    days: number = 14
+  ): Promise<OrderModel[]> {
 
-  console.log(
-    `OrderRepository: fetching orders from the last ${days} days`,
-  );
+    const cutoffDate =
+      new Date(
+        Date.now() -
+          days *
+            24 *
+            60 *
+            60 *
+            1000
+      );
 
-  const { data, error } = await supabase.rpc(
-    'get_customer_orders',
-  );
 
-  if (error) {
-    console.error(
-      'OrderRepository: failed to fetch recent orders:',
+    const {
+      data,
       error,
+    } = await supabase.rpc(
+      'get_customer_orders'
     );
-    throw error;
-  }
 
-  const recentRows = (data ?? []).filter((row: any) => {
-    if (!row.placed_at) {
-      return false;
+
+    if (error) {
+
+      console.error(
+        'OrderRepository: failed to fetch recent orders:',
+        error
+      );
+
+      throw error;
     }
 
-    return new Date(row.placed_at) >= cutoffDate;
-  });
 
-  const orders = recentRows.map((row: any) =>
-    this.mapJoinedOrder(row),
-  );
+    const recentRows =
+      (data ?? []).filter(
+        (row: any) => {
 
-  this.orders = orders;
+          if (!row.placed_at) {
+            return false;
+          }
 
-  console.log(
-    `OrderRepository: ${orders.length} orders found in the last ${days} days`,
-  );
+          return (
+            new Date(
+              row.placed_at
+            ) >= cutoffDate
+          );
+        }
+      );
 
-  return [...orders];
-}
+
+    const orders =
+      recentRows.map(
+        (row: any) =>
+          this.mapJoinedOrder(row)
+      );
+
+
+    this.orders =
+      orders;
+
+
+    return [
+      ...orders,
+    ];
+  }
 
 
   // ==========================================================================
   // GET ORDER BY ID
   // ==========================================================================
-
-// ==========================================================================
-// GET ORDER BY ID
-// ==========================================================================
-//
-// Uses get_customer_orders() so the order is returned with:
-//
-// - Fuel type
-// - Delivery address
-// - Payment information
-// - Driver information
-// - Review information
-//
-// IMPORTANT:
-// mapJoinedOrder() performs NO additional Supabase requests.
-//
-// This prevents Order Details from triggering separate requests for:
-// addresses, payments, reviews, fuel types, drivers, etc.
-//
-// ==========================================================================
-
-public async getOrderById(
-  id: string
-): Promise<OrderModel | null> {
-
-  if (!id) {
-    console.warn(
-      'OrderRepository: getOrderById called without an order ID.'
-    );
-
-    return null;
-  }
-
-  // ------------------------------------------------------------------------
-  // Check local cache first
-  // ------------------------------------------------------------------------
-
-  const cachedOrder =
-    this.orders.find(
-      order =>
-        order.id === id
-    );
-
-  if (cachedOrder) {
-
-    // Keep the active order reference up to date
-    if (this.activeOrder?.id === id) {
-      this.activeOrder = cachedOrder;
-    }
-
-    return cachedOrder;
-  }
-
-
-  // ------------------------------------------------------------------------
-  // Fetch orders using the existing joined RPC
-  // ------------------------------------------------------------------------
-
-  const {
-    data,
-    error,
-  } = await supabase.rpc(
-    'get_customer_orders'
-  );
-
-  if (error) {
-
-    console.error(
-      'OrderRepository: failed to fetch order:',
-      error
-    );
-
-    throw error;
-  }
-
-
-  // ------------------------------------------------------------------------
-  // Find requested order
-  // ------------------------------------------------------------------------
-
-  const row =
-    (data ?? []).find(
-      (item: any) =>
-        item.order_id === id
-    );
-
-
-  if (!row) {
-    return null;
-  }
-
-
-  // ------------------------------------------------------------------------
-  // Map joined result
-  // ------------------------------------------------------------------------
   //
   // IMPORTANT:
-  // mapJoinedOrder() does NOT call Supabase.
+  // This method intentionally refreshes from Supabase every time.
   //
-
-  const order =
-    this.mapJoinedOrder(
-      row
-    );
-
-
-  // ------------------------------------------------------------------------
-  // Update cache
-  // ------------------------------------------------------------------------
-
-  const existingIndex =
-    this.orders.findIndex(
-      existing =>
-        existing.id === id
-    );
-
-
-  if (existingIndex >= 0) {
-
-    this.orders[existingIndex] =
-      order;
-
-  } else {
-
-    this.orders.push(
-      order
-    );
-  }
-
-
-  // ------------------------------------------------------------------------
-  // Update active order
-  // ------------------------------------------------------------------------
-
-  if (
-    this.activeOrder?.id === id
-  ) {
-    this.activeOrder =
-      order;
-  }
-
-
-  return order;
-}
-
-  // ==========================================================================
-  // GET ACTIVE ORDER
+  // The customer app needs to see:
+  //
+  //     DISPENSING -> DELIVERED -> COMPLETED
+  //
+  // immediately after the driver/customer actions happen.
+  //
+  // Returning a cached OrderModel here caused Order Details to continue
+  // displaying an older status.
+  //
   // ==========================================================================
 
-  public async getActiveOrder(): Promise<OrderModel | null> {
+  public async getOrderById(
+    id: string
+  ): Promise<OrderModel | null> {
 
-    const userId =
-      await this.getCurrentUserId();
+    if (!id) {
 
-    const activeStatuses: OrderStatus[] = [
-      'PENDING_PAYMENT',
-      'PAID',
-      'FINDING_DRIVER',
-      'ACCEPTED',
-      'NAVIGATING',
-      'ARRIVED',
-      'DISPENSING',
-    ];
+      console.warn(
+        'OrderRepository: getOrderById called without an order ID.'
+      );
+
+      return null;
+    }
+
 
     const {
       data,
       error,
-    } = await supabase
-      .from('orders')
-      .select('*')
-      .eq(
-        'customer_id',
-        userId
-      )
-      .in(
-        'status',
-        activeStatuses
-      )
-      .order(
-        'placed_at',
-        {
-          ascending: false,
-        }
-      )
-      .limit(1)
-      .maybeSingle();
+    } = await supabase.rpc(
+      'get_customer_orders'
+    );
+
 
     if (error) {
+
+      console.error(
+        'OrderRepository: failed to fetch order:',
+        error
+      );
+
+      throw error;
+    }
+
+
+    const row =
+      (data ?? []).find(
+        (item: any) =>
+          item.order_id === id
+      );
+
+
+    if (!row) {
+
+      return null;
+    }
+
+
+    const order =
+      this.mapJoinedOrder(
+        row
+      );
+
+
+    const existingIndex =
+      this.orders.findIndex(
+        existing =>
+          existing.id === id
+      );
+
+
+    if (existingIndex >= 0) {
+
+      this.orders[existingIndex] =
+        order;
+
+    } else {
+
+      this.orders.push(
+        order
+      );
+    }
+
+
+    if (
+      this.activeOrder?.id ===
+      id
+    ) {
+
+      this.activeOrder =
+        order;
+    }
+
+
+    return order;
+  }
+
+
+  // ==========================================================================
+  // GET ACTIVE ORDER
+  // ==========================================================================
+  //
+  // Uses get_customer_orders() so the returned model has the same mapping
+  // and amount calculations as Order History and Order Details.
+  //
+  // ==========================================================================
+
+  public async getActiveOrder(): Promise<OrderModel | null> {
+
+    const activeStatuses:
+      OrderStatus[] = [
+        'PENDING_PAYMENT',
+        'PAID',
+        'FINDING_DRIVER',
+        'ACCEPTED',
+        'NAVIGATING',
+        'ARRIVED',
+        'DISPENSING',
+        'DELIVERED',
+      ];
+
+
+    const {
+      data,
+      error,
+    } = await supabase.rpc(
+      'get_customer_orders'
+    );
+
+
+    if (error) {
+
       console.error(
         'OrderRepository: failed to fetch active order:',
         error
@@ -735,19 +767,72 @@ public async getOrderById(
       throw error;
     }
 
-    if (!data) {
-      this.activeOrder = null;
+
+    const activeRows =
+      (data ?? [])
+        .filter(
+          (row: any) =>
+            activeStatuses.includes(
+              this.mapOrderStatus(
+                row.status
+              )
+            )
+        )
+        .sort(
+          (
+            a: any,
+            b: any
+          ) =>
+            new Date(
+              b.placed_at
+            ).getTime() -
+            new Date(
+              a.placed_at
+            ).getTime()
+        );
+
+
+    if (
+      activeRows.length === 0
+    ) {
+
+      this.activeOrder =
+        null;
 
       return null;
     }
 
+
     const order =
-      await this.mapOrder(
-        data
+      this.mapJoinedOrder(
+        activeRows[0]
       );
+
 
     this.activeOrder =
       order;
+
+
+    const existingIndex =
+      this.orders.findIndex(
+        existing =>
+          existing.id ===
+          order.id
+      );
+
+
+    if (existingIndex >= 0) {
+
+      this.orders[existingIndex] =
+        order;
+
+    } else {
+
+      this.orders.push(
+        order
+      );
+    }
+
 
     return order;
   }
@@ -771,28 +856,32 @@ public async getOrderById(
 
 
     // ------------------------------------------------------------------------
-    // Find fuel type
+    // FIND FUEL TYPE
     // ------------------------------------------------------------------------
 
     const {
       data: fuelType,
       error: fuelTypeError,
-    } = await supabase
-      .from('fuel_types')
-      .select(
-        'fuel_type_id, name'
-      )
-      .eq(
-        'name',
-        data.fuelType
-      )
-      .maybeSingle();
+    } =
+      await supabase
+        .from('fuel_types')
+        .select(
+          'fuel_type_id, name'
+        )
+        .eq(
+          'name',
+          data.fuelType
+        )
+        .maybeSingle();
+
 
     if (fuelTypeError) {
       throw fuelTypeError;
     }
 
+
     if (!fuelType) {
+
       throw new Error(
         `Fuel type "${data.fuelType}" was not found.`
       );
@@ -800,7 +889,7 @@ public async getOrderById(
 
 
     // ------------------------------------------------------------------------
-    // Calculate payment
+    // CALCULATE PAYMENT
     // ------------------------------------------------------------------------
 
     const fuelSubtotal =
@@ -809,11 +898,14 @@ public async getOrderById(
         data.litres
       ).toFixed(2);
 
+
     const deliveryFee =
-      49.00;
+      DELIVERY_FEE;
+
 
     const serviceFee =
       0.00;
+
 
     const totalAmount =
       +(
@@ -821,6 +913,7 @@ public async getOrderById(
         deliveryFee +
         serviceFee
       ).toFixed(2);
+
 
     const vatAmount =
       +(
@@ -830,68 +923,77 @@ public async getOrderById(
 
 
     // ------------------------------------------------------------------------
-    // Generate delivery PIN
+    // GENERATE DELIVERY PIN
     // ------------------------------------------------------------------------
 
     const deliveryPin =
       String(
         Math.floor(
           1000 +
-            Math.random() *
-              9000
+          Math.random() *
+          9000
         )
       );
 
 
     // ------------------------------------------------------------------------
-    // Create order
+    // CREATE ORDER
     // ------------------------------------------------------------------------
 
     const {
       data: createdOrder,
       error,
-    } = await supabase.rpc(
-      'create_order',
-      {
-        p_customer_id:
-          userId,
+    } =
+      await supabase.rpc(
+        'create_order',
+        {
+          p_customer_id:
+            userId,
 
-        p_driver_id:
-          null,
+          p_driver_id:
+            null,
 
-        p_address_id:
-          data.deliveryAddress.id,
+          p_address_id:
+            data.deliveryAddress.id,
 
-        p_fuel_type_id:
-          fuelType.fuel_type_id,
+          p_fuel_type_id:
+            fuelType.fuel_type_id,
 
-        p_order_method:
-          'APP',
+          p_order_method:
+            'APP',
 
-        p_volume_litres:
-          data.litres,
+          p_volume_litres:
+            data.litres,
 
-        p_rand_amount:
-          fuelSubtotal,
+          /*
+           * The payment row stores the authoritative total.
+           *
+           * Existing database structure expects rand_amount to contain the
+           * fuel subtotal at order creation, so that behaviour is retained.
+           */
 
-        p_delivery_type:
-          data.scheduledAt
-            ? 'Scheduled'
-            : 'Deliver Now',
+          p_rand_amount:
+            fuelSubtotal,
 
-        p_scheduled_date_time:
-          data.scheduledAt,
+          p_delivery_type:
+            data.scheduledAt
+              ? 'Scheduled'
+              : 'Deliver Now',
 
-        // State Pattern initial state
-        p_status:
-          'PENDING_PAYMENT',
+          p_scheduled_date_time:
+            data.scheduledAt,
 
-        p_delivery_pin:
-          deliveryPin,
-      }
-    );
+          p_status:
+            'PENDING_PAYMENT',
+
+          p_delivery_pin:
+            deliveryPin,
+        }
+      );
+
 
     if (error) {
+
       console.error(
         'OrderRepository: create_order failed:',
         error
@@ -900,6 +1002,7 @@ public async getOrderById(
       throw error;
     }
 
+
     const orderRow =
       Array.isArray(
         createdOrder
@@ -907,7 +1010,9 @@ public async getOrderById(
         ? createdOrder[0]
         : createdOrder;
 
+
     if (!orderRow) {
+
       throw new Error(
         'Supabase did not return the created order.'
       );
@@ -915,22 +1020,41 @@ public async getOrderById(
 
 
     // ------------------------------------------------------------------------
-    // Create payment
+    // CREATE PAYMENT
     // ------------------------------------------------------------------------
 
     const {
       error: paymentError,
-    } = await supabase.rpc('create_payment', {
-    p_order_id: orderRow.order_id,
-    p_fuel_subtotal: fuelSubtotal,
-    p_delivery_fee: deliveryFee,
-    p_service_fee: serviceFee,
-    p_vat_amount: vatAmount,
-    p_total_amount: totalAmount,
-    p_status: 'PENDING',
-  });
+    } =
+      await supabase.rpc(
+        'create_payment',
+        {
+          p_order_id:
+            orderRow.order_id,
+
+          p_fuel_subtotal:
+            fuelSubtotal,
+
+          p_delivery_fee:
+            deliveryFee,
+
+          p_service_fee:
+            serviceFee,
+
+          p_vat_amount:
+            vatAmount,
+
+          p_total_amount:
+            totalAmount,
+
+          p_status:
+            'PENDING',
+        }
+      );
+
 
     if (paymentError) {
+
       console.error(
         'OrderRepository: create_payment failed:',
         paymentError
@@ -941,7 +1065,7 @@ public async getOrderById(
 
 
     // ------------------------------------------------------------------------
-    // Retrieve actual order from Supabase
+    // RETRIEVE ACTUAL ORDER
     // ------------------------------------------------------------------------
 
     const newOrder =
@@ -949,7 +1073,9 @@ public async getOrderById(
         orderRow.order_id
       );
 
+
     if (!newOrder) {
+
       throw new Error(
         'Order was created but could not be retrieved.'
       );
@@ -961,18 +1087,22 @@ public async getOrderById(
 
 
     // ------------------------------------------------------------------------
-    // Notify observers
+    // NOTIFY OBSERVERS
     // ------------------------------------------------------------------------
 
     realtimeHub
       .getOrderChannel(
         newOrder.id
       )
-      .notify(newOrder);
+      .notify(
+        newOrder
+      );
 
     realtimeHub
       .getOrderChannel()
-      .notify(newOrder);
+      .notify(
+        newOrder
+      );
 
 
     return newOrder;
@@ -1024,8 +1154,11 @@ public async getOrderById(
   // UPDATE ORDER STATUS
   // ==========================================================================
   //
-  // IMPORTANT:
-  // The State Pattern is checked BEFORE Supabase is updated.
+  // Used for normal customer-side order state updates.
+  //
+  // Delivery PIN confirmation does NOT use this method anymore.
+  // That flow is handled by the confirm-delivery Edge Function because the
+  // Edge Function performs the final delivery confirmation.
   //
   // ==========================================================================
 
@@ -1047,18 +1180,17 @@ public async getOrderById(
         orderId
       );
 
+
     if (!order) {
+
       return {
         success: false,
+
         error:
           'Order not found.',
       };
     }
 
-
-    // ------------------------------------------------------------------------
-    // STATE PATTERN VALIDATION
-    // ------------------------------------------------------------------------
 
     const validation =
       this.validateOrderTransition(
@@ -1067,43 +1199,26 @@ public async getOrderById(
         extra
       );
 
-    if (!validation.allowed) {
 
-      console.warn(
-        'OrderRepository: state transition rejected:',
-        {
-          orderId,
-          currentStatus:
-            order.status,
-          targetStatus,
-          reason:
-            validation.errorMessage,
-        }
-      );
+    if (!validation.allowed) {
 
       return {
         success: false,
+
         error:
           validation.errorMessage ??
-          'Order status transition is not allowed.',
+          'Invalid order status transition.',
       };
     }
 
 
-    // ------------------------------------------------------------------------
-    // Determine delivered timestamp
-    // ------------------------------------------------------------------------
-
     const deliveredAt =
-      targetStatus === 'COMPLETED'
+      targetStatus === 'COMPLETED' ||
+      targetStatus === 'DELIVERED'
         ? new Date().toISOString()
         : order.deliveredAt ??
           null;
 
-
-    // ------------------------------------------------------------------------
-    // Get fuel type ID
-    // ------------------------------------------------------------------------
 
     const fuelTypeId =
       await this.getFuelTypeId(
@@ -1111,62 +1226,66 @@ public async getOrderById(
       );
 
 
-    // ------------------------------------------------------------------------
-    // Update Supabase
-    // ------------------------------------------------------------------------
-
     const {
-      data,
       error,
-    } = await supabase.rpc(
-      'update_order',
-      {
-        p_order_id:
-          order.id,
+    } =
+      await supabase.rpc(
+        'update_order',
+        {
+          p_order_id:
+            order.id,
 
-        p_customer_id:
-          await this.getCurrentUserId(),
+          p_customer_id:
+            await this.getCurrentUserId(),
 
-        p_driver_id:
-          extra?.driver?.id ??
-          order.driver?.id ??
-          null,
+          p_driver_id:
+            extra?.driver?.id ??
+            order.driver?.id ??
+            null,
 
-        p_address_id:
-          order.deliveryAddress.id,
+          p_address_id:
+            order.deliveryAddress.id,
 
-        p_fuel_type_id:
-          fuelTypeId,
+          p_fuel_type_id:
+            fuelTypeId,
 
-        p_order_method:
-          'APP',
+          p_order_method:
+            'APP',
 
-        p_volume_litres:
-          order.item.litres,
+          p_volume_litres:
+            order.item.litres,
 
-        p_rand_amount:
-          order.item.subtotal,
+          /*
+           * Keep rand_amount as the fuel subtotal for orders created by the
+           * customer app. The payment row remains the source of truth for
+           * the total amount.
+           */
 
-        p_delivery_type:
-          order.scheduledAt
-            ? 'Scheduled'
-            : 'Deliver Now',
+          p_rand_amount:
+            order.item.subtotal,
 
-        p_scheduled_date_time:
-          order.scheduledAt,
+          p_delivery_type:
+            order.scheduledAt
+              ? 'Scheduled'
+              : 'Deliver Now',
 
-        p_status:
-          targetStatus,
+          p_scheduled_date_time:
+            order.scheduledAt,
 
-        p_delivery_pin:
-          order.pin,
+          p_status:
+            targetStatus,
 
-        p_delivered_at:
-          deliveredAt,
-      }
-    );
+          p_delivery_pin:
+            order.pin,
+
+          p_delivered_at:
+            deliveredAt,
+        }
+      );
+
 
     if (error) {
+
       console.error(
         'OrderRepository: update_order failed:',
         error
@@ -1174,60 +1293,58 @@ public async getOrderById(
 
       return {
         success: false,
+
         error:
           error.message,
       };
     }
 
 
-    // ------------------------------------------------------------------------
-    // Retrieve updated order
-    // ------------------------------------------------------------------------
-
     const updatedOrder =
       await this.getOrderById(
         orderId
       );
 
+
     if (!updatedOrder) {
+
       return {
         success: false,
+
         error:
           'Order was updated but could not be retrieved.',
       };
     }
 
 
-    // ------------------------------------------------------------------------
-    // Update active order
-    // ------------------------------------------------------------------------
-
     if (
       this.activeOrder?.id ===
       orderId
     ) {
+
       this.activeOrder =
         updatedOrder;
     }
 
 
-    // ------------------------------------------------------------------------
-    // Notify observers
-    // ------------------------------------------------------------------------
-
     realtimeHub
       .getOrderChannel(
         orderId
       )
-      .notify(updatedOrder);
+      .notify(
+        updatedOrder
+      );
 
     realtimeHub
       .getOrderChannel()
-      .notify(updatedOrder);
+      .notify(
+        updatedOrder
+      );
 
 
     return {
       success: true,
+
       order:
         updatedOrder,
     };
@@ -1236,6 +1353,31 @@ public async getOrderById(
 
   // ==========================================================================
   // CONFIRM DELIVERY WITH PIN
+  // ==========================================================================
+  //
+  // Customer flow:
+  //
+  //     Driver completes delivery
+  //              ↓
+  //          DELIVERED
+  //              ↓
+  //     Customer enters PIN
+  //              ↓
+  //       confirm-delivery
+  //              ↓
+  //         COMPLETED
+  //
+  // The Edge Function:
+  //
+  // - validates the PIN
+  // - updates the order to COMPLETED
+  // - records delivered_at
+  // - awards FuelPoints
+  //
+  // We therefore DO NOT call updateOrderStatus() afterwards.
+  // Doing both caused duplicate/competing status updates and duplicate
+  // FuelPoints.
+  //
   // ==========================================================================
 
   public async confirmDeliveryWithPin(
@@ -1247,12 +1389,12 @@ public async getOrderById(
     order?: OrderModel;
     error?: string;
   }> {
-
+  
     const order =
       await this.getOrderById(
         orderId
       );
-
+  
     if (!order) {
       return {
         success: false,
@@ -1260,15 +1402,48 @@ public async getOrderById(
           'Order not found.',
       };
     }
-
-
+  
+  
+    // ------------------------------------------------------------------------
+    // Order must be waiting for customer PIN confirmation
+    // ------------------------------------------------------------------------
+  
+    if (
+      order.status !==
+      'DELIVERED'
+    ) {
+      return {
+        success: false,
+        error:
+          `Delivery PIN cannot be confirmed while the order is ${order.status}.`,
+      };
+    }
+  
+  
     // ------------------------------------------------------------------------
     // Validate PIN
     // ------------------------------------------------------------------------
-
+  
+    const enteredPin =
+      pin.trim();
+  
+    const deliveryPin =
+      order.pin.trim();
+  
     if (
-      pin.trim() !==
-      order.pin.trim()
+      !enteredPin ||
+      enteredPin.length !== 4
+    ) {
+      return {
+        success: false,
+        error:
+          'Please enter the full 4-digit delivery PIN.',
+      };
+    }
+  
+    if (
+      !deliveryPin ||
+      enteredPin !== deliveryPin
     ) {
       return {
         success: false,
@@ -1276,12 +1451,12 @@ public async getOrderById(
           'Security Warning: Incorrect 4-digit PIN provided by customer.',
       };
     }
-
-
+  
+  
     // ------------------------------------------------------------------------
     // Validate State Pattern
     // ------------------------------------------------------------------------
-
+  
     const validation =
       this.validateOrderTransition(
         order,
@@ -1292,8 +1467,8 @@ public async getOrderById(
             order.podPhotoUrl,
         }
       );
-
-
+  
+  
     if (!validation.allowed) {
       return {
         success: false,
@@ -1302,101 +1477,36 @@ public async getOrderById(
           'Order cannot be completed.',
       };
     }
-
-
+  
+  
     // ------------------------------------------------------------------------
-    // Optional Edge Function validation
+    // Mark order as COMPLETED
     // ------------------------------------------------------------------------
-
-    try {
-
-      const {
-        data,
-        error,
-      } =
-        await supabaseService.invokeFunction(
-          'confirm-delivery',
-          {
-            order_id:
-              orderId,
-
-            delivery_pin:
-              pin,
-
-            photo_url:
-              photoUrl,
-
-            driver_id:
-              order.driver?.id,
-          }
-        );
-
-
-      if (
-        error ||
-        (
-          data &&
-          !data.success
-        )
-      ) {
-        console.warn(
-          'OrderRepository: delivery Edge Function returned an error.',
-          error
-        );
-      }
-
-    } catch (error) {
-
-      console.warn(
-        'OrderRepository: confirm-delivery Edge Function unavailable:',
-        error
-      );
-    }
-
-
-    // ------------------------------------------------------------------------
-    // Update actual order
-    // ------------------------------------------------------------------------
-
+  
     const result =
       await this.updateOrderStatus(
         orderId,
         'COMPLETED',
         {
           podPhotoUrl:
-            photoUrl,
+            photoUrl ??
+            order.podPhotoUrl,
         }
       );
-
-
+  
+  
     if (!result.success) {
       return result;
     }
-
-
+  
+  
     // ------------------------------------------------------------------------
     // Award FuelPoints
     // ------------------------------------------------------------------------
-
-    try {
-
-      await userRepository.addPoints(
-        80
-      );
-
-    } catch (error) {
-
-      console.error(
-        'OrderRepository: failed to award FuelPoints:',
-        error
-      );
-
-    }
-
-
+  
+  
     return result;
   }
-
 
   // ==========================================================================
   // RATE ORDER
@@ -1412,6 +1522,7 @@ public async getOrderById(
       rating < 1 ||
       rating > 5
     ) {
+
       return false;
     }
 
@@ -1421,16 +1532,17 @@ public async getOrderById(
         orderId
       );
 
+
     if (!order) {
       return false;
     }
 
 
-    // Only completed orders can be reviewed
     if (
       order.status !==
       'COMPLETED'
     ) {
+
       console.warn(
         'OrderRepository: cannot rate incomplete order.'
       );
@@ -1450,29 +1562,30 @@ public async getOrderById(
 
     const {
       error,
-    } = await supabase.rpc(
-      'create_review',
-      {
-        p_order_id:
-          orderId,
+    } =
+      await supabase.rpc(
+        'create_review',
+        {
+          p_order_id:
+            orderId,
 
-        p_customer_id:
-          userId,
+          p_customer_id:
+            userId,
 
-        p_driver_id:
-          driverId,
+          p_driver_id:
+            driverId,
 
-        p_rating:
-          rating,
+          p_rating:
+            rating,
 
-        p_comment:
-          comment ??
-          null,
+          p_comment:
+            comment ??
+            null,
 
-        p_status:
-          'Published',
-      }
-    );
+          p_status:
+            'Published',
+        }
+      );
 
 
     if (error) {
@@ -1506,7 +1619,6 @@ public async getOrderById(
       this.orders[index] = {
         ...order,
       };
-
     }
 
 
@@ -1514,7 +1626,9 @@ public async getOrderById(
       .getOrderChannel(
         order.id
       )
-      .notify(order);
+      .notify(
+        order
+      );
 
 
     return true;
@@ -1532,13 +1646,14 @@ public async getOrderById(
     const {
       data,
       error,
-    } = await supabase.rpc(
-      'delete_order',
-      {
-        p_order_id:
-          orderId,
-      }
-    );
+    } =
+      await supabase.rpc(
+        'delete_order',
+        {
+          p_order_id:
+            orderId,
+        }
+      );
 
 
     if (error) {
@@ -1549,6 +1664,24 @@ public async getOrderById(
       );
 
       return false;
+    }
+
+
+    this.orders =
+      this.orders.filter(
+        order =>
+          order.id !==
+          orderId
+      );
+
+
+    if (
+      this.activeOrder?.id ===
+      orderId
+    ) {
+
+      this.activeOrder =
+        null;
     }
 
 
@@ -1567,16 +1700,17 @@ public async getOrderById(
     const {
       data,
       error,
-    } = await supabase
-      .from('fuel_types')
-      .select(
-        'fuel_type_id'
-      )
-      .eq(
-        'name',
-        fuelTypeName
-      )
-      .maybeSingle();
+    } =
+      await supabase
+        .from('fuel_types')
+        .select(
+          'fuel_type_id'
+        )
+        .eq(
+          'name',
+          fuelTypeName
+        )
+        .maybeSingle();
 
 
     if (error) {
@@ -1585,6 +1719,7 @@ public async getOrderById(
 
 
     if (!data) {
+
       throw new Error(
         `Fuel type "${fuelTypeName}" was not found.`
       );
@@ -1599,33 +1734,33 @@ public async getOrderById(
   // MAP ORDERS
   // ==========================================================================
 
-  // ==========================================================================
-  // MAP ORDERS
-  // ==========================================================================
-
   private async mapOrders(
     rows: any[]
-  ): Promise<OrderModel[]> {  
+  ): Promise<OrderModel[]> {
 
-    return rows.map((row) =>
-      this.mapJoinedOrder(row)
+    return rows.map(
+      (row) =>
+        this.mapJoinedOrder(
+          row
+        )
     );
   }
-
 
 
   // ==========================================================================
   // MAP SINGLE ORDER
   // ==========================================================================
+  //
+  // Retained for compatibility with any existing code that may use this
+  // internal mapper.
+  //
+  // The normal customer screens now use get_customer_orders() instead.
+  //
+  // ==========================================================================
 
   private async mapOrder(
     row: any
   ): Promise<OrderModel> {
-
-
-    // ------------------------------------------------------------------------
-    // Fuel type
-    // ------------------------------------------------------------------------
 
     let fuelTypeName =
       'Unknown Fuel';
@@ -1658,40 +1793,34 @@ public async getOrderById(
 
         fuelTypeName =
           data.name;
-
       }
     }
 
 
-    // ------------------------------------------------------------------------
-    // Address
-    // ------------------------------------------------------------------------
-
     let address:
       AddressModel = {
+        id:
+          row.address_id ??
+          '',
 
-      id:
-        row.address_id ??
-        '',
+        label:
+          'Other',
 
-      label:
-        'Other',
+        street:
+          'Address unavailable',
 
-      street:
-        'Address unavailable',
+        suburb:
+          '',
 
-      suburb:
-        '',
+        city:
+          '',
 
-      city:
-        '',
+        province:
+          '',
 
-      province:
-        '',
-
-      postalCode:
-        '',
-    };
+        postalCode:
+          '',
+      };
 
 
     if (
@@ -1718,7 +1847,6 @@ public async getOrderById(
       ) {
 
         address = {
-
           id:
             data.address_id,
 
@@ -1726,6 +1854,18 @@ public async getOrderById(
             this.mapAddressLabel(
               data.label
             ),
+
+          unitNumber:
+            data.unit_number ??
+            undefined,
+
+          streetNumber:
+            data.street_number ??
+            undefined,
+
+          streetName:
+            data.street_name ??
+            undefined,
 
           street:
             [
@@ -1751,41 +1891,66 @@ public async getOrderById(
           postalCode:
             data.postal_code ??
             '',
+
+          coordinates:
+            data.latitude != null &&
+            data.longitude != null
+              ? {
+                  lat:
+                    Number(
+                      data.latitude
+                    ),
+
+                  lng:
+                    Number(
+                      data.longitude
+                    ),
+                }
+              : undefined,
         };
       }
     }
 
 
     // ------------------------------------------------------------------------
-    // Payment
+    // PAYMENT
     // ------------------------------------------------------------------------
 
     let paymentMethod:
       PaymentMethodModel = {
+        id:
+          'unknown',
 
-      id:
-        'unknown',
+        type:
+          'card',
 
-      type:
-        'card',
+        label:
+          'Payment',
 
-      label:
-        'Payment',
-
-      isDefault:
-        false,
-    };
+        isDefault:
+          false,
+      };
 
 
     let deliveryFee =
-      49;
+      DELIVERY_FEE;
+
 
     let vatAmount =
       0;
 
+
     let totalAmount =
       Number(
         row.rand_amount ??
+        0
+      );
+
+
+    let fuelSubtotal =
+      Math.max(
+        totalAmount -
+          DELIVERY_FEE,
         0
       );
 
@@ -1800,22 +1965,28 @@ public async getOrderById(
           'order_id',
           row.order_id
         )
+        .order(
+          'charged_at',
+          {
+            ascending: false,
+          }
+        )
+        .limit(1)
         .maybeSingle();
 
 
     if (payment) {
 
       deliveryFee =
-        Number(
-          payment.delivery_fee ??
-          49
-        );
+        DELIVERY_FEE;
+
 
       vatAmount =
         Number(
           payment.vat_amount ??
           0
         );
+
 
       totalAmount =
         Number(
@@ -1825,8 +1996,18 @@ public async getOrderById(
         );
 
 
-      paymentMethod = {
+      fuelSubtotal =
+        Number(
+          payment.fuel_subtotal ??
+          Math.max(
+            totalAmount -
+              deliveryFee,
+            0
+          )
+        );
 
+
+      paymentMethod = {
         id:
           payment.payment_method_id ??
           'unknown',
@@ -1847,7 +2028,7 @@ public async getOrderById(
 
 
     // ------------------------------------------------------------------------
-    // Driver
+    // DRIVER
     // ------------------------------------------------------------------------
 
     let driver:
@@ -1892,7 +2073,6 @@ public async getOrderById(
 
 
         driver = {
-
           id:
             driverData.driver_id,
 
@@ -1933,8 +2113,17 @@ public async getOrderById(
             true,
 
           coordinates: {
-            lat: 0,
-            lng: 0,
+            lat:
+              Number(
+                driverData.latitude ??
+                0
+              ),
+
+            lng:
+              Number(
+                driverData.longitude ??
+                0
+              ),
           },
 
           dailyTarget:
@@ -1957,14 +2146,17 @@ public async getOrderById(
 
 
     // ------------------------------------------------------------------------
-    // Review
+    // REVIEW
     // ------------------------------------------------------------------------
 
     let rating:
-      number | undefined;
+      number |
+      undefined;
+
 
     let ratingComment:
-      string | undefined;
+      string |
+      undefined;
 
 
     const {
@@ -1996,7 +2188,7 @@ public async getOrderById(
 
 
     // ------------------------------------------------------------------------
-    // Order amounts
+    // RETURN
     // ------------------------------------------------------------------------
 
     const litres =
@@ -2004,19 +2196,6 @@ public async getOrderById(
         row.volume_litres ??
         0
       );
-
-
-    const fuelSubtotal =
-      payment
-        ? Number(
-            payment.fuel_subtotal ??
-            row.rand_amount ??
-            0
-          )
-        : Number(
-            row.rand_amount ??
-            0
-          );
 
 
     const pricePerLitre =
@@ -2028,12 +2207,7 @@ public async getOrderById(
         : 0;
 
 
-    // ------------------------------------------------------------------------
-    // Return OrderModel
-    // ------------------------------------------------------------------------
-
     return {
-
       id:
         row.order_id,
 
@@ -2048,7 +2222,6 @@ public async getOrderById(
         ),
 
       item: {
-
         fuelType:
           fuelTypeName as
             FuelRateModel['type'],
@@ -2082,6 +2255,10 @@ public async getOrderById(
         row.delivery_pin ??
         '',
 
+      podPhotoUrl:
+        row.pod_photo_url ??
+        undefined,
+
       createdAt:
         row.placed_at,
 
@@ -2113,18 +2290,20 @@ public async getOrderById(
       | undefined
   ): OrderStatus {
 
-    const validStatuses: OrderStatus[] = [
-  'PENDING_PAYMENT',
-  'PAID',
-  'FINDING_DRIVER',
-  'ACCEPTED',
-  'NAVIGATING',
-  'ARRIVED',
-  'DISPENSING',
-  'DELIVERED',
-  'COMPLETED',
-  'CANCELLED',
-];
+    const validStatuses:
+      OrderStatus[] = [
+        'PENDING_PAYMENT',
+        'PAID',
+        'FINDING_DRIVER',
+        'ACCEPTED',
+        'NAVIGATING',
+        'ARRIVED',
+        'DISPENSING',
+        'DELIVERED',
+        'COMPLETED',
+        'CANCELLED',
+      ];
+
 
     if (
       status &&
@@ -2132,6 +2311,7 @@ public async getOrderById(
         status as OrderStatus
       )
     ) {
+
       return status as OrderStatus;
     }
 
@@ -2223,6 +2403,7 @@ public async getOrderById(
     if (
       value.includes('eft')
     ) {
+
       return 'eft';
     }
 
@@ -2230,6 +2411,7 @@ public async getOrderById(
     if (
       value.includes('mobile')
     ) {
+
       return 'mobile_money';
     }
 
