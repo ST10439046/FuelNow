@@ -1508,131 +1508,153 @@ export class OrderRepository {
     return result;
   }
 
-  // ==========================================================================
-  // RATE ORDER
-  // ==========================================================================
+// ==========================================================================
+// RATE ORDER
+// ==========================================================================
 
-  public async rateOrder(
-    orderId: string,
-    rating: number,
-    comment?: string
-  ): Promise<boolean> {
+public async rateOrder(
+  orderId: string,
+  rating: number,
+  comment?: string
+): Promise<boolean> {
 
-    if (
-      rating < 1 ||
-      rating > 5
-    ) {
+  const normalizedRating =
+    Math.round(Number(rating));
 
-      return false;
-    }
+  if (
+    !Number.isFinite(normalizedRating) ||
+    normalizedRating < 1 ||
+    normalizedRating > 5
+  ) {
+    console.warn(
+      'OrderRepository: rating must be between 1 and 5.'
+    );
 
-
-    const order =
-      await this.getOrderById(
-        orderId
-      );
-
-
-    if (!order) {
-      return false;
-    }
-
-
-    if (
-      order.status !==
-      'COMPLETED'
-    ) {
-
-      console.warn(
-        'OrderRepository: cannot rate incomplete order.'
-      );
-
-      return false;
-    }
-
-
-    const userId =
-      await this.getCurrentUserId();
-
-
-    const driverId =
-      order.driver?.id ??
-      null;
-
-
-    const {
-      error,
-    } =
-      await supabase.rpc(
-        'create_review',
-        {
-          p_order_id:
-            orderId,
-
-          p_customer_id:
-            userId,
-
-          p_driver_id:
-            driverId,
-
-          p_rating:
-            rating,
-
-          p_comment:
-            comment ??
-            null,
-
-          p_status:
-            'Published',
-        }
-      );
-
-
-    if (error) {
-
-      console.error(
-        'OrderRepository: failed to create review:',
-        error
-      );
-
-      return false;
-    }
-
-
-    order.rating =
-      rating;
-
-    order.ratingComment =
-      comment;
-
-
-    const index =
-      this.orders.findIndex(
-        o =>
-          o.id ===
-          orderId
-      );
-
-
-    if (index !== -1) {
-
-      this.orders[index] = {
-        ...order,
-      };
-    }
-
-
-    realtimeHub
-      .getOrderChannel(
-        order.id
-      )
-      .notify(
-        order
-      );
-
-
-    return true;
+    return false;
   }
+
+  const order =
+    await this.getOrderById(
+      orderId
+    );
+
+  if (!order) {
+    console.warn(
+      'OrderRepository: order not found.'
+    );
+
+    return false;
+  }
+
+  if (
+    order.status !==
+    'COMPLETED'
+  ) {
+    console.warn(
+      'OrderRepository: only completed orders can be reviewed.'
+    );
+
+    return false;
+  }
+
+  if (!order.driver?.id) {
+    console.warn(
+      'OrderRepository: completed order has no assigned driver.'
+    );
+
+    return false;
+  }
+
+  if (
+    order.rating !== undefined &&
+    order.rating !== null
+  ) {
+    console.warn(
+      'OrderRepository: order has already been reviewed.'
+    );
+
+    return false;
+  }
+
+  const userId =
+    await this.getCurrentUserId();
+
+  const normalizedComment =
+    comment?.trim() || null;
+
+  const {
+    data,
+    error,
+  } = await supabase.rpc(
+    'create_review',
+    {
+      p_order_id:
+        orderId,
+
+      p_customer_id:
+        userId,
+
+      p_driver_id:
+        order.driver.id,
+
+      p_rating:
+        normalizedRating,
+
+      p_comment:
+        normalizedComment,
+
+      p_status:
+        'Published',
+    }
+  );
+
+  if (error) {
+    console.error(
+      'OrderRepository: failed to create review:',
+      error
+    );
+
+    return false;
+  }
+
+  if (!data) {
+    console.error(
+      'OrderRepository: review RPC returned no review.'
+    );
+
+    return false;
+  }
+
+  order.rating =
+    normalizedRating;
+
+  order.ratingComment =
+    normalizedComment ??
+    undefined;
+
+  const index =
+    this.orders.findIndex(
+      existingOrder =>
+        existingOrder.id ===
+        orderId
+    );
+
+  if (index !== -1) {
+    this.orders[index] = {
+      ...order,
+    };
+  }
+
+  realtimeHub
+    .getOrderChannel(
+      order.id
+    )
+    .notify(
+      order
+    );
+
+  return true;
+}
 
 
   // ==========================================================================
