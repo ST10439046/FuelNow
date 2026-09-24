@@ -826,10 +826,7 @@ export default function OrderDetailsScreen({
             R{order.totalAmount.toFixed(2)}
           </Text>
 
-          <StatusBadge
-            status={order.status as any}
-            size="sm"
-          />
+          
 
           <Text
             style={{
