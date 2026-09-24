@@ -11,11 +11,6 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import MapView, {
-  Marker,
-  Polyline,
-  Region,
-} from "react-native-maps";
 
 import { useDesignMode } from "../../context/DesignModeContext";
 import {
@@ -27,6 +22,7 @@ import {
 
 import Card from "../../components/Card";
 import Button from "../../components/Button";
+import TrackingMap from "../../components/TrackingMap";
 
 import {
   orderRepository,
@@ -74,232 +70,20 @@ function formatDateTime(iso?: string): string {
 }
 
 function hasValidCoordinates(
-  coordinates?: Coordinates,
+  coordinates?: Coordinates | null,
 ): boolean {
   if (!coordinates) {
     return false;
   }
 
-  return (
-    Number.isFinite(Number(coordinates.lat)) &&
-    Number.isFinite(Number(coordinates.lng)) &&
-    Number(coordinates.lat) !== 0 &&
-    Number(coordinates.lng) !== 0
-  );
-}
-
-function getTrackingRegion(
-  driver: Coordinates,
-  customer: Coordinates,
-): Region {
-  const latitudeDifference = Math.abs(
-    driver.lat - customer.lat,
-  );
-
-  const longitudeDifference = Math.abs(
-    driver.lng - customer.lng,
-  );
-
-  return {
-    latitude:
-      (Number(driver.lat) +
-        Number(customer.lat)) /
-      2,
-
-    longitude:
-      (Number(driver.lng) +
-        Number(customer.lng)) /
-      2,
-
-    latitudeDelta: Math.max(
-      latitudeDifference * 1.8,
-      0.01,
-    ),
-
-    longitudeDelta: Math.max(
-      longitudeDifference * 1.8,
-      0.01,
-    ),
-  };
-}
-
-function TrackingMap({
-  isWireframe,
-  colors,
-  driverCoordinates,
-  customerCoordinates,
-}: {
-  isWireframe: boolean;
-  colors: any;
-  driverCoordinates?: Coordinates;
-  customerCoordinates?: Coordinates;
-}) {
-  if (
-    !hasValidCoordinates(driverCoordinates) ||
-    !hasValidCoordinates(customerCoordinates)
-  ) {
-    return (
-      <View
-        style={[
-          styles.mapFallback,
-          {
-            backgroundColor: isWireframe
-              ? "#E0E0E0"
-              : colors.warmAsh,
-          },
-        ]}
-      >
-        <Feather
-          name="map-pin"
-          size={30}
-          color={
-            isWireframe
-              ? "#666666"
-              : colors.inkLight
-          }
-        />
-
-        <Text
-          style={{
-            color: isWireframe
-              ? "#666666"
-              : colors.inkLight,
-            fontFamily: "Inter_400Regular",
-            fontSize: FontSizes.xs,
-            textAlign: "center",
-            marginTop: Spacing.xs,
-          }}
-        >
-          Driver location is not available yet.
-        </Text>
-      </View>
-    );
-  }
-
-  const driver = {
-    latitude: Number(driverCoordinates!.lat),
-    longitude: Number(driverCoordinates!.lng),
-  };
-
-  const customer = {
-    latitude: Number(customerCoordinates!.lat),
-    longitude: Number(customerCoordinates!.lng),
-  };
-
-  const region = getTrackingRegion(
-    driverCoordinates!,
-    customerCoordinates!,
-  );
+  const lat = Number(coordinates.lat);
+  const lng = Number(coordinates.lng);
 
   return (
-    <View style={styles.map}>
-      <MapView
-        style={StyleSheet.absoluteFill}
-        initialRegion={region}
-        region={region}
-        showsUserLocation={false}
-        showsMyLocationButton={false}
-        showsCompass
-      >
-        <Marker
-          coordinate={driver}
-          title="Driver"
-          description="Current driver location"
-          pinColor={
-            isWireframe
-              ? "#555555"
-              : colors.petrolDeep
-          }
-        />
-
-        <Marker
-          coordinate={customer}
-          title="Your delivery address"
-          description="Fuel delivery destination"
-          pinColor={
-            isWireframe
-              ? "#777777"
-              : colors.ignitionAmber
-          }
-        />
-
-        <Polyline
-          coordinates={[
-            driver,
-            customer,
-          ]}
-          strokeWidth={3}
-          strokeColor={
-            isWireframe
-              ? "#666666"
-              : colors.petrolDeep
-          }
-        />
-      </MapView>
-
-      <View
-        style={[
-          styles.mapLegend,
-          {
-            backgroundColor: isWireframe
-              ? "#FFFFFF"
-              : "rgba(255,255,255,0.94)",
-          },
-        ]}
-      >
-        <View style={styles.legendItem}>
-          <View
-            style={[
-              styles.legendDot,
-              {
-                backgroundColor:
-                  isWireframe
-                    ? "#555555"
-                    : colors.petrolDeep,
-              },
-            ]}
-          />
-
-          <Text
-            style={{
-              color: isWireframe
-                ? "#333333"
-                : colors.charcoalInk,
-              fontFamily: "Inter_500Medium",
-              fontSize: FontSizes.xs,
-            }}
-          >
-            Driver
-          </Text>
-        </View>
-
-        <View style={styles.legendItem}>
-          <View
-            style={[
-              styles.legendDot,
-              {
-                backgroundColor:
-                  isWireframe
-                    ? "#777777"
-                    : colors.ignitionAmber,
-              },
-            ]}
-          />
-
-          <Text
-            style={{
-              color: isWireframe
-                ? "#333333"
-                : colors.charcoalInk,
-              fontFamily: "Inter_500Medium",
-              fontSize: FontSizes.xs,
-            }}
-          >
-            You
-          </Text>
-        </View>
-      </View>
-    </View>
+    Number.isFinite(lat) &&
+    Number.isFinite(lng) &&
+    lat !== 0 &&
+    lng !== 0
   );
 }
 
@@ -501,25 +285,23 @@ export default function OrderDetailsScreen({
     isWireframe: isWF,
   } = useDesignMode();
 
-  const orderId =
-    route?.params?.orderId;
+  const orderId = route?.params?.orderId;
 
-  const [
-    order,
-    setOrder,
-  ] = useState<OrderModel | null>(
-    null,
-  );
+  const [order, setOrder] =
+    useState<OrderModel | null>(null);
 
-  const [
-    loading,
-    setLoading,
-  ] = useState(true);
+  const [loading, setLoading] =
+    useState(true);
 
-  const loadOrder =
-    async () => {
+  useEffect(() => {
+    let mounted = true;
+
+    const loadOrder = async () => {
       if (!orderId) {
-        setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
+
         return;
       }
 
@@ -529,7 +311,7 @@ export default function OrderDetailsScreen({
             orderId,
           );
 
-        if (result) {
+        if (mounted && result) {
           setOrder(result);
         }
       } catch (error) {
@@ -538,21 +320,23 @@ export default function OrderDetailsScreen({
           error,
         );
       } finally {
-        setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
       }
     };
 
-  useEffect(() => {
     loadOrder();
 
-    const interval =
-      setInterval(
-        loadOrder,
-        5000,
-      );
+    const interval = setInterval(
+      loadOrder,
+      5 * 60 * 1000,
+    );
 
-    return () =>
+    return () => {
+      mounted = false;
       clearInterval(interval);
+    };
   }, [orderId]);
 
   if (loading) {
@@ -561,18 +345,13 @@ export default function OrderDetailsScreen({
         style={[
           styles.container,
           {
-            backgroundColor:
-              isWF
-                ? "#F0F0F0"
-                : colors.warmAsh,
+            backgroundColor: isWF
+              ? "#F0F0F0"
+              : colors.warmAsh,
           },
         ]}
       >
-        <View
-          style={
-            styles.loadingContainer
-          }
-        >
+        <View style={styles.loadingContainer}>
           <ActivityIndicator
             size="large"
             color={
@@ -584,16 +363,12 @@ export default function OrderDetailsScreen({
 
           <Text
             style={{
-              marginTop:
-                Spacing.md,
-              color:
-                isWF
-                  ? "#666666"
-                  : colors.inkLight,
-              fontFamily:
-                font("body"),
-              fontSize:
-                FontSizes.sm,
+              marginTop: Spacing.md,
+              color: isWF
+                ? "#666666"
+                : colors.inkLight,
+              fontFamily: font("body"),
+              fontSize: FontSizes.sm,
             }}
           >
             Loading order details...
@@ -609,18 +384,13 @@ export default function OrderDetailsScreen({
         style={[
           styles.container,
           {
-            backgroundColor:
-              isWF
-                ? "#F0F0F0"
-                : colors.warmAsh,
+            backgroundColor: isWF
+              ? "#F0F0F0"
+              : colors.warmAsh,
           },
         ]}
       >
-        <View
-          style={
-            styles.loadingContainer
-          }
-        >
+        <View style={styles.loadingContainer}>
           <Feather
             name="alert-circle"
             size={42}
@@ -633,16 +403,12 @@ export default function OrderDetailsScreen({
 
           <Text
             style={{
-              marginTop:
-                Spacing.md,
-              color:
-                isWF
-                  ? "#333333"
-                  : colors.charcoalInk,
-              fontFamily:
-                font("displayBold"),
-              fontSize:
-                FontSizes.lg,
+              marginTop: Spacing.md,
+              color: isWF
+                ? "#333333"
+                : colors.charcoalInk,
+              fontFamily: font("displayBold"),
+              fontSize: FontSizes.lg,
             }}
           >
             Order not found
@@ -650,13 +416,10 @@ export default function OrderDetailsScreen({
 
           <Button
             label="Go Back"
-            onPress={() =>
-              navigation.goBack()
-            }
+            onPress={() => navigation.goBack()}
             variant="outline"
             style={{
-              marginTop:
-                Spacing.lg,
+              marginTop: Spacing.lg,
             }}
           />
         </View>
@@ -665,28 +428,18 @@ export default function OrderDetailsScreen({
   }
 
   const isCompleted =
-    order.status ===
-    "COMPLETED";
+    order.status === "COMPLETED";
 
   const isDelivered =
-    order.status ===
-    "DELIVERED";
+    order.status === "DELIVERED";
 
   const isCancelled =
-    order.status ===
-    "CANCELLED";
+    order.status === "CANCELLED";
 
-  const hasDriver =
-    !!order.driver;
+  const hasDriver = !!order.driver;
 
-  const driver =
-    order.driver;
+  const driver = order.driver;
 
-  /*
-   * Tracking is intentionally available through ARRIVED and DISPENSING.
-   * Once the driver marks the order DELIVERED, the physical delivery
-   * tracking ends and the customer moves to PIN confirmation.
-   */
   const canShowTracking =
     !isDelivered &&
     !isCompleted &&
@@ -696,9 +449,7 @@ export default function OrderDetailsScreen({
       driver?.coordinates,
     ) &&
     hasValidCoordinates(
-      order
-        .deliveryAddress
-        .coordinates,
+      order.deliveryAddress?.coordinates,
     );
 
   const customerAddress = [
@@ -711,115 +462,87 @@ export default function OrderDetailsScreen({
     .filter(Boolean)
     .join(", ");
 
-  /*
-   * The database stores:
-   *
-   * totalAmount = fuel cost + delivery fee
-   *
-   * Therefore the fuel portion must be calculated by subtracting
-   * the delivery fee from the stored total.
-   */
   const deliveryFee =
     Number(order.deliveryFee ?? 49);
 
   const totalAmount =
     Number(order.totalAmount ?? 0);
 
-  const fuelCost =
-    Math.max(
-      0,
-      totalAmount -
-        deliveryFee,
+  const fuelCost = Math.max(
+    0,
+    totalAmount - deliveryFee,
+  );
+
+  const handleCallDriver = () => {
+    if (!driver?.phone) {
+      return;
+    }
+
+    Linking.openURL(
+      `tel:${driver.phone.replace(
+        /\s/g,
+        "",
+      )}`,
     );
+  };
 
-  const handleCallDriver =
-    () => {
-      if (!driver?.phone) {
-        return;
-      }
+  const handleConfirmDelivery = () => {
+    navigation.navigate(
+      "DeliveryPin",
+      {
+        orderId: order.id,
+      },
+    );
+  };
 
-      Linking.openURL(
-        `tel:${driver.phone.replace(
-          /\s/g,
-          "",
-        )}`,
-      );
+  const handleReorder = () => {
+    navigation.navigate(
+      "FuelSelection",
+      {
+        reorder: order,
+      },
+    );
+  };
+
+  const getTimelineState = (
+    step:
+      | "placed"
+      | "driver"
+      | "enroute"
+      | "delivery"
+      | "completed",
+  ) => {
+    const progress: Record<string, number> = {
+      PENDING_PAYMENT: 0,
+      PAID: 1,
+      FINDING_DRIVER: 1,
+      ACCEPTED: 2,
+      NAVIGATING: 3,
+      ARRIVED: 4,
+      DISPENSING: 4,
+      DELIVERED: 4,
+      COMPLETED: 5,
+      CANCELLED: 0,
     };
 
-  const handleConfirmDelivery =
-    () => {
-      navigation.navigate(
-        "DeliveryPin",
-        {
-          orderId:
-            order.id,
-        },
-      );
+    const indexes = {
+      placed: 1,
+      driver: 2,
+      enroute: 3,
+      delivery: 4,
+      completed: 5,
     };
 
-  const handleReorder =
-    () => {
-      navigation.navigate(
-        "FuelSelection",
-        {
-          reorder:
-            order,
-        },
-      );
+    const current =
+      progress[order.status] ?? 0;
+
+    const index = indexes[step];
+
+    return {
+      completed: current > index,
+      active: current === index,
     };
-
-  const getTimelineState =
-    (
-      step:
-        | "placed"
-        | "driver"
-        | "enroute"
-        | "delivery"
-        | "completed",
-    ) => {
-      const progress:
-        Record<
-          string,
-          number
-        > = {
-          PENDING_PAYMENT: 0,
-          PAID: 1,
-          FINDING_DRIVER: 1,
-          ACCEPTED: 2,
-          NAVIGATING: 3,
-          ARRIVED: 4,
-          DISPENSING: 4,
-          DELIVERED: 4,
-          COMPLETED: 5,
-          CANCELLED: 0,
-        };
-
-      const indexes = {
-        placed: 1,
-        driver: 2,
-        enroute: 3,
-        delivery: 4,
-        completed: 5,
-      };
-
-      const current =
-        progress[
-          order.status
-        ] ?? 0;
-
-      const index =
-        indexes[step];
-
-      return {
-        completed:
-          current >
-          index,
-
-        active:
-          current ===
-          index,
-      };
-    };
+  };
 
   const statusHeroTitle =
     isCompleted
@@ -844,25 +567,16 @@ export default function OrderDetailsScreen({
       style={[
         styles.container,
         {
-          backgroundColor:
-            isWF
-              ? "#F0F0F0"
-              : colors.warmAsh,
+          backgroundColor: isWF
+            ? "#F0F0F0"
+            : colors.warmAsh,
         },
       ]}
     >
-      <View
-        style={
-          styles.topBar
-        }
-      >
+      <View style={styles.topBar}>
         <TouchableOpacity
-          onPress={() =>
-            navigation.goBack()
-          }
-          style={
-            styles.backBtn
-          }
+          onPress={() => navigation.goBack()}
+          style={styles.backBtn}
         >
           <Feather
             name="arrow-left"
@@ -875,22 +589,14 @@ export default function OrderDetailsScreen({
           />
         </TouchableOpacity>
 
-        <View
-          style={{
-            alignItems:
-              "center",
-          }}
-        >
+        <View style={{ alignItems: "center" }}>
           <Text
             style={{
-              color:
-                isWF
-                  ? "#1A1A1A"
-                  : colors.charcoalInk,
-              fontFamily:
-                font("display"),
-              fontSize:
-                FontSizes.md,
+              color: isWF
+                ? "#1A1A1A"
+                : colors.charcoalInk,
+              fontFamily: font("display"),
+              fontSize: FontSizes.md,
             }}
           >
             Order Details
@@ -898,29 +604,21 @@ export default function OrderDetailsScreen({
 
           <Text
             style={{
-              color:
-                isWF
-                  ? "#777777"
-                  : colors.inkFaint,
-              fontFamily:
-                font("body"),
-              fontSize:
-                FontSizes.xs,
+              color: isWF
+                ? "#777777"
+                : colors.inkFaint,
+              fontFamily: font("body"),
+              fontSize: FontSizes.xs,
               marginTop: 1,
             }}
           >
-            {order.orderNumber ||
-              order.id}
+            {order.orderNumber || order.id}
           </Text>
         </View>
 
         <TouchableOpacity
-          onPress={
-            handleReorder
-          }
-          style={
-            styles.backBtn
-          }
+          onPress={handleReorder}
+          style={styles.backBtn}
         >
           <Feather
             name="refresh-cw"
@@ -935,35 +633,26 @@ export default function OrderDetailsScreen({
       </View>
 
       <ScrollView
-        style={{
-          flex: 1,
-        }}
-        contentContainerStyle={
-          styles.scroll
-        }
-        showsVerticalScrollIndicator={
-          false
-        }
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
       >
         <View
           style={[
             styles.statusHero,
             {
-              backgroundColor:
-                isWF
-                  ? "#4A4A4A"
-                  : isCompleted
-                    ? colors.dieselGreen
-                    : isDelivered
-                      ? colors.petrolMid
-                      : isCancelled
-                        ? colors.signalRed
-                        : colors.petrolDeep,
-
-              borderRadius:
-                isWF
-                  ? Radius.sm
-                  : Radius.xl,
+              backgroundColor: isWF
+                ? "#4A4A4A"
+                : isCompleted
+                  ? colors.dieselGreen
+                  : isDelivered
+                    ? colors.petrolMid
+                    : isCancelled
+                      ? colors.signalRed
+                      : colors.petrolDeep,
+              borderRadius: isWF
+                ? Radius.sm
+                : Radius.xl,
             },
           ]}
         >
@@ -982,9 +671,7 @@ export default function OrderDetailsScreen({
                         colors.petrolMid,
                       ]
                 }
-                style={
-                  StyleSheet.absoluteFill
-                }
+                style={StyleSheet.absoluteFill}
                 start={{
                   x: 0,
                   y: 0,
@@ -996,11 +683,7 @@ export default function OrderDetailsScreen({
               />
             )}
 
-          <View
-            style={
-              styles.heroIcon
-            }
-          >
+          <View style={styles.heroIcon}>
             <Feather
               name={
                 isCompleted
@@ -1018,16 +701,12 @@ export default function OrderDetailsScreen({
 
           <Text
             style={{
-              color:
-                isWF
-                  ? "#CCCCCC"
-                  : "rgba(255,255,255,0.75)",
-              fontFamily:
-                font("body"),
-              fontSize:
-                FontSizes.sm,
-              textAlign:
-                "center",
+              color: isWF
+                ? "#CCCCCC"
+                : "rgba(255,255,255,0.75)",
+              fontFamily: font("body"),
+              fontSize: FontSizes.sm,
+              textAlign: "center",
             }}
           >
             {statusHeroSubtitle}
@@ -1035,33 +714,24 @@ export default function OrderDetailsScreen({
 
           <Text
             style={{
-              color:
-                "#FFFFFF",
-              fontFamily:
-                isWF
-                  ? undefined
-                  : "Inter_700Bold",
-              fontSize:
-                FontSizes["3xl"],
+              color: "#FFFFFF",
+              fontFamily: isWF
+                ? undefined
+                : "Inter_700Bold",
+              fontSize: FontSizes["3xl"],
               marginTop: 2,
             }}
           >
-            R
-            {totalAmount.toFixed(
-              2,
-            )}
+            R{totalAmount.toFixed(2)}
           </Text>
 
           <Text
             style={{
-              color:
-                isWF
-                  ? "#CCCCCC"
-                  : "rgba(255,255,255,0.75)",
-              fontFamily:
-                font("body"),
-              fontSize:
-                FontSizes.xs,
+              color: isWF
+                ? "#CCCCCC"
+                : "rgba(255,255,255,0.75)",
+              fontFamily: font("body"),
+              fontSize: FontSizes.xs,
               marginTop: 4,
             }}
           >
@@ -1070,21 +740,15 @@ export default function OrderDetailsScreen({
 
           <Text
             style={{
-              color:
-                isWF
-                  ? "#CCCCCC"
-                  : "rgba(255,255,255,0.75)",
-              fontFamily:
-                font("body"),
-              fontSize:
-                FontSizes.xs,
+              color: isWF
+                ? "#CCCCCC"
+                : "rgba(255,255,255,0.75)",
+              fontFamily: font("body"),
+              fontSize: FontSizes.xs,
               marginTop: 1,
             }}
           >
-            Placed{" "}
-            {formatDateTime(
-              order.createdAt,
-            )}
+            Placed {formatDateTime(order.createdAt)}
           </Text>
         </View>
 
@@ -1094,22 +758,18 @@ export default function OrderDetailsScreen({
               style={[
                 styles.sectionHeading,
                 {
-                  marginTop:
-                    Spacing.sm,
+                  marginTop: Spacing.sm,
                 },
               ]}
             >
               <View>
                 <Text
                   style={{
-                    color:
-                      isWF
-                        ? "#1A1A1A"
-                        : colors.charcoalInk,
-                    fontFamily:
-                      font("display"),
-                    fontSize:
-                      FontSizes.lg,
+                    color: isWF
+                      ? "#1A1A1A"
+                      : colors.charcoalInk,
+                    fontFamily: font("display"),
+                    fontSize: FontSizes.lg,
                   }}
                 >
                   Live delivery
@@ -1117,14 +777,11 @@ export default function OrderDetailsScreen({
 
                 <Text
                   style={{
-                    color:
-                      isWF
-                        ? "#666666"
-                        : colors.inkLight,
-                    fontFamily:
-                      font("body"),
-                    fontSize:
-                      FontSizes.xs,
+                    color: isWF
+                      ? "#666666"
+                      : colors.inkLight,
+                    fontFamily: font("body"),
+                    fontSize: FontSizes.xs,
                     marginTop: 2,
                   }}
                 >
@@ -1137,10 +794,9 @@ export default function OrderDetailsScreen({
                 style={[
                   styles.livePill,
                   {
-                    backgroundColor:
-                      isWF
-                        ? "#D0D0D0"
-                        : colors.greenLight,
+                    backgroundColor: isWF
+                      ? "#D0D0D0"
+                      : colors.greenLight,
                   },
                 ]}
               >
@@ -1148,24 +804,20 @@ export default function OrderDetailsScreen({
                   style={[
                     styles.liveDot,
                     {
-                      backgroundColor:
-                        isWF
-                          ? "#555555"
-                          : colors.dieselGreen,
+                      backgroundColor: isWF
+                        ? "#555555"
+                        : colors.dieselGreen,
                     },
                   ]}
                 />
 
                 <Text
                   style={{
-                    color:
-                      isWF
-                        ? "#444444"
-                        : colors.dieselGreen,
-                    fontFamily:
-                      font("bodyMedium"),
-                    fontSize:
-                      FontSizes.xs,
+                    color: isWF
+                      ? "#444444"
+                      : colors.dieselGreen,
+                    fontFamily: font("bodyMedium"),
+                    fontSize: FontSizes.xs,
                   }}
                 >
                   LIVE
@@ -1177,59 +829,48 @@ export default function OrderDetailsScreen({
               style={[
                 styles.trackingCard,
                 {
-                  backgroundColor:
-                    isWF
-                      ? "#FFFFFF"
-                      : colors.white,
-
+                  backgroundColor: isWF
+                    ? "#FFFFFF"
+                    : colors.white,
                   ...(isWF
                     ? {
-                        borderWidth:
-                          1,
-                        borderColor:
-                          "#D0D0D0",
+                        borderWidth: 1,
+                        borderColor: "#D0D0D0",
                       }
                     : Shadow.sm),
                 },
               ]}
             >
               <TrackingMap
-                isWireframe={
-                  isWF
-                }
-                colors={
-                  colors
-                }
                 driverCoordinates={
-                  driver?.coordinates
+                  driver!.coordinates!
                 }
                 customerCoordinates={
-                  order
-                    .deliveryAddress
-                    .coordinates
+                  order.deliveryAddress.coordinates!
+                }
+                driverLabel="Driver"
+                customerLabel="Your delivery address"
+                driverColor={
+                  isWF
+                    ? "#555555"
+                    : colors.petrolDeep
+                }
+                customerColor={
+                  isWF
+                    ? "#777777"
+                    : colors.ignitionAmber
                 }
               />
 
-              <View
-                style={
-                  styles.locationInfo
-                }
-              >
-                <View
-                  style={{
-                    flex: 1,
-                  }}
-                >
+              <View style={styles.locationInfo}>
+                <View style={{ flex: 1 }}>
                   <Text
                     style={{
-                      color:
-                        isWF
-                          ? "#1A1A1A"
-                          : colors.charcoalInk,
-                      fontFamily:
-                        font("bodyMedium"),
-                      fontSize:
-                        FontSizes.sm,
+                      color: isWF
+                        ? "#1A1A1A"
+                        : colors.charcoalInk,
+                      fontFamily: font("bodyMedium"),
+                      fontSize: FontSizes.sm,
                     }}
                   >
                     Driver location
@@ -1237,19 +878,16 @@ export default function OrderDetailsScreen({
 
                   <Text
                     style={{
-                      color:
-                        isWF
-                          ? "#666666"
-                          : colors.inkLight,
-                      fontFamily:
-                        font("body"),
-                      fontSize:
-                        FontSizes.xs,
+                      color: isWF
+                        ? "#666666"
+                        : colors.inkLight,
+                      fontFamily: font("body"),
+                      fontSize: FontSizes.xs,
                       marginTop: 2,
                     }}
                   >
-                    Updating from the
-                    driver's current location.
+                    Updating from the driver's
+                    current location every 5 minutes.
                   </Text>
                 </View>
 
@@ -1271,11 +909,7 @@ export default function OrderDetailsScreen({
           order.status,
           hasDriver,
         ) && (
-          <Card
-            style={
-              styles.waitingCard
-            }
-          >
+          <Card style={styles.waitingCard}>
             <Feather
               name="clock"
               size={20}
@@ -1286,21 +920,14 @@ export default function OrderDetailsScreen({
               }
             />
 
-            <View
-              style={{
-                flex: 1,
-              }}
-            >
+            <View style={{ flex: 1 }}>
               <Text
                 style={{
-                  color:
-                    isWF
-                      ? "#222222"
-                      : colors.charcoalInk,
-                  fontFamily:
-                    font("bodyMedium"),
-                  fontSize:
-                    FontSizes.sm,
+                  color: isWF
+                    ? "#222222"
+                    : colors.charcoalInk,
+                  fontFamily: font("bodyMedium"),
+                  fontSize: FontSizes.sm,
                 }}
               >
                 Waiting for driver assignment
@@ -1308,42 +935,31 @@ export default function OrderDetailsScreen({
 
               <Text
                 style={{
-                  color:
-                    isWF
-                      ? "#666666"
-                      : colors.inkLight,
-                  fontFamily:
-                    font("body"),
-                  fontSize:
-                    FontSizes.xs,
+                  color: isWF
+                    ? "#666666"
+                    : colors.inkLight,
+                  fontFamily: font("body"),
+                  fontSize: FontSizes.xs,
                   marginTop: 2,
                 }}
               >
-                Live tracking will appear once
-                a driver has been assigned and
+                Live tracking will appear once a
+                driver has been assigned and
                 location data is available.
               </Text>
             </View>
           </Card>
         )}
 
-        <Card
-          style={
-            styles.section
-          }
-        >
+        <Card style={styles.section}>
           <Text
             style={{
-              color:
-                isWF
-                  ? "#1A1A1A"
-                  : colors.charcoalInk,
-              fontFamily:
-                font("display"),
-              fontSize:
-                FontSizes.base,
-              marginBottom:
-                Spacing.sm,
+              color: isWF
+                ? "#1A1A1A"
+                : colors.charcoalInk,
+              fontFamily: font("display"),
+              fontSize: FontSizes.base,
+              marginBottom: Spacing.sm,
             }}
           >
             Delivery progress
@@ -1351,21 +967,11 @@ export default function OrderDetailsScreen({
 
           <TimelineStep
             title="Order placed"
-            subtitle={formatDateTime(
-              order.createdAt,
-            )}
-            {...getTimelineState(
-              "placed",
-            )}
-            isWireframe={
-              isWF
-            }
-            colors={
-              colors
-            }
-            font={
-              font
-            }
+            subtitle={formatDateTime(order.createdAt)}
+            {...getTimelineState("placed")}
+            isWireframe={isWF}
+            colors={colors}
+            font={font}
           />
 
           <TimelineStep
@@ -1375,18 +981,10 @@ export default function OrderDetailsScreen({
                 ? `${driver?.name} is handling your delivery`
                 : "Finding the best available driver"
             }
-            {...getTimelineState(
-              "driver",
-            )}
-            isWireframe={
-              isWF
-            }
-            colors={
-              colors
-            }
-            font={
-              font
-            }
+            {...getTimelineState("driver")}
+            isWireframe={isWF}
+            colors={colors}
+            font={font}
           />
 
           <TimelineStep
@@ -1398,18 +996,10 @@ export default function OrderDetailsScreen({
                   }`
                 : "We'll notify you when your driver is on the way"
             }
-            {...getTimelineState(
-              "enroute",
-            )}
-            isWireframe={
-              isWF
-            }
-            colors={
-              colors
-            }
-            font={
-              font
-            }
+            {...getTimelineState("enroute")}
+            isWireframe={isWF}
+            colors={colors}
+            font={font}
           />
 
           <TimelineStep
@@ -1423,18 +1013,10 @@ export default function OrderDetailsScreen({
                   ? "Driver has delivered your fuel. PIN confirmation required."
                   : "Your driver will arrive at your delivery address"
             }
-            {...getTimelineState(
-              "delivery",
-            )}
-            isWireframe={
-              isWF
-            }
-            colors={
-              colors
-            }
-            font={
-              font
-            }
+            {...getTimelineState("delivery")}
+            isWireframe={isWF}
+            colors={colors}
+            font={font}
           />
 
           <TimelineStep
@@ -1446,43 +1028,24 @@ export default function OrderDetailsScreen({
                   ? "Enter the delivery PIN to complete this order"
                   : "Waiting for delivery confirmation"
             }
-            {...getTimelineState(
-              "completed",
-            )}
+            {...getTimelineState("completed")}
             isLast
-            isWireframe={
-              isWF
-            }
-            colors={
-              colors
-            }
-            font={
-              font
-            }
+            isWireframe={isWF}
+            colors={colors}
+            font={font}
           />
         </Card>
 
         {hasDriver && (
-          <Card
-            style={
-              styles.section
-            }
-          >
-            <View
-              style={
-                styles.sectionHeader
-              }
-            >
+          <Card style={styles.section}>
+            <View style={styles.sectionHeader}>
               <Text
                 style={{
-                  color:
-                    isWF
-                      ? "#1A1A1A"
-                      : colors.charcoalInk,
-                  fontFamily:
-                    font("display"),
-                  fontSize:
-                    FontSizes.base,
+                  color: isWF
+                    ? "#1A1A1A"
+                    : colors.charcoalInk,
+                  fontFamily: font("display"),
+                  fontSize: FontSizes.base,
                 }}
               >
                 Your driver
@@ -1490,33 +1053,25 @@ export default function OrderDetailsScreen({
 
               <Text
                 style={{
-                  color:
-                    isWF
-                      ? "#777777"
-                      : colors.inkLight,
-                  fontFamily:
-                    font("body"),
-                  fontSize:
-                    FontSizes.xs,
+                  color: isWF
+                    ? "#777777"
+                    : colors.inkLight,
+                  fontFamily: font("body"),
+                  fontSize: FontSizes.xs,
                 }}
               >
                 {driver?.stationName}
               </Text>
             </View>
 
-            <View
-              style={
-                styles.driverRow
-              }
-            >
+            <View style={styles.driverRow}>
               <View
                 style={[
                   styles.driverAvatar,
                   {
-                    backgroundColor:
-                      isWF
-                        ? "#D0D0D0"
-                        : colors.petrolDeep,
+                    backgroundColor: isWF
+                      ? "#D0D0D0"
+                      : colors.petrolDeep,
                   },
                 ]}
               >
@@ -1531,95 +1086,71 @@ export default function OrderDetailsScreen({
                 />
               </View>
 
-              <View
-                style={{
-                  flex: 1,
-                }}
-              >
+              <View style={{ flex: 1 }}>
                 <Text
                   style={{
-                    color:
-                      isWF
-                        ? "#1A1A1A"
-                        : colors.charcoalInk,
-                    fontFamily:
-                      font("bodyMedium"),
-                    fontSize:
-                      FontSizes.base,
+                    color: isWF
+                      ? "#1A1A1A"
+                      : colors.charcoalInk,
+                    fontFamily: font("bodyMedium"),
+                    fontSize: FontSizes.base,
                   }}
                 >
                   {driver?.name}
                 </Text>
 
                 <StarRating
-                  rating={
-                    driver?.rating ??
-                    0
-                  }
-                  isWireframe={
-                    isWF
-                  }
-                  colors={
-                    colors
-                  }
+                  rating={driver?.rating ?? 0}
+                  isWireframe={isWF}
+                  colors={colors}
                 />
 
                 <Text
                   style={{
-                    color:
-                      isWF
-                        ? "#666666"
-                        : colors.inkLight,
-                    fontFamily:
-                      font("body"),
-                    fontSize:
-                      FontSizes.xs,
+                    color: isWF
+                      ? "#666666"
+                      : colors.inkLight,
+                    fontFamily: font("body"),
+                    fontSize: FontSizes.xs,
                     marginTop: 3,
                   }}
                 >
-                  {driver?.rating ??
-                    0}{" "}
-                  stars
+                  {driver?.rating ?? 0} stars
                 </Text>
               </View>
 
-              {!isCompleted &&
-                !isDelivered && (
-                  <TouchableOpacity
-                    onPress={
-                      handleCallDriver
+              {!isCompleted && !isDelivered && (
+                <TouchableOpacity
+                  onPress={handleCallDriver}
+                  style={[
+                    styles.actionBtn,
+                    {
+                      backgroundColor: isWF
+                        ? "#D0D0D0"
+                        : colors.petrolLight,
+                    },
+                  ]}
+                >
+                  <Feather
+                    name="phone"
+                    size={18}
+                    color={
+                      isWF
+                        ? "#555555"
+                        : colors.petrolDeep
                     }
-                    style={[
-                      styles.actionBtn,
-                      {
-                        backgroundColor:
-                          isWF
-                            ? "#D0D0D0"
-                            : colors.petrolLight,
-                      },
-                    ]}
-                  >
-                    <Feather
-                      name="phone"
-                      size={18}
-                      color={
-                        isWF
-                          ? "#555555"
-                          : colors.petrolDeep
-                      }
-                    />
-                  </TouchableOpacity>
-                )}
+                  />
+                </TouchableOpacity>
+              )}
             </View>
 
             <View
               style={[
                 styles.vehicleRow,
                 {
-                  borderTopColor:
-                    isWF
-                      ? "#DDDDDD"
-                      : colors.divider,
+                  borderTopColor: isWF
+                    ? "#DDDDDD"
+                    : colors.divider,
                 },
               ]}
             >
@@ -1636,14 +1167,11 @@ export default function OrderDetailsScreen({
               <Text
                 style={{
                   flex: 1,
-                  color:
-                    isWF
-                      ? "#555555"
-                      : colors.inkLight,
-                  fontFamily:
-                    font("body"),
-                  fontSize:
-                    FontSizes.xs,
+                  color: isWF
+                    ? "#555555"
+                    : colors.inkLight,
+                  fontFamily: font("body"),
+                  fontSize: FontSizes.xs,
                 }}
               >
                 {driver?.vehicleColor}{" "}
@@ -1654,21 +1182,14 @@ export default function OrderDetailsScreen({
           </Card>
         )}
 
-        <Card
-          style={
-            styles.section
-          }
-        >
+        <Card style={styles.section}>
           <Text
             style={{
-              color:
-                isWF
-                  ? "#1A1A1A"
-                  : colors.charcoalInk,
-              fontFamily:
-                font("display"),
-              fontSize:
-                FontSizes.base,
+              color: isWF
+                ? "#1A1A1A"
+                : colors.charcoalInk,
+              fontFamily: font("display"),
+              fontSize: FontSizes.base,
             }}
           >
             Fuel order
@@ -1678,14 +1199,12 @@ export default function OrderDetailsScreen({
             style={[
               styles.fuelBadge,
               {
-                backgroundColor:
-                  isWF
-                    ? "#E0E0E0"
-                    : colors.petrolLight,
-                borderRadius:
-                  isWF
-                    ? Radius.sm
-                    : Radius.lg,
+                backgroundColor: isWF
+                  ? "#E0E0E0"
+                  : colors.petrolLight,
+                borderRadius: isWF
+                  ? Radius.sm
+                  : Radius.lg,
               },
             ]}
           >
@@ -1699,21 +1218,14 @@ export default function OrderDetailsScreen({
               }
             />
 
-            <View
-              style={{
-                flex: 1,
-              }}
-            >
+            <View style={{ flex: 1 }}>
               <Text
                 style={{
-                  color:
-                    isWF
-                      ? "#1A1A1A"
-                      : colors.charcoalInk,
-                  fontFamily:
-                    font("displayBold"),
-                  fontSize:
-                    FontSizes.xl,
+                  color: isWF
+                    ? "#1A1A1A"
+                    : colors.charcoalInk,
+                  fontFamily: font("displayBold"),
+                  fontSize: FontSizes.xl,
                 }}
               >
                 {order.item.litres}L
@@ -1721,14 +1233,11 @@ export default function OrderDetailsScreen({
 
               <Text
                 style={{
-                  color:
-                    isWF
-                      ? "#555555"
-                      : colors.inkLight,
-                  fontFamily:
-                    font("body"),
-                  fontSize:
-                    FontSizes.sm,
+                  color: isWF
+                    ? "#555555"
+                    : colors.inkLight,
+                  fontFamily: font("body"),
+                  fontSize: FontSizes.sm,
                   marginTop: 2,
                 }}
               >
@@ -1736,22 +1245,14 @@ export default function OrderDetailsScreen({
               </Text>
             </View>
 
-            <View
-              style={{
-                alignItems:
-                  "flex-end",
-              }}
-            >
+            <View style={{ alignItems: "flex-end" }}>
               <Text
                 style={{
-                  color:
-                    isWF
-                      ? "#333333"
-                      : colors.charcoalInk,
-                  fontFamily:
-                    font("bodyMedium"),
-                  fontSize:
-                    FontSizes.sm,
+                  color: isWF
+                    ? "#333333"
+                    : colors.charcoalInk,
+                  fontFamily: font("bodyMedium"),
+                  fontSize: FontSizes.sm,
                 }}
               >
                 R
@@ -1763,46 +1264,29 @@ export default function OrderDetailsScreen({
 
               <Text
                 style={{
-                  color:
-                    isWF
-                      ? "#666666"
-                      : colors.inkLight,
-                  fontFamily:
-                    font("body"),
-                  fontSize:
-                    FontSizes.xs,
+                  color: isWF
+                    ? "#666666"
+                    : colors.inkLight,
+                  fontFamily: font("body"),
+                  fontSize: FontSizes.xs,
                   marginTop: 2,
                 }}
               >
-                R
-                {fuelCost.toFixed(
-                  2,
-                )}
+                R{fuelCost.toFixed(2)}
               </Text>
             </View>
           </View>
         </Card>
 
-        <Card
-          style={
-            styles.section
-          }
-        >
-          <View
-            style={
-              styles.sectionHeader
-            }
-          >
+        <Card style={styles.section}>
+          <View style={styles.sectionHeader}>
             <Text
               style={{
-                color:
-                  isWF
-                    ? "#1A1A1A"
-                    : colors.charcoalInk,
-                fontFamily:
-                  font("display"),
-                fontSize:
-                  FontSizes.base,
+                color: isWF
+                  ? "#1A1A1A"
+                  : colors.charcoalInk,
+                fontFamily: font("display"),
+                fontSize: FontSizes.base,
               }}
             >
               Delivery address
@@ -1821,30 +1305,25 @@ export default function OrderDetailsScreen({
 
           <Text
             style={{
-              color:
-                isWF
-                  ? "#333333"
-                  : colors.charcoalInk,
-              fontFamily:
-                font("bodyMedium"),
-              fontSize:
-                FontSizes.sm,
+              color: isWF
+                ? "#333333"
+                : colors.charcoalInk,
+              fontFamily: font("bodyMedium"),
+              fontSize: FontSizes.sm,
               lineHeight: 21,
             }}
           >
             {customerAddress}
           </Text>
 
-          {order.deliveryAddress
-            .instructions && (
+          {order.deliveryAddress.instructions && (
             <View
               style={[
                 styles.instructions,
                 {
-                  backgroundColor:
-                    isWF
-                      ? "#F0F0F0"
-                      : colors.warmAsh,
+                  backgroundColor: isWF
+                    ? "#F0F0F0"
+                    : colors.warmAsh,
                 },
               ]}
             >
@@ -1861,21 +1340,14 @@ export default function OrderDetailsScreen({
               <Text
                 style={{
                   flex: 1,
-                  color:
-                    isWF
-                      ? "#555555"
-                      : colors.inkLight,
-                  fontFamily:
-                    font("body"),
-                  fontSize:
-                    FontSizes.xs,
+                  color: isWF
+                    ? "#555555"
+                    : colors.inkLight,
+                  fontFamily: font("body"),
+                  fontSize: FontSizes.xs,
                 }}
               >
-                {
-                  order
-                    .deliveryAddress
-                    .instructions
-                }
+                {order.deliveryAddress.instructions}
               </Text>
             </View>
           )}
@@ -1887,14 +1359,12 @@ export default function OrderDetailsScreen({
               style={[
                 styles.pinCard,
                 {
-                  backgroundColor:
-                    isWF
-                      ? "#4A4A4A"
-                      : colors.petrolDeep,
-                  borderRadius:
-                    isWF
-                      ? Radius.sm
-                      : Radius.xl,
+                  backgroundColor: isWF
+                    ? "#4A4A4A"
+                    : colors.petrolDeep,
+                  borderRadius: isWF
+                    ? Radius.sm
+                    : Radius.xl,
                 },
               ]}
             >
@@ -1902,10 +1372,9 @@ export default function OrderDetailsScreen({
                 style={[
                   styles.pinIcon,
                   {
-                    backgroundColor:
-                      isWF
-                        ? "#666666"
-                        : colors.petrolMid,
+                    backgroundColor: isWF
+                      ? "#666666"
+                      : colors.petrolMid,
                   },
                 ]}
               >
@@ -1920,19 +1389,12 @@ export default function OrderDetailsScreen({
                 />
               </View>
 
-              <View
-                style={{
-                  flex: 1,
-                }}
-              >
+              <View style={{ flex: 1 }}>
                 <Text
                   style={{
-                    color:
-                      "#FFFFFF",
-                    fontFamily:
-                      font("display"),
-                    fontSize:
-                      FontSizes.base,
+                    color: "#FFFFFF",
+                    fontFamily: font("display"),
+                    fontSize: FontSizes.base,
                   }}
                 >
                   Delivery PIN required
@@ -1940,22 +1402,18 @@ export default function OrderDetailsScreen({
 
                 <Text
                   style={{
-                    color:
-                      isWF
-                        ? "#CCCCCC"
-                        : "rgba(255,255,255,0.72)",
-                    fontFamily:
-                      font("body"),
-                    fontSize:
-                      FontSizes.xs,
+                    color: isWF
+                      ? "#CCCCCC"
+                      : "rgba(255,255,255,0.72)",
+                    fontFamily: font("body"),
+                    fontSize: FontSizes.xs,
                     lineHeight: 18,
                     marginTop: 3,
                   }}
                 >
-                  Your driver has delivered
-                  the fuel. Ask the driver
-                  for the 4-digit PIN and
-                  enter it to complete your
+                  Your driver has delivered the
+                  fuel. Ask the driver for the 4-digit
+                  PIN and enter it to complete your
                   order.
                 </Text>
               </View>
@@ -1963,106 +1421,67 @@ export default function OrderDetailsScreen({
 
             <Button
               label="Enter Delivery PIN"
-              onPress={
-                handleConfirmDelivery
-              }
+              onPress={handleConfirmDelivery}
               size="lg"
               style={{
-                marginTop:
-                  -Spacing.xs,
+                marginTop: -Spacing.xs,
               }}
             />
           </>
         )}
 
-        <Card
-          style={
-            styles.section
-          }
-        >
+        <Card style={styles.section}>
           <Text
             style={{
-              color:
-                isWF
-                  ? "#1A1A1A"
-                  : colors.charcoalInk,
-              fontFamily:
-                font("display"),
-              fontSize:
-                FontSizes.base,
-              marginBottom:
-                Spacing.sm,
+              color: isWF
+                ? "#1A1A1A"
+                : colors.charcoalInk,
+              fontFamily: font("display"),
+              fontSize: FontSizes.base,
+              marginBottom: Spacing.sm,
             }}
           >
             Payment summary
           </Text>
 
-          <View
-            style={{
-              gap: 8,
-            }}
-          >
+          <View style={{ gap: 8 }}>
             <DetailRow
               label={`Fuel (${order.item.litres}L × R${order.item.pricePerLitre.toFixed(
                 2,
               )})`}
-              value={`R${fuelCost.toFixed(
-                2,
-              )}`}
-              isWireframe={
-                isWF
-              }
-              colors={
-                colors
-              }
-              font={
-                font
-              }
+              value={`R${fuelCost.toFixed(2)}`}
+              isWireframe={isWF}
+              colors={colors}
+              font={font}
             />
 
             <DetailRow
               label="Delivery fee"
-              value={`R${deliveryFee.toFixed(
-                2,
-              )}`}
-              isWireframe={
-                isWF
-              }
-              colors={
-                colors
-              }
-              font={
-                font
-              }
+              value={`R${deliveryFee.toFixed(2)}`}
+              isWireframe={isWF}
+              colors={colors}
+              font={font}
             />
 
             <View
               style={[
                 styles.divider,
                 {
-                  backgroundColor:
-                    isWF
-                      ? "#DDDDDD"
-                      : colors.divider,
+                  backgroundColor: isWF
+                    ? "#DDDDDD"
+                    : colors.divider,
                 },
               ]}
             />
 
-            <View
-              style={
-                styles.totalRow
-              }
-            >
+            <View style={styles.totalRow}>
               <Text
                 style={{
-                  color:
-                    isWF
-                      ? "#333333"
-                      : colors.charcoalInk,
-                  fontFamily:
-                    font("bodyMedium"),
-                  fontSize:
-                    FontSizes.base,
+                  color: isWF
+                    ? "#333333"
+                    : colors.charcoalInk,
+                  fontFamily: font("bodyMedium"),
+                  fontSize: FontSizes.base,
                 }}
               >
                 Total
@@ -2070,103 +1489,60 @@ export default function OrderDetailsScreen({
 
               <Text
                 style={{
-                  color:
-                    isWF
-                      ? "#1A1A1A"
-                      : colors.ignitionAmber,
-                  fontFamily:
-                    isWF
-                      ? undefined
-                      : "Inter_700Bold",
-                  fontSize:
-                    FontSizes.lg,
+                  color: isWF
+                    ? "#1A1A1A"
+                    : colors.ignitionAmber,
+                  fontFamily: isWF
+                    ? undefined
+                    : "Inter_700Bold",
+                  fontSize: FontSizes.lg,
                 }}
               >
-                R
-                {totalAmount.toFixed(
-                  2,
-                )}
+                R{totalAmount.toFixed(2)}
               </Text>
             </View>
           </View>
         </Card>
 
-        <Card
-          style={
-            styles.section
-          }
-        >
+        <Card style={styles.section}>
           <Text
             style={{
-              color:
-                isWF
-                  ? "#1A1A1A"
-                  : colors.charcoalInk,
-              fontFamily:
-                font("display"),
-              fontSize:
-                FontSizes.base,
-              marginBottom:
-                Spacing.sm,
+              color: isWF
+                ? "#1A1A1A"
+                : colors.charcoalInk,
+              fontFamily: font("display"),
+              fontSize: FontSizes.base,
+              marginBottom: Spacing.sm,
             }}
           >
             Order details
           </Text>
 
-          <View
-            style={{
-              gap: 9,
-            }}
-          >
+          <View style={{ gap: 9 }}>
             <DetailRow
               label="Order number"
               value={
-                order.orderNumber ||
-                order.id
+                order.orderNumber || order.id
               }
-              isWireframe={
-                isWF
-              }
-              colors={
-                colors
-              }
-              font={
-                font
-              }
+              isWireframe={isWF}
+              colors={colors}
+              font={font}
             />
 
             <DetailRow
               label="Payment"
-              value={
-                order
-                  .paymentMethod
-                  .label
-              }
-              isWireframe={
-                isWF
-              }
-              colors={
-                colors
-              }
-              font={
-                font
-              }
+              value={order.paymentMethod.label}
+              isWireframe={isWF}
+              colors={colors}
+              font={font}
             />
 
             <DetailRow
               label="Order date"
-              value={formatDate(
-                order.createdAt,
-              )}
-              isWireframe={
-                isWF
-              }
-              colors={
-                colors
-              }
-              font={
-                font
-              }
+              value={formatDate(order.createdAt)}
+              isWireframe={isWF}
+              colors={colors}
+              font={font}
             />
 
             {order.deliveredAt && (
@@ -2175,15 +1551,9 @@ export default function OrderDetailsScreen({
                 value={formatDateTime(
                   order.deliveredAt,
                 )}
-                isWireframe={
-                  isWF
-                }
-                colors={
-                  colors
-                }
-                font={
-                  font
-                }
+                isWireframe={isWF}
+                colors={colors}
+                font={font}
               />
             )}
           </View>
@@ -2198,96 +1568,65 @@ export default function OrderDetailsScreen({
                   {
                     backgroundColor:
                       colors.amberLight,
-                    borderRadius:
-                      Radius.lg,
+                    borderRadius: Radius.lg,
                   },
                 ]}
               >
                 <Feather
                   name="award"
                   size={21}
-                  color={
-                    colors.ignitionAmber
-                  }
+                  color={colors.ignitionAmber}
                 />
 
                 <Text
                   style={{
                     flex: 1,
-                    color:
-                      colors.amberDark,
-                    fontFamily:
-                      font("bodyMedium"),
-                    fontSize:
-                      FontSizes.sm,
+                    color: colors.amberDark,
+                    fontFamily: font("bodyMedium"),
+                    fontSize: FontSizes.sm,
                   }}
                 >
                   You earned{" "}
                   <Text
                     style={{
-                      fontFamily:
-                        "Inter_700Bold",
+                      fontFamily: "Inter_700Bold",
                     }}
                   >
-                    +
-                    {
-                      order
-                        .item
-                        .litres
-                    }{" "}
-                    FuelPoints
+                    +{order.item.litres} FuelPoints
                   </Text>{" "}
-                  on this completed
-                  order!
+                  on this completed order!
                 </Text>
               </View>
             )}
 
-            {order.rating !=
-              null && (
-              <Card
-                style={
-                  styles.section
-                }
-              >
+            {order.rating != null && (
+              <Card style={styles.section}>
                 <Text
                   style={{
-                    color:
-                      isWF
-                        ? "#1A1A1A"
-                        : colors.charcoalInk,
-                    fontFamily:
-                      font("display"),
-                    fontSize:
-                      FontSizes.base,
+                    color: isWF
+                      ? "#1A1A1A"
+                      : colors.charcoalInk,
+                    fontFamily: font("display"),
+                    fontSize: FontSizes.base,
                   }}
                 >
                   Your rating
                 </Text>
 
                 <StarRating
-                  rating={
-                    order.rating
-                  }
-                  isWireframe={
-                    isWF
-                  }
-                  colors={
-                    colors
-                  }
+                  rating={order.rating}
+                  isWireframe={isWF}
+                  colors={colors}
                 />
 
                 {order.ratingComment && (
                   <Text
                     style={{
-                      color:
-                        isWF
-                          ? "#555555"
-                          : colors.inkLight,
-                      fontFamily:
-                        font("body"),
-                      fontSize:
-                        FontSizes.sm,
+                      color: isWF
+                        ? "#555555"
+                        : colors.inkLight,
+                      fontFamily: font("body"),
+                      fontSize: FontSizes.sm,
                       lineHeight: 20,
                       marginTop: 4,
                     }}
@@ -2300,72 +1639,51 @@ export default function OrderDetailsScreen({
           </>
         )}
 
-        {isCompleted &&
-          order.podPhotoUrl && (
-            <Card
-              style={
-                styles.section
-              }
-            >
-              <View
-                style={
-                  styles.sectionHeader
-                }
-              >
-                <Text
-                  style={{
-                    color:
-                      isWF
-                        ? "#1A1A1A"
-                        : colors.charcoalInk,
-                    fontFamily:
-                      font("display"),
-                    fontSize:
-                      FontSizes.base,
-                  }}
-                >
-                  Proof of delivery
-                </Text>
-
-                <Feather
-                  name="check-circle"
-                  size={17}
-                  color={
-                    isWF
-                      ? "#555555"
-                      : colors.dieselGreen
-                  }
-                />
-              </View>
-
+        {isCompleted && order.podPhotoUrl && (
+          <Card style={styles.section}>
+            <View style={styles.sectionHeader}>
               <Text
                 style={{
-                  color:
-                    isWF
-                      ? "#666666"
-                      : colors.inkLight,
-                  fontFamily:
-                    font("body"),
-                  fontSize:
-                    FontSizes.xs,
+                  color: isWF
+                    ? "#1A1A1A"
+                    : colors.charcoalInk,
+                  fontFamily: font("display"),
+                  fontSize: FontSizes.base,
                 }}
               >
-                Your delivery was confirmed
-                successfully.
+                Proof of delivery
               </Text>
-            </Card>
-          )}
 
-        <View
-          style={
-            styles.bottomActions
-          }
-        >
+              <Feather
+                name="check-circle"
+                size={17}
+                color={
+                  isWF
+                    ? "#555555"
+                    : colors.dieselGreen
+                }
+              />
+            </View>
+
+            <Text
+              style={{
+                color: isWF
+                  ? "#666666"
+                  : colors.inkLight,
+                fontFamily: font("body"),
+                fontSize: FontSizes.xs,
+              }}
+            >
+              Your delivery was confirmed
+              successfully.
+            </Text>
+          </Card>
+        )}
+
+        <View style={styles.bottomActions}>
           <Button
             label="Reorder"
-            onPress={
-              handleReorder
-            }
+            onPress={handleReorder}
             variant="outline"
             size="lg"
           />
@@ -2373,9 +1691,7 @@ export default function OrderDetailsScreen({
           {isCompleted && (
             <Button
               label="Back to Order History"
-              onPress={() =>
-                navigation.goBack()
-              }
+              onPress={() => navigation.goBack()}
               size="lg"
             />
           )}
@@ -2392,102 +1708,72 @@ const styles = StyleSheet.create({
 
   loadingContainer: {
     flex: 1,
-    alignItems:
-      "center",
-    justifyContent:
-      "center",
-    padding:
-      Spacing["2xl"],
+    alignItems: "center",
+    justifyContent: "center",
+    padding: Spacing["2xl"],
   },
 
   topBar: {
-    flexDirection:
-      "row",
-    alignItems:
-      "center",
-    justifyContent:
-      "space-between",
-    padding:
-      Spacing.base,
-    paddingTop:
-      Spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: Spacing.base,
+    paddingTop: Spacing.md,
   },
 
   backBtn: {
     width: 40,
     height: 40,
-    alignItems:
-      "center",
-    justifyContent:
-      "center",
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   scroll: {
-    padding:
-      Spacing.base,
-    paddingBottom:
-      Spacing["5xl"],
-    gap:
-      Spacing.md,
+    padding: Spacing.base,
+    paddingBottom: Spacing["5xl"],
+    gap: Spacing.md,
   },
 
   statusHero: {
-    overflow:
-      "hidden",
-    padding:
-      Spacing.xl,
-    alignItems:
-      "center",
-    gap:
-      Spacing.sm,
+    overflow: "hidden",
+    padding: Spacing.xl,
+    alignItems: "center",
+    gap: Spacing.sm,
   },
 
   heroIcon: {
     width: 58,
     height: 58,
     borderRadius: 29,
-    backgroundColor:
-      "rgba(255,255,255,0.16)",
-    alignItems:
-      "center",
-    justifyContent:
-      "center",
+    backgroundColor: "rgba(255,255,255,0.16)",
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 2,
   },
 
   section: {
-    gap:
-      Spacing.sm,
+    gap: Spacing.sm,
   },
 
   sectionHeader: {
-    flexDirection:
-      "row",
-    alignItems:
-      "center",
-    justifyContent:
-      "space-between",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
 
   sectionHeading: {
-    flexDirection:
-      "row",
-    alignItems:
-      "center",
-    justifyContent:
-      "space-between",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
 
   livePill: {
-    flexDirection:
-      "row",
-    alignItems:
-      "center",
+    flexDirection: "row",
+    alignItems: "center",
     gap: 5,
     paddingHorizontal: 9,
     paddingVertical: 5,
-    borderRadius:
-      Radius.full,
+    borderRadius: Radius.full,
   },
 
   liveDot: {
@@ -2497,151 +1783,71 @@ const styles = StyleSheet.create({
   },
 
   trackingCard: {
-    overflow:
-      "hidden",
-    borderRadius:
-      Radius.xl,
-  },
-
-  map: {
-    height: 260,
-    width: "100%",
-  },
-
-  mapFallback: {
-    height: 260,
-    width: "100%",
-    alignItems:
-      "center",
-    justifyContent:
-      "center",
-    padding:
-      Spacing.xl,
-  },
-
-  mapLegend: {
-    position:
-      "absolute",
-    top: 12,
-    left: 12,
-    flexDirection:
-      "row",
-    alignItems:
-      "center",
-    gap:
-      Spacing.md,
-    paddingHorizontal:
-      Spacing.sm,
-    paddingVertical: 7,
-    borderRadius:
-      Radius.md,
-    ...Shadow.sm,
-  },
-
-  legendItem: {
-    flexDirection:
-      "row",
-    alignItems:
-      "center",
-    gap: 5,
-  },
-
-  legendDot: {
-    width: 9,
-    height: 9,
-    borderRadius: 5,
+    overflow: "hidden",
+    borderRadius: Radius.xl,
   },
 
   locationInfo: {
-    flexDirection:
-      "row",
-    alignItems:
-      "center",
-    padding:
-      Spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.md,
   },
 
   waitingCard: {
-    flexDirection:
-      "row",
-    alignItems:
-      "flex-start",
-    gap:
-      Spacing.md,
-    padding:
-      Spacing.md,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: Spacing.md,
+    padding: Spacing.md,
   },
 
   driverRow: {
-    flexDirection:
-      "row",
-    alignItems:
-      "center",
-    gap:
-      Spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
   },
 
   driverAvatar: {
     width: 58,
     height: 58,
     borderRadius: 29,
-    alignItems:
-      "center",
-    justifyContent:
-      "center",
-    overflow:
-      "hidden",
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
   },
 
   actionBtn: {
     width: 42,
     height: 42,
     borderRadius: 21,
-    alignItems:
-      "center",
-    justifyContent:
-      "center",
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   vehicleRow: {
-    flexDirection:
-      "row",
-    alignItems:
-      "center",
-    gap:
-      Spacing.xs,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
     borderTopWidth: 1,
-    paddingTop:
-      Spacing.sm,
-    marginTop:
-      Spacing.sm,
+    paddingTop: Spacing.sm,
+    marginTop: Spacing.sm,
   },
 
   fuelBadge: {
-    flexDirection:
-      "row",
-    alignItems:
-      "center",
-    gap:
-      Spacing.md,
-    padding:
-      Spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    padding: Spacing.md,
   },
 
   detailRow: {
-    flexDirection:
-      "row",
-    alignItems:
-      "center",
+    flexDirection: "row",
+    alignItems: "center",
   },
 
   totalRow: {
-    flexDirection:
-      "row",
-    justifyContent:
-      "space-between",
-    alignItems:
-      "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
 
   divider: {
@@ -2650,76 +1856,55 @@ const styles = StyleSheet.create({
   },
 
   instructions: {
-    flexDirection:
-      "row",
-    alignItems:
-      "flex-start",
-    gap:
-      Spacing.xs,
-    padding:
-      Spacing.sm,
-    borderRadius:
-      Radius.sm,
-    marginTop:
-      Spacing.xs,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: Spacing.xs,
+    padding: Spacing.sm,
+    borderRadius: Radius.sm,
+    marginTop: Spacing.xs,
   },
 
   pinCard: {
-    flexDirection:
-      "row",
-    alignItems:
-      "center",
-    gap:
-      Spacing.md,
-    padding:
-      Spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    padding: Spacing.md,
   },
 
   pinIcon: {
     width: 46,
     height: 46,
     borderRadius: 23,
-    alignItems:
-      "center",
-    justifyContent:
-      "center",
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   loyaltyBanner: {
-    flexDirection:
-      "row",
-    alignItems:
-      "center",
-    gap:
-      Spacing.md,
-    padding:
-      Spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    padding: Spacing.md,
   },
 
   bottomActions: {
-    gap:
-      Spacing.sm,
-    marginTop:
-      Spacing.sm,
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
   },
 
   starRow: {
-    flexDirection:
-      "row",
+    flexDirection: "row",
     gap: 2,
     marginTop: 3,
   },
 
   timelineRow: {
-    flexDirection:
-      "row",
+    flexDirection: "row",
     minHeight: 54,
   },
 
   timelineIndicatorColumn: {
     width: 28,
-    alignItems:
-      "center",
+    alignItems: "center",
   },
 
   timelineDot: {
@@ -2727,17 +1912,13 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 10,
     borderWidth: 2,
-    alignItems:
-      "center",
-    justifyContent:
-      "center",
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   timelineContent: {
     flex: 1,
-    paddingLeft:
-      Spacing.sm,
-    paddingBottom:
-      Spacing.md,
+    paddingLeft: Spacing.sm,
+    paddingBottom: Spacing.md,
   },
 });
