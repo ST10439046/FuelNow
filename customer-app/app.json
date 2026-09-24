@@ -19,7 +19,8 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0B3D42"
       },
-      "package": "com.thegoat786.fuelnowcustomer"
+      "package": "com.thegoat786.fuelnowcustomer",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -37,7 +38,15 @@
           ]
         }
       ],
-      "expo-status-bar"
-    ]
+      "expo-status-bar",
+      "@react-native-firebase/app",
+      "@react-native-firebase/messaging"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "7bc1538d-7d3b-44f5-a995-11e588707cfb"
+      }
+    },
+    "owner": "thegoat786s-team"
   }
 }

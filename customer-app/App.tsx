@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { View, StyleSheet, Platform } from "react-native";
+import * as Notifications from "expo-notifications";
 import { NavigationContainer } from "@react-navigation/native";
 import { createStackNavigator } from "@react-navigation/stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
@@ -22,6 +23,7 @@ import {
   useDesignMode,
 } from "./src/context/DesignModeContext";
 import { Fonts } from "./src/theme/tokens";
+import { pushNotificationService } from "./src/services/PushNotificationService";
 
 // Screens
 import OnboardingScreen from "./src/screens/onboarding/OnboardingScreen";
@@ -40,6 +42,7 @@ if (Platform.OS === "web") {
   `;
   document.head.appendChild(style);
 }
+
 import LoginScreen from "./src/screens/auth/LoginScreen";
 import SignUpScreen from "./src/screens/auth/SignUpScreen";
 import ForgotPasswordScreen from "./src/screens/auth/ForgotPasswordScreen";
@@ -65,16 +68,17 @@ import PrivacyPolicyScreen from "./src/screens/profile/PrivacyPolicyScreen";
 import PersonalInformationScreen from "./src/screens/profile/PersonalInformationScreen";
 import ChangePasswordScreen from "./src/screens/profile/ChangePasswordScreen";
 import OrderDetailsScreen from "./src/screens/history/OrderDetailsScreen";
-import "./src/i18n";
 import ResetPasswordScreen from "./src/screens/auth/ResetPasswordScreen";
 import PayFastCheckoutScreen from "@/screens/order/PayFastCheckoutScreen";
 import PaymentResultScreen from "@/screens/order/PaymentResultScreen";
+
 const RootStack = createStackNavigator();
 const CustomerTab = createBottomTabNavigator();
 
 function CustomerTabNavigator() {
   const { colors, isWireframe } = useDesignMode();
   const insets = useSafeAreaInsets();
+
   return (
     <CustomerTab.Navigator
       screenOptions={({ route }) => ({
@@ -90,11 +94,17 @@ function CustomerTabNavigator() {
 
           height: 60 + insets.bottom,
         },
-        tabBarActiveTintColor: isWireframe ? "#333333" : colors.petrolDeep,
-        tabBarInactiveTintColor: isWireframe ? "#AAAAAA" : colors.inkFaint,
+        tabBarActiveTintColor: isWireframe
+          ? "#333333"
+          : colors.petrolDeep,
+        tabBarInactiveTintColor: isWireframe
+          ? "#AAAAAA"
+          : colors.inkFaint,
         tabBarLabelStyle: {
           fontSize: 11,
-          fontFamily: isWireframe ? undefined : Fonts.bodyMedium,
+          fontFamily: isWireframe
+            ? undefined
+            : Fonts.bodyMedium,
         },
         tabBarIcon: ({ color, size }) => {
           const icons: Record<string, string> = {
@@ -103,6 +113,7 @@ function CustomerTabNavigator() {
             RewardsTab: "award",
             ProfileTab: "user",
           };
+
           return (
             <Feather
               name={icons[route.name] as any}
@@ -118,16 +129,19 @@ function CustomerTabNavigator() {
         component={HomeScreen}
         options={{ title: "Home" }}
       />
+
       <CustomerTab.Screen
         name="OrdersTab"
         component={OrderHistoryScreen}
         options={{ title: "Orders" }}
       />
+
       <CustomerTab.Screen
         name="RewardsTab"
         component={RewardsScreen}
         options={{ title: "Rewards" }}
       />
+
       <CustomerTab.Screen
         name="ProfileTab"
         component={ProfileScreen}
@@ -144,37 +158,103 @@ function CustomerNavigator() {
       initialRouteName="Onboarding"
     >
       {/* Auth */}
-      <RootStack.Screen name="Onboarding" component={OnboardingScreen} />
-      <RootStack.Screen name="Login" component={LoginScreen} />
-      <RootStack.Screen name="SignUp" component={SignUpScreen} />
+      <RootStack.Screen
+        name="Onboarding"
+        component={OnboardingScreen}
+      />
+
+      <RootStack.Screen
+        name="Login"
+        component={LoginScreen}
+      />
+
+      <RootStack.Screen
+        name="SignUp"
+        component={SignUpScreen}
+      />
+
       <RootStack.Screen
         name="ForgotPassword"
         component={ForgotPasswordScreen}
       />
-      <RootStack.Screen name="ResetPassword" component={ResetPasswordScreen} />
+
+      <RootStack.Screen
+        name="ResetPassword"
+        component={ResetPasswordScreen}
+      />
+
       {/* Main Tabs */}
-      <RootStack.Screen name="MainTabs" component={CustomerTabNavigator} />
+      <RootStack.Screen
+        name="MainTabs"
+        component={CustomerTabNavigator}
+      />
 
       {/* Order Flow */}
-      <RootStack.Screen name="FuelSelection" component={FuelSelectionScreen} />
+      <RootStack.Screen
+        name="FuelSelection"
+        component={FuelSelectionScreen}
+      />
+
       <RootStack.Screen
         name="DeliveryLocation"
         component={DeliveryLocationScreen}
       />
-      <RootStack.Screen name="AddAddress" component={AddAddressScreen} />
-      <RootStack.Screen name="DeliveryTime" component={DeliveryTimeScreen} />
-      <RootStack.Screen name="PaymentMethod" component={PaymentMethodScreen} />
-      <RootStack.Screen name="AddCard" component={AddCardScreen} />
-      <RootStack.Screen name="OrderReview" component={OrderReviewScreen} />
-      <RootStack.Screen name="OrderPlaced" component={OrderPlacedScreen} />
-      <RootStack.Screen name="LiveTracking" component={LiveTrackingScreen} />
-      <RootStack.Screen name="DeliveryPin" component={DeliveryPinScreen} />
-      <RootStack.Screen name="RateReview" component={RateReviewScreen} />
+
+      <RootStack.Screen
+        name="AddAddress"
+        component={AddAddressScreen}
+      />
+
+      <RootStack.Screen
+        name="DeliveryTime"
+        component={DeliveryTimeScreen}
+      />
+
+      <RootStack.Screen
+        name="PaymentMethod"
+        component={PaymentMethodScreen}
+      />
+
+      <RootStack.Screen
+        name="AddCard"
+        component={AddCardScreen}
+      />
+
+      <RootStack.Screen
+        name="OrderReview"
+        component={OrderReviewScreen}
+      />
+
+      <RootStack.Screen
+        name="OrderPlaced"
+        component={OrderPlacedScreen}
+      />
+
+      <RootStack.Screen
+        name="LiveTracking"
+        component={LiveTrackingScreen}
+      />
+
+      <RootStack.Screen
+        name="DeliveryPin"
+        component={DeliveryPinScreen}
+      />
+
+      <RootStack.Screen
+        name="RateReview"
+        component={RateReviewScreen}
+      />
+
       <RootStack.Screen
         name="DigitalReceipt"
         component={DigitalReceiptScreen}
       />
-      <RootStack.Screen name="OrderDetails" component={OrderDetailsScreen} />
+
+      <RootStack.Screen
+        name="OrderDetails"
+        component={OrderDetailsScreen}
+      />
+
       <RootStack.Screen
         name="PayFastCheckout"
         component={PayFastCheckoutScreen}
@@ -182,11 +262,28 @@ function CustomerNavigator() {
           headerShown: false,
         }}
       />
-      <RootStack.Screen name="PaymentResult" component={PaymentResultScreen} />
+
+      <RootStack.Screen
+        name="PaymentResult"
+        component={PaymentResultScreen}
+      />
+
       {/* Utilities */}
-      <RootStack.Screen name="Notifications" component={NotificationsScreen} />
-      <RootStack.Screen name="TermsOfUse" component={TermsOfUseScreen} />
-      <RootStack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
+      <RootStack.Screen
+        name="Notifications"
+        component={NotificationsScreen}
+      />
+
+      <RootStack.Screen
+        name="TermsOfUse"
+        component={TermsOfUseScreen}
+      />
+
+      <RootStack.Screen
+        name="PrivacyPolicy"
+        component={PrivacyPolicyScreen}
+      />
+
       {/* Security */}
       <RootStack.Screen
         name="PersonalInformation"
@@ -195,6 +292,7 @@ function CustomerNavigator() {
           headerShown: false,
         }}
       />
+
       <RootStack.Screen
         name="ChangePassword"
         component={ChangePasswordScreen}
@@ -214,7 +312,43 @@ export default function App() {
     Inter_700Bold,
   });
 
-  if (!fontsLoaded) return null;
+  useEffect(() => {
+    if (Platform.OS === "web") {
+      return;
+    }
+
+    const receivedSubscription =
+      pushNotificationService.addNotificationReceivedListener(
+        (notification) => {
+          console.log(
+            "FuelNow push notification received:",
+            notification
+          );
+        }
+      );
+
+    const responseSubscription =
+      pushNotificationService.addNotificationResponseListener(
+        (response) => {
+          const data =
+            response.notification.request.content.data;
+
+          console.log(
+            "FuelNow push notification tapped:",
+            data
+          );
+        }
+      );
+
+    return () => {
+      receivedSubscription.remove();
+      responseSubscription.remove();
+    };
+  }, []);
+
+  if (!fontsLoaded) {
+    return null;
+  }
 
   return (
     <SafeAreaProvider>
@@ -235,8 +369,11 @@ const styles = StyleSheet.create({
   appContainer: {
     flex: 1,
     minHeight: 0,
-    // On web, prevent the root div from expanding beyond the viewport.
-    // Without this, ScrollView children have no bounded height and cannot scroll.
-    ...(Platform.OS === "web" ? { overflow: "hidden" as const } : {}),
+
+    ...(Platform.OS === "web"
+      ? {
+          overflow: "hidden" as const,
+        }
+      : {}),
   },
 });

@@ -1,4 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useState,
+} from 'react';
+
 import {
   View,
   Text,
@@ -7,99 +12,401 @@ import {
   TouchableOpacity,
   ActivityIndicator,
 } from 'react-native';
+
 import { SafeAreaView } from 'react-native-safe-area-context';
+
 import { Feather } from '@expo/vector-icons';
+
 import { useDesignMode } from '../../context/DesignModeContext';
-import { FontSizes, Spacing, Radius } from '../../theme/tokens';
+
+import {
+  FontSizes,
+  Spacing,
+  Radius,
+} from '../../theme/tokens';
+
+import {
+  notificationRepository,
+  NotificationModel,
+} from '../../repositories/NotificationRepository';
 
 interface Props {
   navigation?: any;
 }
 
-type NotifType = 'order' | 'promo' | 'system';
-
-const NOTIF_ICONS: Record<NotifType, string> = {
-  order: 'package',
-  promo: 'tag',
-  system: 'bell',
-};
+type IconName =
+  | 'package'
+  | 'credit-card'
+  | 'tag'
+  | 'bell'
+  | 'truck'
+  | 'check-circle'
+  | 'x-circle';
 
 function timeAgo(iso: string): string {
-  const diff = (Date.now() - new Date(iso).getTime()) / 1000;
+  const diff =
+    (Date.now() - new Date(iso).getTime()) /
+    1000;
 
-  if (diff < 60) return 'Just now';
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  if (diff < 60) {
+    return 'Just now';
+  }
 
-  return `${Math.floor(diff / 86400)}d ago`;
+  if (diff < 3600) {
+    return `${Math.floor(diff / 60)}m ago`;
+  }
+
+  if (diff < 86400) {
+    return `${Math.floor(diff / 3600)}h ago`;
+  }
+
+  if (diff < 604800) {
+    return `${Math.floor(diff / 86400)}d ago`;
+  }
+
+  return new Date(iso).toLocaleDateString();
 }
 
-export default function NotificationsScreen({ navigation }: Props) {
-  const { colors, font, isWireframe: isWF } = useDesignMode();
+function getNotificationIcon(
+  notification: NotificationModel
+): IconName {
+  if (notification.type === 'PAYMENT') {
+    return 'credit-card';
+  }
 
-  const [notifications, setNotifications] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  if (notification.type === 'FUEL_PRICE') {
+    return 'tag';
+  }
+
+  if (notification.type === 'SYSTEM') {
+    return 'bell';
+  }
+
+  switch (notification.data.status) {
+    case 'ACCEPTED':
+      return 'truck';
+
+    case 'IN_TRANSIT':
+    case 'NAVIGATING':
+      return 'truck';
+
+    case 'ARRIVED':
+      return 'check-circle';
+
+    case 'DISPENSING':
+      return 'package';
+
+    case 'DELIVERED':
+    case 'COMPLETED':
+      return 'check-circle';
+
+    case 'CANCELLED':
+      return 'x-circle';
+
+    default:
+      return 'package';
+  }
+}
+
+export default function NotificationsScreen({
+  navigation,
+}: Props) {
+  const {
+    colors,
+    font,
+    isWireframe: isWF,
+  } = useDesignMode();
+
+  const [
+    notifications,
+    setNotifications,
+  ] = useState<NotificationModel[]>([]);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [
+    markingAllRead,
+    setMarkingAllRead,
+  ] = useState(false);
+
+  const loadNotifications =
+    useCallback(async () => {
+      try {
+        setLoading(true);
+
+        const data =
+          await notificationRepository
+            .getNotifications();
+
+        setNotifications(data);
+      } catch (error) {
+        console.error(
+          'NotificationsScreen: failed to load notifications:',
+          error
+        );
+
+        setNotifications([]);
+      } finally {
+        setLoading(false);
+      }
+    }, []);
 
   useEffect(() => {
-    setNotifications([
-      {
-        id: 'notif_001',
-        title: 'Driver on the way! 🚛',
-        body: 'Sibusiso Dlamini is heading to 18 Kenneth Kaunda Road. ETA 23 min.',
-        type: 'order',
-        isRead: false,
-        createdAt: new Date(
-          Date.now() - 5 * 60 * 1000
-        ).toISOString(),
-      },
-      {
-        id: 'notif_002',
-        title: 'Petrol price update',
-        body: 'Petrol 95 price updated. Save on your next fill!',
-        type: 'promo',
-        isRead: false,
-        createdAt: new Date(
-          Date.now() - 60 * 60 * 1000
-        ).toISOString(),
-      },
-    ]);
+    loadNotifications();
 
-    setLoading(false);
-  }, []);
+    let unsubscribe:
+      | (() => void)
+      | undefined;
 
-  const getIconBg = (
-    type: NotifType,
-    isRead: boolean
-  ): string => {
-    if (isWF) {
-      return isRead ? '#E0E0E0' : '#C0C0C0';
-    }
+    let mounted = true;
 
-    if (!isRead) {
-      return type === 'order'
-        ? colors.petrolLight
-        : colors.amberLight;
-    }
+    const setupRealtime =
+      async () => {
+        try {
+          const cleanup =
+            await notificationRepository
+              .subscribe(
+                notification => {
+                  if (!mounted) {
+                    return;
+                  }
 
-    return colors.warmAsh;
-  };
+                  setNotifications(
+                    current => {
+                      const exists =
+                        current.some(
+                          item =>
+                            item.id ===
+                            notification.id
+                        );
 
-  const getIconColor = (
-    type: NotifType,
-    isRead: boolean
-  ): string => {
-    if (isWF) {
-      return isRead ? '#888' : '#444';
-    }
+                      if (exists) {
+                        return current;
+                      }
 
-    if (!isRead) {
-      return type === 'order'
-        ? colors.petrolDeep
-        : colors.ignitionAmber;
-    }
+                      return [
+                        notification,
+                        ...current,
+                      ];
+                    }
+                  );
+                }
+              );
 
-    return colors.inkLight;
-  };
+          if (mounted) {
+            unsubscribe = cleanup;
+          } else {
+            cleanup();
+          }
+        } catch (error) {
+          console.error(
+            'NotificationsScreen: realtime setup failed:',
+            error
+          );
+        }
+      };
+
+    setupRealtime();
+
+    return () => {
+      mounted = false;
+
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, [loadNotifications]);
+
+  const handleMarkRead =
+    async (
+      notification: NotificationModel
+    ) => {
+      if (notification.isRead) {
+        return;
+      }
+
+      setNotifications(
+        current =>
+          current.map(item =>
+            item.id === notification.id
+              ? {
+                  ...item,
+                  isRead: true,
+                }
+              : item
+          )
+      );
+
+      try {
+        await notificationRepository
+          .markAsRead(
+            notification.id
+          );
+      } catch (error) {
+        console.error(
+          'NotificationsScreen: failed to mark notification as read:',
+          error
+        );
+
+        setNotifications(
+          current =>
+            current.map(item =>
+              item.id === notification.id
+                ? {
+                    ...item,
+                    isRead: false,
+                  }
+                : item
+            )
+        );
+      }
+    };
+
+  const handleMarkAllRead =
+    async () => {
+      const unread =
+        notifications.some(
+          notification =>
+            !notification.isRead
+        );
+
+      if (!unread || markingAllRead) {
+        return;
+      }
+
+      const previous =
+        notifications;
+
+      setMarkingAllRead(true);
+
+      setNotifications(
+        current =>
+          current.map(notification => ({
+            ...notification,
+            isRead: true,
+          }))
+      );
+
+      try {
+        await notificationRepository
+          .markAllAsRead();
+      } catch (error) {
+        console.error(
+          'NotificationsScreen: failed to mark all notifications as read:',
+          error
+        );
+
+        setNotifications(previous);
+      } finally {
+        setMarkingAllRead(false);
+      }
+    };
+
+  const handleNotificationPress =
+    async (
+      notification: NotificationModel
+    ) => {
+      await handleMarkRead(
+        notification
+      );
+
+      const orderId =
+        notification.orderId ??
+        notification.data.order_id;
+
+      if (
+        orderId &&
+        (
+          notification.type ===
+            'ORDER_STATUS' ||
+          notification.type ===
+            'PAYMENT'
+        )
+      ) {
+        navigation?.navigate(
+          'OrderDetails',
+          {
+            orderId,
+          }
+        );
+
+        return;
+      }
+
+      if (
+        notification.type ===
+        'FUEL_PRICE'
+      ) {
+        navigation?.navigate(
+          'FuelSelection'
+        );
+
+        return;
+      }
+    };
+
+  const getIconBackground =
+    (
+      notification: NotificationModel
+    ): string => {
+      if (isWF) {
+        return notification.isRead
+          ? '#E0E0E0'
+          : '#C0C0C0';
+      }
+
+      if (notification.isRead) {
+        return colors.warmAsh;
+      }
+
+      if (
+        notification.type ===
+        'FUEL_PRICE'
+      ) {
+        return colors.amberLight;
+      }
+
+      if (
+        notification.type ===
+        'PAYMENT'
+      ) {
+        return colors.greenLight;
+      }
+
+      return colors.petrolLight;
+    };
+
+  const getIconColor =
+    (
+      notification: NotificationModel
+    ): string => {
+      if (isWF) {
+        return notification.isRead
+          ? '#888'
+          : '#444';
+      }
+
+      if (notification.isRead) {
+        return colors.inkLight;
+      }
+
+      if (
+        notification.type ===
+        'FUEL_PRICE'
+      ) {
+        return colors.ignitionAmber;
+      }
+
+      if (
+        notification.type ===
+        'PAYMENT'
+      ) {
+        return colors.dieselGreen;
+      }
+
+      return colors.petrolDeep;
+    };
 
   return (
     <SafeAreaView
@@ -112,24 +419,27 @@ export default function NotificationsScreen({ navigation }: Props) {
         },
       ]}
     >
-      {/* Header */}
       <View style={styles.topBar}>
-
-        {/* Back Button + Title */}
-        <View style={styles.headerLeft}>
+        <View
+          style={styles.headerLeft}
+        >
           <TouchableOpacity
             style={[
               styles.backButton,
               {
-                backgroundColor: isWF
-                  ? '#FFFFFF'
-                  : colors.white,
-                borderColor: isWF
-                  ? '#DDDDDD'
-                  : colors.divider,
+                backgroundColor:
+                  isWF
+                    ? '#FFFFFF'
+                    : colors.white,
+                borderColor:
+                  isWF
+                    ? '#DDDDDD'
+                    : colors.divider,
               },
             ]}
-            onPress={() => navigation?.goBack()}
+            onPress={() =>
+              navigation?.goBack()
+            }
             activeOpacity={0.7}
             accessibilityRole="button"
             accessibilityLabel="Go back"
@@ -137,7 +447,11 @@ export default function NotificationsScreen({ navigation }: Props) {
             <Feather
               name="arrow-left"
               size={22}
-              color={isWF ? '#1A1A1A' : colors.charcoalInk}
+              color={
+                isWF
+                  ? '#1A1A1A'
+                  : colors.charcoalInk
+              }
             />
           </TouchableOpacity>
 
@@ -148,8 +462,10 @@ export default function NotificationsScreen({ navigation }: Props) {
                 color: isWF
                   ? '#1A1A1A'
                   : colors.charcoalInk,
-                fontFamily: font('displayBold'),
-                fontSize: FontSizes.xl,
+                fontFamily:
+                  font('displayBold'),
+                fontSize:
+                  FontSizes.xl,
               },
             ]}
           >
@@ -157,105 +473,148 @@ export default function NotificationsScreen({ navigation }: Props) {
           </Text>
         </View>
 
-        {/* Mark All Read */}
         <TouchableOpacity
           activeOpacity={0.7}
+          onPress={
+            handleMarkAllRead
+          }
+          disabled={
+            markingAllRead
+          }
         >
-          <Text
-            style={[
-              {
+          {markingAllRead ? (
+            <ActivityIndicator
+              size="small"
+              color={
+                isWF
+                  ? '#444'
+                  : colors.petrolDeep
+              }
+            />
+          ) : (
+            <Text
+              style={{
                 color: isWF
                   ? '#444'
                   : colors.petrolDeep,
-                fontFamily: font('bodyMedium'),
-                fontSize: FontSizes.sm,
-              },
-            ]}
-          >
-            Mark all read
-          </Text>
+                fontFamily:
+                  font('bodyMedium'),
+                fontSize:
+                  FontSizes.sm,
+              }}
+            >
+              Mark all read
+            </Text>
+          )}
         </TouchableOpacity>
       </View>
 
       {loading ? (
         <ActivityIndicator
-          color={isWF ? '#888' : colors.petrolDeep}
-          style={{ marginTop: 40 }}
+          color={
+            isWF
+              ? '#888'
+              : colors.petrolDeep
+          }
+          style={{
+            marginTop: 40,
+          }}
         />
       ) : (
         <FlatList
           data={notifications}
-          keyExtractor={(n) => n.id}
-          contentContainerStyle={styles.list}
-          showsVerticalScrollIndicator={false}
-          renderItem={({ item }) => (
+          keyExtractor={item =>
+            item.id
+          }
+          contentContainerStyle={
+            styles.list
+          }
+          showsVerticalScrollIndicator={
+            false
+          }
+          renderItem={({
+            item,
+          }) => (
             <TouchableOpacity
               style={[
                 styles.notifCard,
                 {
-                  backgroundColor: item.isRead
-                    ? isWF
-                      ? '#FFFFFF'
-                      : colors.white
-                    : isWF
-                      ? '#EEEEEE'
-                      : colors.petrolLight,
+                  backgroundColor:
+                    item.isRead
+                      ? isWF
+                        ? '#FFFFFF'
+                        : colors.white
+                      : isWF
+                        ? '#EEEEEE'
+                        : colors.petrolLight,
 
-                  borderRadius: isWF
-                    ? Radius.sm
-                    : Radius.lg,
+                  borderRadius:
+                    isWF
+                      ? Radius.sm
+                      : Radius.lg,
 
-                  borderWidth: item.isRead ? 1 : 0,
+                  borderWidth:
+                    item.isRead
+                      ? 1
+                      : 0,
 
-                  borderColor: isWF
-                    ? '#DDDDDD'
-                    : colors.divider,
+                  borderColor:
+                    isWF
+                      ? '#DDDDDD'
+                      : colors.divider,
                 },
               ]}
               activeOpacity={0.8}
+              onPress={() =>
+                handleNotificationPress(
+                  item
+                )
+              }
             >
-              {/* Unread dot */}
               {!item.isRead && (
                 <View
                   style={[
                     styles.unreadDot,
                     {
-                      backgroundColor: isWF
-                        ? '#555'
-                        : colors.ignitionAmber,
+                      backgroundColor:
+                        isWF
+                          ? '#555'
+                          : colors.ignitionAmber,
                     },
                   ]}
                 />
               )}
 
-              {/* Notification Icon */}
               <View
                 style={[
                   styles.notifIcon,
                   {
-                    backgroundColor: getIconBg(
-                      item.type,
-                      item.isRead
-                    ),
-                    borderRadius: isWF ? 6 : 20,
+                    backgroundColor:
+                      getIconBackground(
+                        item
+                      ),
+                    borderRadius:
+                      isWF
+                        ? 6
+                        : 20,
                   },
                 ]}
               >
                 <Feather
                   name={
-                    NOTIF_ICONS[
-                      item.type as NotifType
-                    ] as any
+                    getNotificationIcon(
+                      item
+                    )
                   }
                   size={18}
-                  color={getIconColor(
-                    item.type,
-                    item.isRead
-                  )}
+                  color={
+                    getIconColor(
+                      item
+                    )
+                  }
                 />
               </View>
 
-              {/* Notification Content */}
               <View
                 style={{
                   flex: 1,
@@ -264,28 +623,37 @@ export default function NotificationsScreen({ navigation }: Props) {
               >
                 <View
                   style={{
-                    flexDirection: 'row',
-                    justifyContent: 'space-between',
-                    alignItems: 'flex-start',
+                    flexDirection:
+                      'row',
+                    justifyContent:
+                      'space-between',
+                    alignItems:
+                      'flex-start',
                   }}
                 >
                   <Text
                     style={[
                       styles.notifTitle,
                       {
-                        color: isWF
-                          ? '#1A1A1A'
-                          : colors.charcoalInk,
+                        color:
+                          isWF
+                            ? '#1A1A1A'
+                            : colors.charcoalInk,
 
-                        fontFamily: font(
-                          item.isRead
-                            ? 'body'
-                            : 'bodyMedium'
-                        ),
+                        fontFamily:
+                          font(
+                            item.isRead
+                              ? 'body'
+                              : 'bodyMedium'
+                          ),
 
-                        fontSize: FontSizes.sm,
+                        fontSize:
+                          FontSizes.sm,
+
                         flex: 1,
-                        marginRight: Spacing.sm,
+
+                        marginRight:
+                          Spacing.sm,
                       },
                     ]}
                   >
@@ -293,18 +661,22 @@ export default function NotificationsScreen({ navigation }: Props) {
                   </Text>
 
                   <Text
-                    style={[
-                      {
-                        color: isWF
+                    style={{
+                      color:
+                        isWF
                           ? '#999'
                           : colors.inkFaint,
 
-                        fontFamily: font('body'),
-                        fontSize: FontSizes.xs,
-                      },
-                    ]}
+                      fontFamily:
+                        font('body'),
+
+                      fontSize:
+                        FontSizes.xs,
+                    }}
                   >
-                    {timeAgo(item.createdAt)}
+                    {timeAgo(
+                      item.createdAt
+                    )}
                   </Text>
                 </View>
 
@@ -312,22 +684,28 @@ export default function NotificationsScreen({ navigation }: Props) {
                   style={[
                     styles.notifBody,
                     {
-                      color: isWF
-                        ? '#555'
-                        : colors.inkLight,
+                      color:
+                        isWF
+                          ? '#555'
+                          : colors.inkLight,
 
-                      fontFamily: font('body'),
-                      fontSize: FontSizes.xs,
+                      fontFamily:
+                        font('body'),
+
+                      fontSize:
+                        FontSizes.xs,
                     },
                   ]}
                 >
-                  {item.body}
+                  {item.message}
                 </Text>
               </View>
             </TouchableOpacity>
           )}
           ListEmptyComponent={
-            <View style={styles.empty}>
+            <View
+              style={styles.empty}
+            >
               <Feather
                 name="bell-off"
                 size={40}
@@ -339,16 +717,17 @@ export default function NotificationsScreen({ navigation }: Props) {
               />
 
               <Text
-                style={[
-                  {
-                    color: isWF
-                      ? '#888'
-                      : colors.inkLight,
+                style={{
+                  color: isWF
+                    ? '#888'
+                    : colors.inkLight,
 
-                    fontFamily: font('body'),
-                    fontSize: FontSizes.base,
-                  },
-                ]}
+                  fontFamily:
+                    font('body'),
+
+                  fontSize:
+                    FontSizes.base,
+                }}
               >
                 No notifications yet
               </Text>
@@ -367,10 +746,13 @@ const styles = StyleSheet.create({
 
   topBar: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent:
+      'space-between',
     alignItems: 'center',
-    padding: Spacing.base,
-    paddingTop: Spacing.md,
+    padding:
+      Spacing.base,
+    paddingTop:
+      Spacing.md,
   },
 
   headerLeft: {
@@ -393,7 +775,8 @@ const styles = StyleSheet.create({
 
   list: {
     padding: Spacing.base,
-    paddingBottom: Spacing['4xl'],
+    paddingBottom:
+      Spacing['4xl'],
     gap: Spacing.sm,
   },
 

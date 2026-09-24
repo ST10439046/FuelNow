@@ -21,6 +21,9 @@ import Card from "../../components/Card";
 import { userRepository } from "../../repositories/UserRepository";
 import { fuelRateRepository } from "../../repositories/FuelRateRepository";
 import { orderRepository } from "../../repositories/OrderRepository";
+import {
+  notificationRepository,
+} from "../../repositories/NotificationRepository";
 
 const { width: W } = Dimensions.get("window");
 
@@ -320,6 +323,9 @@ export default function HomeScreen({ navigation }: Props) {
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
   const [loadingRecentOrders, setLoadingRecentOrders] = useState(true);
 
+  const [unreadNotificationCount, setUnreadNotificationCount] =
+    useState(0);
+
   const tickerAnim = useRef(new Animated.Value(0)).current;
 
   /*
@@ -376,6 +382,76 @@ export default function HomeScreen({ navigation }: Props) {
 
   /*
    * ============================================================
+   * NOTIFICATION UNREAD COUNT
+   * ============================================================
+   */
+
+  const loadUnreadNotificationCount = useCallback(async () => {
+    try {
+      const count = await notificationRepository.getUnreadCount();
+
+      setUnreadNotificationCount(count);
+    } catch (error) {
+      console.error(
+        "HomeScreen: failed to load notification count:",
+        error,
+      );
+    }
+  }, []);
+
+  /*
+   * ============================================================
+   * NOTIFICATION REALTIME
+   * ============================================================
+   */
+
+  useFocusEffect(
+    useCallback(() => {
+      let mounted = true;
+
+      let unsubscribe: (() => void) | undefined;
+
+      loadUnreadNotificationCount();
+
+      const setupNotificationRealtime = async () => {
+        try {
+          const cleanup = await notificationRepository.subscribe(
+            () => {
+              if (!mounted) {
+                return;
+              }
+
+              setUnreadNotificationCount((current) => current + 1);
+            },
+          );
+
+          if (mounted) {
+            unsubscribe = cleanup;
+          } else {
+            cleanup();
+          }
+        } catch (error) {
+          console.error(
+            "HomeScreen: failed to subscribe to notifications:",
+            error,
+          );
+        }
+      };
+
+      setupNotificationRealtime();
+
+      return () => {
+        mounted = false;
+
+        if (unsubscribe) {
+          unsubscribe();
+        }
+      };
+    }, [loadUnreadNotificationCount]),
+  );
+
+  /*
+   * ============================================================
    * FUEL RATE REFRESH
    * ============================================================
    */
@@ -417,7 +493,8 @@ export default function HomeScreen({ navigation }: Props) {
         const nextHour = new Date(now);
         nextHour.setMinutes(60, 0, 0);
 
-        const millisecondsUntilNextHour = nextHour.getTime() - now.getTime();
+        const millisecondsUntilNextHour =
+          nextHour.getTime() - now.getTime();
 
         console.log(
           `HomeScreen: next fuel-rate check in ${Math.round(
@@ -615,6 +692,7 @@ export default function HomeScreen({ navigation }: Props) {
               },
             ]}
             onPress={() => navigation.navigate("Notifications")}
+            activeOpacity={0.8}
           >
             <Feather
               name="bell"
@@ -622,15 +700,29 @@ export default function HomeScreen({ navigation }: Props) {
               color={isWF ? "#333" : colors.charcoalInk}
             />
 
-            {/* Unread dot */}
-            <View
-              style={[
-                styles.unreadDot,
-                {
-                  backgroundColor: isWF ? "#888" : colors.signalRed,
-                },
-              ]}
-            />
+            {/* Unread notification count */}
+            {unreadNotificationCount > 0 && (
+              <View
+                style={[
+                  styles.unreadDot,
+                  {
+                    backgroundColor: isWF
+                      ? "#888"
+                      : colors.signalRed,
+                  },
+                ]}
+              >
+                {unreadNotificationCount > 1 && (
+                  <Text
+                    style={styles.unreadCountText}
+                  >
+                    {unreadNotificationCount > 9
+                      ? "9+"
+                      : unreadNotificationCount}
+                  </Text>
+                )}
+              </View>
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -695,7 +787,11 @@ export default function HomeScreen({ navigation }: Props) {
                   },
                 ]}
               >
-                <Feather name="award" size={14} color={colors.ignitionAmber} />
+                <Feather
+                  name="award"
+                  size={14}
+                  color={colors.ignitionAmber}
+                />
 
                 <Text
                   style={[
@@ -772,7 +868,9 @@ export default function HomeScreen({ navigation }: Props) {
                   style={[
                     styles.ctaSub,
                     {
-                      color: isWF ? "#BBB" : "rgba(255,255,255,0.65)",
+                      color: isWF
+                        ? "#BBB"
+                        : "rgba(255,255,255,0.65)",
                       fontFamily: font("body"),
                       fontSize: FontSizes.xs,
                     },
@@ -786,11 +884,17 @@ export default function HomeScreen({ navigation }: Props) {
                 style={[
                   styles.ctaArrow,
                   {
-                    backgroundColor: isWF ? "#666" : colors.ignitionAmber,
+                    backgroundColor: isWF
+                      ? "#666"
+                      : colors.ignitionAmber,
                   },
                 ]}
               >
-                <Feather name="arrow-right" size={22} color="#FFFFFF" />
+                <Feather
+                  name="arrow-right"
+                  size={22}
+                  color="#FFFFFF"
+                />
               </View>
             </View>
           </TouchableOpacity>
@@ -829,7 +933,9 @@ export default function HomeScreen({ navigation }: Props) {
 
           <Card style={styles.ratesCard}>
             {loadingRates ? (
-              <ActivityIndicator color={isWF ? "#888" : colors.petrolDeep} />
+              <ActivityIndicator
+                color={isWF ? "#888" : colors.petrolDeep}
+              />
             ) : rates.length === 0 ? (
               <Text
                 style={{
@@ -850,7 +956,9 @@ export default function HomeScreen({ navigation }: Props) {
                       style={[
                         styles.rateName,
                         {
-                          color: isWF ? "#333" : colors.charcoalInk,
+                          color: isWF
+                            ? "#333"
+                            : colors.charcoalInk,
                           fontFamily: font("bodyMedium"),
                           fontSize: FontSizes.sm,
                         },
@@ -864,8 +972,12 @@ export default function HomeScreen({ navigation }: Props) {
                         style={[
                           styles.ratePrice,
                           {
-                            color: isWF ? "#1A1A1A" : colors.ignitionAmber,
-                            fontFamily: isWF ? undefined : "Inter_600SemiBold",
+                            color: isWF
+                              ? "#1A1A1A"
+                              : colors.ignitionAmber,
+                            fontFamily: isWF
+                              ? undefined
+                              : "Inter_600SemiBold",
                             fontSize: FontSizes.md,
                           },
                         ]}
@@ -913,7 +1025,9 @@ export default function HomeScreen({ navigation }: Props) {
                                 : rate.trend === "up"
                                   ? colors.signalRed
                                   : colors.dieselGreen,
-                              fontFamily: isWF ? undefined : "Inter_400Regular",
+                              fontFamily: isWF
+                                ? undefined
+                                : "Inter_400Regular",
                               fontSize: FontSizes.xs,
                             },
                           ]}
@@ -930,7 +1044,9 @@ export default function HomeScreen({ navigation }: Props) {
                       style={[
                         styles.divider,
                         {
-                          backgroundColor: isWF ? "#DDDDDD" : colors.divider,
+                          backgroundColor: isWF
+                            ? "#DDDDDD"
+                            : colors.divider,
                         },
                       ]}
                     />
@@ -971,7 +1087,9 @@ export default function HomeScreen({ navigation }: Props) {
                   style={[
                     styles.reorderLoadingText,
                     {
-                      color: isWF ? "#666" : colors.inkLight,
+                      color: isWF
+                        ? "#666"
+                        : colors.inkLight,
                       fontFamily: font("body"),
                       fontSize: FontSizes.sm,
                     },
@@ -997,7 +1115,8 @@ export default function HomeScreen({ navigation }: Props) {
                       style={[
                         styles.reorderIcon,
                         {
-                          backgroundColor: colors.petrolLight,
+                          backgroundColor:
+                            colors.petrolLight,
                         },
                       ]}
                     >
@@ -1016,31 +1135,46 @@ export default function HomeScreen({ navigation }: Props) {
                       style={[
                         styles.reorderType,
                         {
-                          color: isWF ? "#1A1A1A" : colors.charcoalInk,
-                          fontFamily: font("bodyMedium"),
-                          fontSize: FontSizes.base,
+                          color: isWF
+                            ? "#1A1A1A"
+                            : colors.charcoalInk,
+                          fontFamily:
+                            font("bodyMedium"),
+                          fontSize:
+                            FontSizes.base,
                         },
                       ]}
                     >
-                      {Number(recentOrder.item?.litres ?? 0)}L{" "}
-                      {recentOrder.item?.fuelType ?? "Fuel"}
+                      {Number(
+                        recentOrder.item?.litres ?? 0,
+                      )}
+                      L{" "}
+                      {recentOrder.item?.fuelType ??
+                        "Fuel"}
                     </Text>
 
                     <Text
                       style={[
                         styles.reorderAddr,
                         {
-                          color: isWF ? "#666" : colors.inkLight,
-                          fontFamily: font("body"),
-                          fontSize: FontSizes.sm,
+                          color: isWF
+                            ? "#666"
+                            : colors.inkLight,
+                          fontFamily:
+                            font("body"),
+                          fontSize:
+                            FontSizes.sm,
                         },
                       ]}
                       numberOfLines={1}
                     >
                       {[
-                        recentOrder.deliveryAddress?.street,
-                        recentOrder.deliveryAddress?.suburb,
-                        recentOrder.deliveryAddress?.city,
+                        recentOrder.deliveryAddress
+                          ?.street,
+                        recentOrder.deliveryAddress
+                          ?.suburb,
+                        recentOrder.deliveryAddress
+                          ?.city,
                       ]
                         .filter(Boolean)
                         .join(", ")}
@@ -1060,7 +1194,11 @@ export default function HomeScreen({ navigation }: Props) {
                     <Feather
                       name="refresh-cw"
                       size={16}
-                      color={isWF ? "#333" : "#FFFFFF"}
+                      color={
+                        isWF
+                          ? "#333"
+                          : "#FFFFFF"
+                      }
                     />
                   </View>
                 </View>
@@ -1072,7 +1210,11 @@ export default function HomeScreen({ navigation }: Props) {
                 <Feather
                   name="clock"
                   size={20}
-                  color={isWF ? "#888" : colors.inkFaint}
+                  color={
+                    isWF
+                      ? "#888"
+                      : colors.inkFaint
+                  }
                 />
 
                 <View style={{ flex: 1 }}>
@@ -1080,9 +1222,13 @@ export default function HomeScreen({ navigation }: Props) {
                     style={[
                       styles.reorderType,
                       {
-                        color: isWF ? "#333" : colors.charcoalInk,
-                        fontFamily: font("bodyMedium"),
-                        fontSize: FontSizes.base,
+                        color: isWF
+                          ? "#333"
+                          : colors.charcoalInk,
+                        fontFamily:
+                          font("bodyMedium"),
+                        fontSize:
+                          FontSizes.base,
                       },
                     ]}
                   >
@@ -1093,13 +1239,18 @@ export default function HomeScreen({ navigation }: Props) {
                     style={[
                       styles.reorderAddr,
                       {
-                        color: isWF ? "#666" : colors.inkLight,
-                        fontFamily: font("body"),
-                        fontSize: FontSizes.sm,
+                        color: isWF
+                          ? "#666"
+                          : colors.inkLight,
+                        fontFamily:
+                          font("body"),
+                        fontSize:
+                          FontSizes.sm,
                       },
                     ]}
                   >
-                    Your orders from the last 14 days will appear here.
+                    Your orders from the last 14 days
+                    will appear here.
                   </Text>
                 </View>
               </View>
@@ -1112,12 +1263,18 @@ export default function HomeScreen({ navigation }: Props) {
 
           <View style={styles.statsRow}>
             {/* Orders */}
-            <Card style={styles.statCard} padded={false}>
+            <Card
+              style={styles.statCard}
+              padded={false}
+            >
               <LinearGradient
                 colors={
                   isWF
                     ? ["#E0E0E0", "#D0D0D0"]
-                    : [colors.petrolDeep, colors.petrolMid]
+                    : [
+                        colors.petrolDeep,
+                        colors.petrolMid,
+                      ]
                 }
                 style={styles.statGrad}
                 start={{ x: 0, y: 0 }}
@@ -1127,9 +1284,14 @@ export default function HomeScreen({ navigation }: Props) {
                   style={[
                     styles.statValue,
                     {
-                      color: isWF ? "#333" : "#FFFFFF",
-                      fontFamily: isWF ? undefined : "Inter_600SemiBold",
-                      fontSize: FontSizes.xl,
+                      color: isWF
+                        ? "#333"
+                        : "#FFFFFF",
+                      fontFamily: isWF
+                        ? undefined
+                        : "Inter_600SemiBold",
+                      fontSize:
+                        FontSizes.xl,
                     },
                   ]}
                 >
@@ -1140,9 +1302,13 @@ export default function HomeScreen({ navigation }: Props) {
                   style={[
                     styles.statLabel,
                     {
-                      color: isWF ? "#555" : "rgba(255,255,255,0.75)",
-                      fontFamily: font("body"),
-                      fontSize: FontSizes.xs,
+                      color: isWF
+                        ? "#555"
+                        : "rgba(255,255,255,0.75)",
+                      fontFamily:
+                        font("body"),
+                      fontSize:
+                        FontSizes.xs,
                     },
                   ]}
                 >
@@ -1152,12 +1318,18 @@ export default function HomeScreen({ navigation }: Props) {
             </Card>
 
             {/* Delivered litres */}
-            <Card style={styles.statCard} padded={false}>
+            <Card
+              style={styles.statCard}
+              padded={false}
+            >
               <LinearGradient
                 colors={
                   isWF
                     ? ["#E0E0E0", "#D0D0D0"]
-                    : [colors.ignitionAmber, colors.amberDark]
+                    : [
+                        colors.ignitionAmber,
+                        colors.amberDark,
+                      ]
                 }
                 style={styles.statGrad}
                 start={{ x: 0, y: 0 }}
@@ -1167,9 +1339,14 @@ export default function HomeScreen({ navigation }: Props) {
                   style={[
                     styles.statValue,
                     {
-                      color: isWF ? "#333" : "#FFFFFF",
-                      fontFamily: isWF ? undefined : "Inter_600SemiBold",
-                      fontSize: FontSizes.xl,
+                      color: isWF
+                        ? "#333"
+                        : "#FFFFFF",
+                      fontFamily: isWF
+                        ? undefined
+                        : "Inter_600SemiBold",
+                      fontSize:
+                        FontSizes.xl,
                     },
                   ]}
                 >
@@ -1180,9 +1357,13 @@ export default function HomeScreen({ navigation }: Props) {
                   style={[
                     styles.statLabel,
                     {
-                      color: isWF ? "#555" : "rgba(255,255,255,0.75)",
-                      fontFamily: font("body"),
-                      fontSize: FontSizes.xs,
+                      color: isWF
+                        ? "#555"
+                        : "rgba(255,255,255,0.75)",
+                      fontFamily:
+                        font("body"),
+                      fontSize:
+                        FontSizes.xs,
                     },
                   ]}
                 >
@@ -1320,11 +1501,21 @@ const styles = StyleSheet.create({
 
   unreadDot: {
     position: "absolute",
-    top: 8,
-    right: 8,
-    width: 8,
+    top: 4,
+    right: 4,
+    minWidth: 8,
     height: 8,
-    borderRadius: 4,
+    borderRadius: 6,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 2,
+  },
+
+  unreadCountText: {
+    color: "#FFFFFF",
+    fontSize: 7,
+    fontWeight: "700",
+    lineHeight: 8,
   },
 
   ticker: {
