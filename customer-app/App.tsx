@@ -1,6 +1,6 @@
+
 import React, { useEffect } from "react";
 import { View, StyleSheet, Platform } from "react-native";
-import * as Notifications from "expo-notifications";
 import { NavigationContainer } from "@react-navigation/native";
 import { createStackNavigator } from "@react-navigation/stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
@@ -313,36 +313,82 @@ export default function App() {
   });
 
   useEffect(() => {
-    if (Platform.OS === "web") {
+    if (Platform.OS !== "android" && Platform.OS !== "ios") {
       return;
     }
 
-    const receivedSubscription =
-      pushNotificationService.addNotificationReceivedListener(
-        (notification) => {
+    const unsubscribeMessage =
+      pushNotificationService.addMessageListener(
+        async (remoteMessage) => {
           console.log(
-            "FuelNow push notification received:",
-            notification
+            "FuelNow FCM message received:",
+            remoteMessage
+          );
+
+          console.log(
+            "FuelNow notification:",
+            remoteMessage.notification
+          );
+
+          console.log(
+            "FuelNow notification data:",
+            remoteMessage.data
           );
         }
       );
 
-    const responseSubscription =
-      pushNotificationService.addNotificationResponseListener(
-        (response) => {
-          const data =
-            response.notification.request.content.data;
-
+    const unsubscribeTokenRefresh =
+      pushNotificationService.addTokenRefreshListener(
+        async (token) => {
           console.log(
-            "FuelNow push notification tapped:",
-            data
+            "FuelNow FCM token refreshed:",
+            token
+          );
+
+          try {
+            await pushNotificationService.refreshToken();
+          } catch (error) {
+            console.error(
+              "FuelNow: failed to save refreshed FCM token:",
+              error
+            );
+          }
+        }
+      );
+
+    const unsubscribeOpened =
+      pushNotificationService.onNotificationOpenedApp(
+        (remoteMessage) => {
+          console.log(
+            "FuelNow notification opened:",
+            remoteMessage
           );
         }
       );
+
+    pushNotificationService
+      .getInitialNotification()
+      .then((remoteMessage) => {
+        if (!remoteMessage) {
+          return;
+        }
+
+        console.log(
+          "FuelNow notification opened from terminated state:",
+          remoteMessage
+        );
+      })
+      .catch((error) => {
+        console.error(
+          "FuelNow: failed to check initial notification:",
+          error
+        );
+      });
 
     return () => {
-      receivedSubscription.remove();
-      responseSubscription.remove();
+      unsubscribeMessage();
+      unsubscribeTokenRefresh();
+      unsubscribeOpened();
     };
   }, []);
 
@@ -377,3 +423,4 @@ const styles = StyleSheet.create({
       : {}),
   },
 });
+

@@ -10,3 +10,5 @@ web-build/
 # Local env files
 .env
 .env*.local
+customer-app/android/.kotlin/sessions/kotlin-compiler-375922111162582394.salive
+.gitignore

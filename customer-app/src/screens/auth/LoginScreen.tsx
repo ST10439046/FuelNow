@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import {
   View,
@@ -16,6 +17,7 @@ import Button from "../../components/Button";
 import Input from "../../components/Input";
 import { userRepository } from "../../repositories/UserRepository";
 import { supabase } from "../../services/supabase";
+import { pushNotificationService } from "../../services/PushNotificationService";
 
 interface Props {
   navigation: any;
@@ -43,61 +45,74 @@ export default function LoginScreen({ navigation }: Props) {
       // 1. SIGN IN USING SUPABASE AUTH
       // =====================================================
 
-      const { data, error: authError } = await supabase.auth.signInWithPassword(
-        {
+      const { data, error: authError } =
+        await supabase.auth.signInWithPassword({
           email: email.trim().toLowerCase(),
           password,
-        },
-      );
+        });
 
       if (authError) {
         throw authError;
       }
 
       if (!data.user) {
-        throw new Error("Login failed. No authenticated user was returned.");
+        throw new Error(
+          "Login failed. No authenticated user was returned."
+        );
       }
 
       if (!data.session) {
-        throw new Error("Login failed. No authentication session was created.");
+        throw new Error(
+          "Login failed. No authentication session was created."
+        );
       }
 
       // This is auth.users.id
       const authId = data.user.id;
 
       console.log("SUPABASE AUTH ID:", authId);
-      console.log("SUPABASE JWT RECEIVED:", !!data.session.access_token);
+      console.log(
+        "SUPABASE JWT RECEIVED:",
+        !!data.session.access_token
+      );
 
       // =====================================================
       // 2. FIND THE APPLICATION USER
       // =====================================================
 
-      const { data: appUser, error: userError } = await supabase
-        .from("users")
-        .select(
-          `
+      const { data: appUser, error: userError } =
+        await supabase
+          .from("users")
+          .select(
+            `
         user_id,
         auth_id,
         full_name,
         email,
         phone_number,
         status
-      `,
-        )
-        .eq("auth_id", authId)
-        .single();
+      `
+          )
+          .eq("auth_id", authId)
+          .single();
 
       if (userError || !appUser) {
-        console.error("APPLICATION USER LOOKUP ERROR:", userError);
+        console.error(
+          "APPLICATION USER LOOKUP ERROR:",
+          userError
+        );
 
         await supabase.auth.signOut();
 
         throw new Error(
-          "Your authentication account is not linked to a FuelNow user profile.",
+          "Your authentication account is not linked to a FuelNow user profile."
         );
       }
 
-      console.log("APPLICATION USER:", JSON.stringify(appUser, null, 2));
+      console.log(
+        "APPLICATION USER:",
+        JSON.stringify(appUser, null, 2)
+      );
 
       // =====================================================
       // 3. CHECK APPLICATION USER STATUS
@@ -107,7 +122,7 @@ export default function LoginScreen({ navigation }: Props) {
         await supabase.auth.signOut();
 
         throw new Error(
-          "Your FuelNow account is not active. Please contact support.",
+          "Your FuelNow account is not active. Please contact support."
         );
       }
 
@@ -118,80 +133,114 @@ export default function LoginScreen({ navigation }: Props) {
       if (!appUser.user_id) {
         await supabase.auth.signOut();
 
-        throw new Error("Login succeeded, but no FuelNow user ID was found.");
+        throw new Error(
+          "Login succeeded, but no FuelNow user ID was found."
+        );
       }
 
       // =====================================================
       // 5. CHECK CUSTOMER PROFILE
       // =====================================================
-      //
-      // Relationship:
-      //
-      // auth.users.id
-      //       ↓
-      // users.auth_id
-      //       ↓
-      // users.user_id
-      //       ↓
-      // customers.customer_id
-      //
-      // =====================================================
 
-      const { data: customerProfile, error: customerError } = await supabase
+      const {
+        data: customerProfile,
+        error: customerError,
+      } = await supabase
         .from("customers")
         .select(
           `
         customer_id,
         loyalty_tier,
         fuel_points_balance
-      `,
+      `
         )
         .eq("customer_id", appUser.user_id)
         .single();
 
       if (customerError || !customerProfile) {
-        console.error("CUSTOMER PROFILE LOOKUP ERROR:", customerError);
+        console.error(
+          "CUSTOMER PROFILE LOOKUP ERROR:",
+          customerError
+        );
 
         await supabase.auth.signOut();
 
         throw new Error(
-          "This account does not have a FuelNow customer profile.",
+          "This account does not have a FuelNow customer profile."
         );
       }
 
       console.log(
         "CUSTOMER PROFILE:",
-        JSON.stringify(customerProfile, null, 2),
+        JSON.stringify(customerProfile, null, 2)
       );
 
       // =====================================================
       // 6. SAVE THE FUELNOW USER ID
       // =====================================================
 
-      await userRepository.setAuthenticatedUserId(appUser.user_id);
+      await userRepository.setAuthenticatedUserId(
+        appUser.user_id
+      );
 
-      console.log("FUELNOW USER ID SAVED:", appUser.user_id);
+      console.log(
+        "FUELNOW USER ID SAVED:",
+        appUser.user_id
+      );
 
-      console.log("CUSTOMER ID:", customerProfile.customer_id);
+      console.log(
+        "CUSTOMER ID:",
+        customerProfile.customer_id
+      );
 
-      console.log("AUTH ID:", appUser.auth_id);
+      console.log(
+        "AUTH ID:",
+        appUser.auth_id
+      );
 
       // =====================================================
-      // 7. LOGIN COMPLETE
+      // 7. REGISTER THIS DEVICE WITH FIREBASE CLOUD MESSAGING
+      // =====================================================
+
+      try {
+        await pushNotificationService.initialize();
+      } catch (pushError) {
+        console.error(
+          "FCM registration failed:",
+          pushError
+        );
+      }
+
+      // =====================================================
+      // 8. LOGIN COMPLETE
       // =====================================================
 
       navigation.replace("MainTabs");
     } catch (e: any) {
       console.error("Login error:", e);
 
-      const message = e?.message?.toLowerCase() || "";
+      const message =
+        e?.message?.toLowerCase() || "";
 
-      if (message.includes("invalid login credentials")) {
+      if (
+        message.includes(
+          "invalid login credentials"
+        )
+      ) {
         setError("Invalid email or password.");
-      } else if (message.includes("email not confirmed")) {
-        setError("Please confirm your email address before signing in.");
+      } else if (
+        message.includes(
+          "email not confirmed"
+        )
+      ) {
+        setError(
+          "Please confirm your email address before signing in."
+        );
       } else {
-        setError(e?.message || "Unable to sign in. Please try again.");
+        setError(
+          e?.message ||
+            "Unable to sign in. Please try again."
+        );
       }
     } finally {
       setLoading(false);
@@ -203,12 +252,18 @@ export default function LoginScreen({ navigation }: Props) {
       style={[
         styles.container,
         {
-          backgroundColor: isWireframe ? "#F0F0F0" : colors.warmAsh,
+          backgroundColor: isWireframe
+            ? "#F0F0F0"
+            : colors.warmAsh,
         },
       ]}
     >
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={
+          Platform.OS === "ios"
+            ? "padding"
+            : undefined
+        }
         style={{ flex: 1 }}
       >
         <ScrollView
@@ -226,7 +281,8 @@ export default function LoginScreen({ navigation }: Props) {
                 style={[
                   styles.logoMark,
                   {
-                    backgroundColor: colors.petrolDeep,
+                    backgroundColor:
+                      colors.petrolDeep,
                   },
                 ]}
               >
@@ -234,8 +290,10 @@ export default function LoginScreen({ navigation }: Props) {
                   style={[
                     styles.logoText,
                     {
-                      fontFamily: font("displayBold"),
-                      color: colors.ignitionAmber,
+                      fontFamily:
+                        font("displayBold"),
+                      color:
+                        colors.ignitionAmber,
                     },
                   ]}
                 >
@@ -248,8 +306,11 @@ export default function LoginScreen({ navigation }: Props) {
               style={[
                 styles.appName,
                 {
-                  color: isWireframe ? "#1A1A1A" : colors.petrolDeep,
-                  fontFamily: font("displayBold"),
+                  color: isWireframe
+                    ? "#1A1A1A"
+                    : colors.petrolDeep,
+                  fontFamily:
+                    font("displayBold"),
                   fontSize: FontSizes["3xl"],
                 },
               ]}
@@ -261,7 +322,9 @@ export default function LoginScreen({ navigation }: Props) {
               style={[
                 styles.tagline,
                 {
-                  color: isWireframe ? "#666" : colors.inkLight,
+                  color: isWireframe
+                    ? "#666"
+                    : colors.inkLight,
                   fontFamily: font("body"),
                   fontSize: FontSizes.base,
                 },
@@ -276,9 +339,15 @@ export default function LoginScreen({ navigation }: Props) {
             style={[
               styles.card,
               {
-                backgroundColor: isWireframe ? "#FFFFFF" : colors.white,
-                borderRadius: isWireframe ? Radius.sm : Radius.xl,
-                borderWidth: isWireframe ? 1.5 : 0,
+                backgroundColor: isWireframe
+                  ? "#FFFFFF"
+                  : colors.white,
+                borderRadius: isWireframe
+                  ? Radius.sm
+                  : Radius.xl,
+                borderWidth: isWireframe
+                  ? 1.5
+                  : 0,
                 borderColor: "#CCCCCC",
               },
             ]}
@@ -287,7 +356,9 @@ export default function LoginScreen({ navigation }: Props) {
               style={[
                 styles.formTitle,
                 {
-                  color: isWireframe ? "#1A1A1A" : colors.charcoalInk,
+                  color: isWireframe
+                    ? "#1A1A1A"
+                    : colors.charcoalInk,
                   fontFamily: font("display"),
                   fontSize: FontSizes.xl,
                 },
@@ -300,7 +371,9 @@ export default function LoginScreen({ navigation }: Props) {
               style={[
                 styles.formSubtitle,
                 {
-                  color: isWireframe ? "#666" : colors.inkLight,
+                  color: isWireframe
+                    ? "#666"
+                    : colors.inkLight,
                   fontFamily: font("body"),
                   fontSize: FontSizes.sm,
                   marginBottom: Spacing.xl,
@@ -323,7 +396,11 @@ export default function LoginScreen({ navigation }: Props) {
                 <Feather
                   name="mail"
                   size={18}
-                  color={isWireframe ? "#888" : colors.inkLight}
+                  color={
+                    isWireframe
+                      ? "#888"
+                      : colors.inkLight
+                  }
                 />
               }
             />
@@ -341,7 +418,11 @@ export default function LoginScreen({ navigation }: Props) {
                 <Feather
                   name="lock"
                   size={18}
-                  color={isWireframe ? "#888" : colors.inkLight}
+                  color={
+                    isWireframe
+                      ? "#888"
+                      : colors.inkLight
+                  }
                 />
               }
             />
@@ -352,9 +433,13 @@ export default function LoginScreen({ navigation }: Props) {
                 style={[
                   styles.error,
                   {
-                    color: isWireframe ? "#555" : colors.signalRed,
-                    fontFamily: font("body"),
-                    fontSize: FontSizes.sm,
+                    color: isWireframe
+                      ? "#555"
+                      : colors.signalRed,
+                    fontFamily:
+                      font("body"),
+                    fontSize:
+                      FontSizes.sm,
                   },
                 ]}
               >
@@ -365,15 +450,23 @@ export default function LoginScreen({ navigation }: Props) {
             {/* Forgot password */}
             <TouchableOpacity
               style={styles.forgotBtn}
-              onPress={() => navigation.navigate("ForgotPassword")}
+              onPress={() =>
+                navigation.navigate(
+                  "ForgotPassword"
+                )
+              }
             >
               <Text
                 style={[
                   styles.forgotText,
                   {
-                    color: isWireframe ? "#444" : colors.petrolDeep,
-                    fontFamily: font("bodyMedium"),
-                    fontSize: FontSizes.sm,
+                    color: isWireframe
+                      ? "#444"
+                      : colors.petrolDeep,
+                    fontFamily:
+                      font("bodyMedium"),
+                    fontSize:
+                      FontSizes.sm,
                   },
                 ]}
               >
@@ -400,23 +493,35 @@ export default function LoginScreen({ navigation }: Props) {
               style={[
                 styles.signupText,
                 {
-                  color: isWireframe ? "#555" : colors.inkLight,
-                  fontFamily: font("body"),
-                  fontSize: FontSizes.sm,
+                  color: isWireframe
+                    ? "#555"
+                    : colors.inkLight,
+                  fontFamily:
+                    font("body"),
+                  fontSize:
+                    FontSizes.sm,
                 },
               ]}
             >
               Don't have an account?{" "}
             </Text>
 
-            <TouchableOpacity onPress={() => navigation.navigate("SignUp")}>
+            <TouchableOpacity
+              onPress={() =>
+                navigation.navigate("SignUp")
+              }
+            >
               <Text
                 style={[
                   styles.signupLink,
                   {
-                    color: isWireframe ? "#333" : colors.petrolDeep,
-                    fontFamily: font("bodySemiBold"),
-                    fontSize: FontSizes.sm,
+                    color: isWireframe
+                      ? "#333"
+                      : colors.petrolDeep,
+                    fontFamily:
+                      font("bodySemiBold"),
+                    fontSize:
+                      FontSizes.sm,
                   },
                 ]}
               >
@@ -507,3 +612,4 @@ const styles = StyleSheet.create({
 
   signupLink: {},
 });
+

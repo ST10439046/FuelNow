@@ -1,17 +1,19 @@
 import { Platform } from "react-native";
-import * as Device from "expo-device";
-import * as Notifications from "expo-notifications";
+import {
+  AuthorizationStatus,
+  getMessaging,
+  getToken,
+  onMessage,
+  onTokenRefresh,
+  onNotificationOpenedApp,
+  getInitialNotification,
+  registerDeviceForRemoteMessages,
+  requestPermission,
+  type RemoteMessage,
+} from "@react-native-firebase/messaging";
+
 import { supabase } from "./supabase";
 import { userRepository } from "../repositories/UserRepository";
-
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
-});
 
 export interface PushNotificationData {
   notificationId?: string;
@@ -35,37 +37,36 @@ class PushNotificationService {
     return PushNotificationService.instance;
   }
 
+  /**
+   * Initialize Firebase Cloud Messaging for the current customer.
+   *
+   * This:
+   * 1. Requests notification permission.
+   * 2. Registers the device for remote messages.
+   * 3. Gets the FCM token.
+   * 4. Saves the token against the logged-in FuelNow customer.
+   */
   public async initialize(): Promise<string | null> {
-    if (Platform.OS === "web") {
+    if (Platform.OS !== "android" && Platform.OS !== "ios") {
       console.log(
-        "PushNotificationService: web push registration is not enabled."
-      );
-
-      return null;
-    }
-
-    if (!Device.isDevice) {
-      console.log(
-        "PushNotificationService: push notifications require a physical device."
+        "PushNotificationService: FCM is disabled on this platform."
       );
 
       return null;
     }
 
     try {
-      const permissions =
-        await Notifications.getPermissionsAsync();
+      const messaging = getMessaging();
 
-      let finalStatus = permissions.status;
+      const permissionStatus = await requestPermission(
+        messaging
+      );
 
-      if (finalStatus !== "granted") {
-        const requested =
-          await Notifications.requestPermissionsAsync();
+      const enabled =
+        permissionStatus === AuthorizationStatus.AUTHORIZED ||
+        permissionStatus === AuthorizationStatus.PROVISIONAL;
 
-        finalStatus = requested.status;
-      }
-
-      if (finalStatus !== "granted") {
+      if (!enabled) {
         console.log(
           "PushNotificationService: notification permission denied."
         );
@@ -73,48 +74,27 @@ class PushNotificationService {
         return null;
       }
 
-      if (Platform.OS === "android") {
-        await Notifications.setNotificationChannelAsync(
-          "default",
-          {
-            name: "FuelNow Notifications",
-            importance:
-              Notifications.AndroidImportance.MAX,
-            vibrationPattern: [0, 250, 250, 250],
-            lightColor: "#0B3D42",
-            sound: "default",
-          }
-        );
-      }
+      await registerDeviceForRemoteMessages(messaging);
 
-      const projectId =
-        process.env.EXPO_PUBLIC_EAS_PROJECT_ID;
+      const fcmToken = await getToken(messaging);
 
-      if (!projectId) {
+      if (!fcmToken) {
         throw new Error(
-          "Missing EXPO_PUBLIC_EAS_PROJECT_ID."
+          "Firebase did not return an FCM registration token."
         );
       }
-
-      const tokenResponse =
-        await Notifications.getExpoPushTokenAsync({
-          projectId,
-        });
-
-      const expoPushToken =
-        tokenResponse.data;
 
       console.log(
-        "PushNotificationService: Expo push token:",
-        expoPushToken
+        "PushNotificationService: FCM token received:",
+        fcmToken
       );
 
-      await this.saveToken(expoPushToken);
+      await this.saveToken(fcmToken);
 
-      return expoPushToken;
+      return fcmToken;
     } catch (error) {
       console.error(
-        "PushNotificationService: failed to initialize:",
+        "PushNotificationService: failed to initialize FCM:",
         error
       );
 
@@ -122,41 +102,46 @@ class PushNotificationService {
     }
   }
 
+  /**
+   * Save the FCM token for the currently authenticated
+   * FuelNow customer.
+   */
   private async saveToken(
-    expoPushToken: string
+    fcmToken: string
   ): Promise<void> {
     const customerId =
       await userRepository.getCurrentUserId();
 
+    if (!customerId) {
+      throw new Error(
+        "Cannot save FCM token because no authenticated FuelNow user was found."
+      );
+    }
+
     const platform =
       Platform.OS === "android"
         ? "android"
-        : Platform.OS === "ios"
-          ? "ios"
-          : "web";
-
-    const deviceName =
-      Device.deviceName ?? null;
+        : "ios";
 
     const { error } = await supabase
       .from("customer_push_tokens")
       .upsert(
         {
           customer_id: customerId,
-          expo_push_token: expoPushToken,
+          fcm_token: fcmToken,
           platform,
-          device_name: deviceName,
+          device_name: null,
           is_active: true,
           updated_at: new Date().toISOString(),
         },
         {
-          onConflict: "expo_push_token",
+          onConflict: "fcm_token",
         }
       );
 
     if (error) {
       console.error(
-        "PushNotificationService: failed to save push token:",
+        "PushNotificationService: failed to save FCM token:",
         error
       );
 
@@ -164,18 +149,61 @@ class PushNotificationService {
     }
 
     console.log(
-      "PushNotificationService: push token saved."
+      "PushNotificationService: FCM token saved successfully."
     );
   }
 
-  public async deactivateCurrentToken(): Promise<void> {
-    if (Platform.OS === "web") {
-      return;
+  /**
+   * Get the current FCM token and save it again.
+   *
+   * Useful when the application starts or when the token
+   * may have changed.
+   */
+  public async refreshToken(): Promise<string | null> {
+    if (Platform.OS !== "android" && Platform.OS !== "ios") {
+      return null;
     }
 
     try {
+      const messaging = getMessaging();
+
+      const token = await getToken(messaging);
+
+      if (!token) {
+        console.log(
+          "PushNotificationService: no FCM token available."
+        );
+
+        return null;
+      }
+
+      await this.saveToken(token);
+
+      return token;
+    } catch (error) {
+      console.error(
+        "PushNotificationService: failed to refresh FCM token:",
+        error
+      );
+
+      return null;
+    }
+  }
+
+  /**
+   * Mark the current customer's push token(s) as inactive.
+   *
+   * We do not delete the token from the database because
+   * keeping the record is useful for device/token tracking.
+   */
+  public async deactivateCurrentToken(): Promise<void> {
+    try {
       const customerId =
         await userRepository.getCurrentUserId();
+
+      if (!customerId) {
+        return;
+      }
 
       const { error } = await supabase
         .from("customer_push_tokens")
@@ -187,35 +215,120 @@ class PushNotificationService {
 
       if (error) {
         console.error(
-          "PushNotificationService: failed to deactivate token:",
+          "PushNotificationService: failed to deactivate FCM token:",
           error
         );
       }
     } catch (error) {
       console.error(
-        "PushNotificationService: failed to deactivate current token:",
+        "PushNotificationService: failed to deactivate current FCM token:",
         error
       );
     }
   }
 
-  public addNotificationReceivedListener(
-    listener: (
-      notification: Notifications.Notification
-    ) => void
-  ): Notifications.EventSubscription {
-    return Notifications.addNotificationReceivedListener(
-      listener
+  /**
+   * Listen for FCM messages while the app is in the foreground.
+   */
+  public addMessageListener(
+    listener: (message: RemoteMessage) => void
+  ): () => void {
+    if (
+      Platform.OS !== "android" &&
+      Platform.OS !== "ios"
+    ) {
+      return () => {};
+    }
+
+    const messaging = getMessaging();
+
+    return onMessage(
+      messaging,
+      async (message) => {
+        listener(message);
+      }
     );
   }
 
-  public addNotificationResponseListener(
-    listener: (
-      response: Notifications.NotificationResponse
-    ) => void
-  ): Notifications.EventSubscription {
-    return Notifications.addNotificationResponseReceivedListener(
-      listener
+  /**
+   * Listen for Firebase token refresh events.
+   */
+  public addTokenRefreshListener(
+    listener: (token: string) => void
+  ): () => void {
+    if (
+      Platform.OS !== "android" &&
+      Platform.OS !== "ios"
+    ) {
+      return () => {};
+    }
+
+    const messaging = getMessaging();
+
+    return onTokenRefresh(
+      messaging,
+      async (token) => {
+        listener(token);
+
+        try {
+          await this.saveToken(token);
+        } catch (error) {
+          console.error(
+            "PushNotificationService: failed to save refreshed FCM token:",
+            error
+          );
+        }
+      }
+    );
+  }
+
+  /**
+   * Check whether the application was opened from
+   * a notification while it was completely closed.
+   */
+  public async getInitialNotification(): Promise<RemoteMessage | null> {
+    if (
+      Platform.OS !== "android" &&
+      Platform.OS !== "ios"
+    ) {
+      return null;
+    }
+
+    try {
+      const messaging = getMessaging();
+
+      return await getInitialNotification(messaging);
+    } catch (error) {
+      console.error(
+        "PushNotificationService: failed to get initial notification:",
+        error
+      );
+
+      return null;
+    }
+  }
+
+  /**
+   * Listen for a notification being opened while the
+   * application was in the background.
+   */
+  public onNotificationOpenedApp(
+    listener: (message: RemoteMessage) => void
+  ): () => void {
+    if (
+      Platform.OS !== "android" &&
+      Platform.OS !== "ios"
+    ) {
+      return () => {};
+    }
+
+    const messaging = getMessaging();
+
+    return onNotificationOpenedApp(
+      messaging,
+      (message) => {
+        listener(message);
+      }
     );
   }
 }
