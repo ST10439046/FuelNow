@@ -1253,10 +1253,8 @@ export default function OrderDetailsScreen({
                     marginTop: 3,
                   }}
                 >
-                  {driver?.rating} ·{" "}
-                  {driver?.totalDeliveries?.toLocaleString() ??
-                    "1,000+"}{" "}
-                  deliveries
+                  {driver?.rating} {"stars"}
+                  
                 </Text>
               </View>
 

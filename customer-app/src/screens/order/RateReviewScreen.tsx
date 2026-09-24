@@ -23,6 +23,7 @@ import Button from '../../components/Button';
 import {
   orderRepository,
 } from '../../repositories/OrderRepository';
+import OrderHistoryScreen from '../history/OrderHistoryScreen';
 
 interface Props {
   navigation: any;
@@ -264,9 +265,9 @@ export default function RateReviewScreen({
 
       setTimeout(() => {
         navigation.navigate(
-          'DigitalReceipt',
+          'OrderHistoryScreen',
           {
-            orderId,
+            
           }
         );
       }, 1500);
@@ -293,9 +294,9 @@ export default function RateReviewScreen({
     }
 
     navigation.navigate(
-      'DigitalReceipt',
+      'OrderHistoryScreen',
       {
-        orderId,
+        
       }
     );
   };
