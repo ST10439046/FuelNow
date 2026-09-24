@@ -264,12 +264,7 @@ export default function RateReviewScreen({
       setDone(true);
 
       setTimeout(() => {
-        navigation.navigate(
-          'OrderHistoryScreen',
-          {
-            
-          }
-        );
+        
       }, 1500);
     } catch (e: any) {
       console.error(
