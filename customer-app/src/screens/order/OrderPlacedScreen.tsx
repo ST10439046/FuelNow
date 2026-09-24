@@ -6,21 +6,23 @@ import {
   Animated,
   TouchableOpacity,
   ScrollView,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
+
 import { useDesignMode } from "../../context/DesignModeContext";
 import { FontSizes, Spacing, Radius } from "../../theme/tokens";
 import Button from "../../components/Button";
+import {
+  orderRepository,
+  OrderModel,
+} from "../../repositories/OrderRepository";
 
 interface Props {
   navigation: any;
   route?: any;
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Order progress
-// ─────────────────────────────────────────────────────────────────────────────
 
 const STEPS = [
   {
@@ -45,9 +47,63 @@ const STEPS = [
   },
 ];
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Animated truck
-// ─────────────────────────────────────────────────────────────────────────────
+const STATUS_PROGRESS: Record<string, number> = {
+  PENDING_PAYMENT: 0,
+  PAID: 0,
+  FINDING_DRIVER: 0,
+  ACCEPTED: 1,
+  NAVIGATING: 2,
+  ARRIVED: 2,
+  DISPENSING: 2,
+  DELIVERED: 3,
+  COMPLETED: 3,
+  CANCELLED: 0,
+};
+
+function getProgressForStatus(status?: string): number {
+  if (!status) {
+    return 0;
+  }
+
+  return STATUS_PROGRESS[status] ?? 0;
+}
+
+function getStatusLabel(status?: string): string {
+  switch (status) {
+    case "PENDING_PAYMENT":
+      return "Payment pending";
+
+    case "PAID":
+      return "Order paid";
+
+    case "FINDING_DRIVER":
+      return "Finding your driver";
+
+    case "ACCEPTED":
+      return "Driver assigned";
+
+    case "NAVIGATING":
+      return "Driver is en route";
+
+    case "ARRIVED":
+      return "Driver has arrived";
+
+    case "DISPENSING":
+      return "Fuel is being dispensed";
+
+    case "DELIVERED":
+      return "Fuel delivered";
+
+    case "COMPLETED":
+      return "Order completed";
+
+    case "CANCELLED":
+      return "Order cancelled";
+
+    default:
+      return "Order placed";
+  }
+}
 
 function MovingTruck() {
   const pos = useRef(new Animated.Value(0)).current;
@@ -93,45 +149,93 @@ function MovingTruck() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Screen
-// ─────────────────────────────────────────────────────────────────────────────
-
-export default function OrderPlacedScreen({ navigation, route }: Props) {
+export default function OrderPlacedScreen({
+  navigation,
+  route,
+}: Props) {
   const { colors, font, isWireframe: isWF } = useDesignMode();
 
-  const orderCreated = route?.params?.orderCreated === true;
-  const orderId = route?.params?.orderId ?? null;
+  const orderCreated =
+    route?.params?.orderCreated === true;
+
+  const orderId =
+    route?.params?.orderId ?? null;
+
   const errorMessage =
     route?.params?.errorMessage ??
     "Something went wrong while placing your order.";
 
-  const [currentStep, setCurrentStep] = useState(orderCreated ? 0 : -1);
+  const [order, setOrder] =
+    useState<OrderModel | null>(null);
 
-  // Only simulate progress AFTER an order has actually been created.
+  const [loadingOrder, setLoadingOrder] =
+    useState(Boolean(orderId));
+
+  const [currentStep, setCurrentStep] =
+    useState(0);
+
   useEffect(() => {
-    if (!orderCreated) {
+    if (!orderId || !orderCreated) {
+      setLoadingOrder(false);
       return;
     }
 
-    const timer = setTimeout(() => {
-      setCurrentStep(1);
-    }, 3000);
+    let mounted = true;
 
-    return () => clearTimeout(timer);
-  }, [orderCreated]);
+    const loadOrder = async () => {
+      try {
+        const result =
+          await orderRepository.getOrderById(orderId);
 
-  const bg = isWF ? "#F0F0F0" : colors.warmAsh;
+        if (!mounted) {
+          return;
+        }
 
-  const accentColor = isWF ? "#4A4A4A" : colors.petrolDeep;
+        if (result) {
+          setOrder(result);
+          setCurrentStep(
+            getProgressForStatus(result.status),
+          );
+        }
+      } catch (error) {
+        console.error(
+          "OrderPlacedScreen: failed to load order:",
+          error,
+        );
+      } finally {
+        if (mounted) {
+          setLoadingOrder(false);
+        }
+      }
+    };
 
-  const headingColor = isWF ? "#1A1A1A" : colors.charcoalInk;
+    loadOrder();
 
-  const subColor = isWF ? "#555" : colors.inkLight;
+    const interval = setInterval(
+      loadOrder,
+      5000,
+    );
 
-  // ───────────────────────────────────────────────────────────────────────────
-  // FAILURE
-  // ───────────────────────────────────────────────────────────────────────────
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, [orderId, orderCreated]);
+
+  const bg =
+    isWF
+      ? "#F0F0F0"
+      : colors.warmAsh;
+
+  const headingColor =
+    isWF
+      ? "#1A1A1A"
+      : colors.charcoalInk;
+
+  const subColor =
+    isWF
+      ? "#555"
+      : colors.inkLight;
 
   if (!orderCreated) {
     return (
@@ -148,14 +252,21 @@ export default function OrderPlacedScreen({ navigation, route }: Props) {
             style={[
               styles.failureIcon,
               {
-                backgroundColor: isWF ? "#D0D0D0" : "#FEE2E2",
+                backgroundColor:
+                  isWF
+                    ? "#D0D0D0"
+                    : "#FEE2E2",
               },
             ]}
           >
             <Feather
               name="x-circle"
               size={52}
-              color={isWF ? "#555" : "#DC2626"}
+              color={
+                isWF
+                  ? "#555"
+                  : "#DC2626"
+              }
             />
           </View>
 
@@ -164,8 +275,10 @@ export default function OrderPlacedScreen({ navigation, route }: Props) {
               styles.failureTitle,
               {
                 color: headingColor,
-                fontFamily: font("displayBold"),
-                fontSize: FontSizes["2xl"],
+                fontFamily:
+                  font("displayBold"),
+                fontSize:
+                  FontSizes["2xl"],
               },
             ]}
           >
@@ -177,18 +290,24 @@ export default function OrderPlacedScreen({ navigation, route }: Props) {
               styles.failureText,
               {
                 color: subColor,
-                fontFamily: font("body"),
-                fontSize: FontSizes.base,
+                fontFamily:
+                  font("body"),
+                fontSize:
+                  FontSizes.base,
               },
             ]}
           >
             {errorMessage}
           </Text>
 
-          <View style={styles.failureButtons}>
+          <View
+            style={styles.failureButtons}
+          >
             <Button
               label="Try Again"
-              onPress={() => navigation.goBack()}
+              onPress={() =>
+                navigation.goBack()
+              }
               variant="primary"
               size="lg"
             />
@@ -197,23 +316,42 @@ export default function OrderPlacedScreen({ navigation, route }: Props) {
               style={[
                 styles.secondaryBtn,
                 {
-                  borderColor: isWF ? "#AAAAAA" : colors.divider,
-                  borderRadius: isWF ? Radius.sm : Radius.lg,
+                  borderColor:
+                    isWF
+                      ? "#AAAAAA"
+                      : colors.divider,
+                  borderRadius:
+                    isWF
+                      ? Radius.sm
+                      : Radius.lg,
                 },
               ]}
-              onPress={() => navigation.navigate("MainTabs")}
+              onPress={() =>
+                navigation.navigate(
+                  "MainTabs",
+                )
+              }
             >
               <Feather
                 name="home"
                 size={16}
-                color={isWF ? "#555" : colors.inkLight}
+                color={
+                  isWF
+                    ? "#555"
+                    : colors.inkLight
+                }
               />
 
               <Text
                 style={{
-                  color: isWF ? "#555" : colors.inkLight,
-                  fontFamily: font("bodyMedium"),
-                  fontSize: FontSizes.base,
+                  color:
+                    isWF
+                      ? "#555"
+                      : colors.inkLight,
+                  fontFamily:
+                    font("bodyMedium"),
+                  fontSize:
+                    FontSizes.base,
                 }}
               >
                 Back to Home
@@ -225,9 +363,12 @@ export default function OrderPlacedScreen({ navigation, route }: Props) {
     );
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
-  // SUCCESS
-  // ───────────────────────────────────────────────────────────────────────────
+  const actualStatus =
+    order?.status ??
+    "PENDING_PAYMENT";
+
+  const statusLabel =
+    getStatusLabel(actualStatus);
 
   return (
     <SafeAreaView
@@ -238,28 +379,42 @@ export default function OrderPlacedScreen({ navigation, route }: Props) {
         },
       ]}
     >
-      {/* Order ID */}
       <View style={styles.header}>
         <View
           style={[
             styles.orderIdBadge,
             {
-              backgroundColor: isWF ? "#E0E0E0" : colors.petrolLight,
-              borderRadius: Radius.full,
+              backgroundColor:
+                isWF
+                  ? "#E0E0E0"
+                  : colors.petrolLight,
+              borderRadius:
+                Radius.full,
             },
           ]}
         >
           <Feather
             name="hash"
             size={12}
-            color={isWF ? "#555" : colors.petrolDeep}
+            color={
+              isWF
+                ? "#555"
+                : colors.petrolDeep
+            }
           />
 
           <Text
             style={{
-              color: isWF ? "#333" : colors.petrolDeep,
-              fontFamily: isWF ? undefined : "Inter_500Medium",
-              fontSize: FontSizes.xs,
+              color:
+                isWF
+                  ? "#333"
+                  : colors.petrolDeep,
+              fontFamily:
+                isWF
+                  ? undefined
+                  : "Inter_500Medium",
+              fontSize:
+                FontSizes.xs,
             }}
           >
             {orderId ?? "Order"}
@@ -269,58 +424,139 @@ export default function OrderPlacedScreen({ navigation, route }: Props) {
 
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={styles.scroll}
-        showsVerticalScrollIndicator={false}
+        contentContainerStyle={
+          styles.scroll
+        }
+        showsVerticalScrollIndicator={
+          false
+        }
       >
-        {/* Success icon */}
-        <View style={styles.successContainer}>
+        <View
+          style={
+            styles.successContainer
+          }
+        >
           <View
             style={[
               styles.successIcon,
               {
-                backgroundColor: isWF ? "#D0D0D0" : "#DCFCE7",
+                backgroundColor:
+                  isWF
+                    ? "#D0D0D0"
+                    : "#DCFCE7",
               },
             ]}
           >
-            <Feather name="check" size={48} color={isWF ? "#555" : "#16A34A"} />
+            <Feather
+              name="check"
+              size={48}
+              color={
+                isWF
+                  ? "#555"
+                  : "#16A34A"
+              }
+            />
           </View>
 
           <Text
             style={{
               color: headingColor,
-              fontFamily: font("displayBold"),
-              fontSize: FontSizes["2xl"],
+              fontFamily:
+                font("displayBold"),
+              fontSize:
+                FontSizes["2xl"],
               textAlign: "center",
-              marginTop: Spacing.md,
+              marginTop:
+                Spacing.md,
             }}
           >
-            Order placed successfully! 🎉
+            Order placed successfully!
           </Text>
 
           <Text
             style={{
               color: subColor,
-              fontFamily: font("body"),
-              fontSize: FontSizes.base,
+              fontFamily:
+                font("body"),
+              fontSize:
+                FontSizes.base,
               textAlign: "center",
               maxWidth: 320,
               lineHeight: 22,
-              marginTop: Spacing.sm,
+              marginTop:
+                Spacing.sm,
             }}
           >
-            Your fuel order has been created successfully. We will keep you
-            updated as your order progresses.
+            Your fuel order has been
+            created successfully. We
+            will keep you updated as
+            your order progresses.
           </Text>
+
+          {loadingOrder ? (
+            <View
+              style={
+                styles.statusLoading
+              }
+            >
+              <ActivityIndicator
+                size="small"
+                color={
+                  isWF
+                    ? "#555"
+                    : colors.petrolDeep
+                }
+              />
+
+              <Text
+                style={{
+                  color: subColor,
+                  fontFamily:
+                    font("body"),
+                  fontSize:
+                    FontSizes.xs,
+                }}
+              >
+                Loading current order
+                status...
+              </Text>
+            </View>
+          ) : (
+            <Text
+              style={{
+                color:
+                  isWF
+                    ? "#555"
+                    : colors.petrolDeep,
+                fontFamily:
+                  font("bodyMedium"),
+                fontSize:
+                  FontSizes.sm,
+                marginTop:
+                  Spacing.md,
+              }}
+            >
+              {statusLabel}
+            </Text>
+          )}
         </View>
 
-        {/* Truck */}
         <View
           style={[
             styles.driverCard,
             {
-              backgroundColor: isWF ? "#FFFFFF" : colors.white,
-              borderRadius: isWF ? Radius.sm : Radius.xl,
-              borderColor: isWF ? "#DDD" : colors.divider,
+              backgroundColor:
+                isWF
+                  ? "#FFFFFF"
+                  : colors.white,
+              borderRadius:
+                isWF
+                  ? Radius.sm
+                  : Radius.xl,
+              borderColor:
+                isWF
+                  ? "#DDD"
+                  : colors.divider,
             },
           ]}
         >
@@ -328,17 +564,23 @@ export default function OrderPlacedScreen({ navigation, route }: Props) {
             style={[
               styles.truckStrip,
               {
-                backgroundColor: isWF ? "#F0F0F0" : colors.petrolLight,
+                backgroundColor:
+                  isWF
+                    ? "#F0F0F0"
+                    : colors.petrolLight,
               },
             ]}
           >
-            {!isWF && <MovingTruck />}
+            {!isWF && (
+              <MovingTruck />
+            )}
 
             {isWF && (
               <Text
                 style={{
                   color: "#888",
-                  fontSize: FontSizes.sm,
+                  fontSize:
+                    FontSizes.sm,
                 }}
               >
                 [ Delivery vehicle ]
@@ -350,140 +592,233 @@ export default function OrderPlacedScreen({ navigation, route }: Props) {
                 style={[
                   styles.roadLine,
                   {
-                    backgroundColor: colors.petrolDeep,
+                    backgroundColor:
+                      colors.petrolDeep,
                   },
                 ]}
               />
             )}
           </View>
 
-          <View style={styles.orderInfo}>
+          <View
+            style={styles.orderInfo}
+          >
             <View
               style={[
                 styles.orderIcon,
                 {
-                  backgroundColor: isWF ? "#D0D0D0" : colors.petrolDeep,
+                  backgroundColor:
+                    isWF
+                      ? "#D0D0D0"
+                      : colors.petrolDeep,
                 },
               ]}
             >
               <Feather
                 name="package"
                 size={26}
-                color={isWF ? "#555" : "#FFFFFF"}
+                color={
+                  isWF
+                    ? "#555"
+                    : "#FFFFFF"
+                }
               />
             </View>
 
-            <View style={{ flex: 1 }}>
+            <View
+              style={{ flex: 1 }}
+            >
               <Text
                 style={{
                   color: headingColor,
-                  fontFamily: font("displayBold"),
-                  fontSize: FontSizes.lg,
+                  fontFamily:
+                    font("displayBold"),
+                  fontSize:
+                    FontSizes.lg,
                 }}
               >
-                Order confirmed
+                {statusLabel}
               </Text>
 
               <Text
                 style={{
                   color: subColor,
-                  fontFamily: font("body"),
-                  fontSize: FontSizes.xs,
+                  fontFamily:
+                    font("body"),
+                  fontSize:
+                    FontSizes.xs,
                   marginTop: 3,
                 }}
               >
-                Your order has been received by FuelNow.
+                Order status is
+                automatically loaded
+                from FuelNow.
               </Text>
             </View>
           </View>
         </View>
 
-        {/* Progress */}
         <View
           style={[
             styles.stepsCard,
             {
-              backgroundColor: isWF ? "#FFFFFF" : colors.white,
-              borderColor: isWF ? "#DDD" : colors.divider,
-              borderRadius: isWF ? Radius.sm : Radius.lg,
+              backgroundColor:
+                isWF
+                  ? "#FFFFFF"
+                  : colors.white,
+              borderColor:
+                isWF
+                  ? "#DDD"
+                  : colors.divider,
+              borderRadius:
+                isWF
+                  ? Radius.sm
+                  : Radius.lg,
             },
           ]}
         >
-          {STEPS.map((step, i) => {
-            const isDone = i <= currentStep;
-            const isActive = i === currentStep + 1;
+          {STEPS.map(
+            (step, i) => {
+              const isDone =
+                i < currentStep;
 
-            return (
-              <View key={i} style={styles.stepRow}>
+              const isCurrent =
+                i === currentStep;
+
+              const isCancelled =
+                actualStatus ===
+                "CANCELLED";
+
+              return (
                 <View
-                  style={[
-                    styles.stepDot,
-                    {
-                      backgroundColor: isDone
-                        ? isWF
-                          ? "#4A4A4A"
-                          : step.color
-                        : isActive
-                          ? isWF
-                            ? "#CCCCCC"
-                            : "#E2E8F0"
-                          : isWF
-                            ? "#E8E8E8"
-                            : "#F3F4F6",
-
-                      borderWidth: isActive ? 2 : 0,
-
-                      borderColor: isWF ? "#888" : colors.petrolDeep,
-                    },
-                  ]}
+                  key={step.label}
+                  style={
+                    styles.stepRow
+                  }
                 >
-                  {isDone && <Feather name="check" size={11} color="#FFFFFF" />}
-                </View>
+                  <View
+                    style={[
+                      styles.stepDot,
+                      {
+                        backgroundColor:
+                          isCancelled
+                            ? isWF
+                              ? "#CCCCCC"
+                              : colors.divider
+                            : isDone
+                              ? isWF
+                                ? "#4A4A4A"
+                                : step.color
+                              : isCurrent
+                                ? isWF
+                                  ? "#4A4A4A"
+                                  : step.color
+                                : isWF
+                                  ? "#E8E8E8"
+                                  : "#F3F4F6",
 
-                <View style={{ flex: 1 }}>
-                  <Text
+                        borderWidth:
+                          isCurrent
+                            ? 2
+                            : 0,
+
+                        borderColor:
+                          isWF
+                            ? "#888"
+                            : colors.petrolDeep,
+                      },
+                    ]}
+                  >
+                    {isDone && (
+                      <Feather
+                        name="check"
+                        size={11}
+                        color="#FFFFFF"
+                      />
+                    )}
+
+                    {isCurrent &&
+                      !isDone && (
+                        <View
+                          style={[
+                            styles.currentDot,
+                            {
+                              backgroundColor:
+                                "#FFFFFF",
+                            },
+                          ]}
+                        />
+                      )}
+                  </View>
+
+                  <View
                     style={{
-                      color: isDone
-                        ? isWF
-                          ? "#1A1A1A"
-                          : colors.charcoalInk
-                        : isWF
-                          ? "#AAAAAA"
-                          : colors.inkFaint,
-
-                      fontFamily: font(isDone ? "bodyMedium" : "body"),
-
-                      fontSize: FontSizes.sm,
+                      flex: 1,
                     }}
                   >
-                    {step.label}
-                  </Text>
-                </View>
+                    <Text
+                      style={{
+                        color:
+                          isDone ||
+                          isCurrent
+                            ? isWF
+                              ? "#1A1A1A"
+                              : colors.charcoalInk
+                            : isWF
+                              ? "#AAAAAA"
+                              : colors.inkFaint,
 
-                {isDone && i === 0 && (
-                  <Text
-                    style={{
-                      color: isWF ? "#888" : colors.dieselGreen,
-                      fontFamily: font("body"),
-                      fontSize: FontSizes.xs,
-                    }}
-                  >
-                    ✓ Done
-                  </Text>
-                )}
-              </View>
-            );
-          })}
+                        fontFamily:
+                          font(
+                            isDone ||
+                              isCurrent
+                              ? "bodyMedium"
+                              : "body",
+                          ),
+
+                        fontSize:
+                          FontSizes.sm,
+                      }}
+                    >
+                      {step.label}
+                    </Text>
+
+                    {isCurrent && (
+                      <Text
+                        style={{
+                          color:
+                            isWF
+                              ? "#777"
+                              : colors.inkLight,
+                          fontFamily:
+                            font("body"),
+                          fontSize:
+                            FontSizes.xs,
+                          marginTop: 2,
+                        }}
+                      >
+                        Current status
+                      </Text>
+                    )}
+                  </View>
+                </View>
+              );
+            },
+          )}
         </View>
 
-        {/* Buttons */}
-        <View style={styles.buttons}>
+        <View
+          style={styles.buttons}
+        >
           <Button
-            label="Track Order →"
+            label="View Order Details →"
             onPress={() =>
-              navigation.navigate("LiveTracking", {
-                orderId,
-              })
+              navigation.navigate(
+                "OrderDetails",
+                {
+                  orderId,
+                },
+              )
             }
             variant="primary"
             size="lg"
@@ -493,23 +828,42 @@ export default function OrderPlacedScreen({ navigation, route }: Props) {
             style={[
               styles.secondaryBtn,
               {
-                borderColor: isWF ? "#AAAAAA" : colors.divider,
-                borderRadius: isWF ? Radius.sm : Radius.lg,
+                borderColor:
+                  isWF
+                    ? "#AAAAAA"
+                    : colors.divider,
+                borderRadius:
+                  isWF
+                    ? Radius.sm
+                    : Radius.lg,
               },
             ]}
-            onPress={() => navigation.navigate("MainTabs")}
+            onPress={() =>
+              navigation.navigate(
+                "MainTabs",
+              )
+            }
           >
             <Feather
               name="home"
               size={16}
-              color={isWF ? "#555" : colors.inkLight}
+              color={
+                isWF
+                  ? "#555"
+                  : colors.inkLight
+              }
             />
 
             <Text
               style={{
-                color: isWF ? "#555" : colors.inkLight,
-                fontFamily: font("bodyMedium"),
-                fontSize: FontSizes.base,
+                color:
+                  isWF
+                    ? "#555"
+                    : colors.inkLight,
+                fontFamily:
+                  font("bodyMedium"),
+                fontSize:
+                  FontSizes.base,
               }}
             >
               Back to Home
@@ -527,31 +881,28 @@ const styles = StyleSheet.create({
   },
 
   scroll: {
-    paddingHorizontal: Spacing.base,
-    paddingBottom: Spacing["4xl"],
+    paddingHorizontal:
+      Spacing.base,
+    paddingBottom:
+      Spacing["4xl"],
     gap: Spacing.lg,
   },
 
   header: {
     alignItems: "center",
     paddingTop: Spacing.md,
-    paddingBottom: Spacing.sm,
+    paddingBottom:
+      Spacing.sm,
   },
 
   orderIdBadge: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-  },
-
-  content: {
-    flex: 1,
-    paddingHorizontal: Spacing.base,
-    paddingBottom: Spacing.xl,
-    gap: Spacing.lg,
-    justifyContent: "center",
+    paddingHorizontal:
+      Spacing.md,
+    paddingVertical:
+      Spacing.xs,
   },
 
   successContainer: {
@@ -566,37 +917,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
-  failureContainer: {
-    flex: 1,
+  statusLoading: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: Spacing.xl,
-  },
-
-  failureIcon: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: Spacing.lg,
-  },
-
-  failureTitle: {
-    textAlign: "center",
-    marginBottom: Spacing.sm,
-  },
-
-  failureText: {
-    textAlign: "center",
-    lineHeight: 22,
-    maxWidth: 340,
-  },
-
-  failureButtons: {
-    width: "100%",
     gap: Spacing.sm,
-    marginTop: Spacing.xl,
+    marginTop: Spacing.md,
   },
 
   driverCard: {
@@ -656,6 +981,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
+  currentDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
+
   buttons: {
     gap: Spacing.sm,
   },
@@ -665,7 +996,45 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: Spacing.sm,
-    paddingVertical: Spacing.md,
+    paddingVertical:
+      Spacing.md,
     borderWidth: 1,
+  },
+
+  failureContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal:
+      Spacing.xl,
+  },
+
+  failureIcon: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom:
+      Spacing.lg,
+  },
+
+  failureTitle: {
+    textAlign: "center",
+    marginBottom:
+      Spacing.sm,
+  },
+
+  failureText: {
+    textAlign: "center",
+    lineHeight: 22,
+    maxWidth: 340,
+  },
+
+  failureButtons: {
+    width: "100%",
+    gap: Spacing.sm,
+    marginTop:
+      Spacing.xl,
   },
 });
