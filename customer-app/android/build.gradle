@@ -21,5 +21,38 @@ allprojects {
   }
 }
 
+// Force the Android C++ shared runtime for every native CMake module.
+subprojects { subproject ->
+    subproject.plugins.withId("com.android.application") {
+        subproject.android {
+            defaultConfig {
+                externalNativeBuild {
+                    cmake {
+                        arguments(
+                            "-DANDROID_STL=c++_shared",
+                            "-DCMAKE_SHARED_LINKER_FLAGS=-lc++_shared"
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    subproject.plugins.withId("com.android.library") {
+        subproject.android {
+            defaultConfig {
+                externalNativeBuild {
+                    cmake {
+                        arguments(
+                            "-DANDROID_STL=c++_shared",
+                            "-DCMAKE_SHARED_LINKER_FLAGS=-lc++_shared"
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
 apply plugin: "expo-root-project"
 apply plugin: "com.facebook.react.rootproject"
