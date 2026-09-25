@@ -1,3 +1,4 @@
+
 import React, {
   useEffect,
   useState,
@@ -74,6 +75,10 @@ import {
 import {
   supabase,
 } from './src/services/supabase';
+
+import {
+  driverLocationService,
+} from './src/services/DriverLocationService';
 
 const RootStack =
   createStackNavigator();
@@ -426,6 +431,49 @@ function AppContent() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!sessionReady) {
+      return;
+    }
+
+    let mounted = true;
+
+    const syncLocationTracking =
+      async () => {
+        if (!authenticatedDriver) {
+          await driverLocationService.stopTracking();
+          return;
+        }
+
+        try {
+          const started =
+            await driverLocationService.startTracking();
+
+          if (!started && mounted) {
+            console.error(
+              'DriverLocationService: GPS tracking could not be started.'
+            );
+          }
+        } catch (error) {
+          if (mounted) {
+            console.error(
+              'DriverLocationService: failed to start GPS tracking:',
+              error
+            );
+          }
+        }
+      };
+
+    syncLocationTracking();
+
+    return () => {
+      mounted = false;
+    };
+  }, [
+    sessionReady,
+    authenticatedDriver,
+  ]);
+
   if (!sessionReady) {
     return null;
   }
@@ -476,3 +524,4 @@ const styles =
       flex: 1,
     },
   });
+

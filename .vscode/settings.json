@@ -2,5 +2,6 @@
   "deno.enablePaths": [
     "./supabase/functions"
   ],
-  "deno.importMap": "./supabase/functions/deno.json"
+  "deno.importMap": "./supabase/functions/deno.json",
+  "typescript.tsdk": "node_modules\\typescript\\lib"
 }

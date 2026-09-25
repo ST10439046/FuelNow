@@ -1,5 +1,4 @@
 import { supabase } from '../services/supabase';
-import { realtimeHub } from '../patterns/realtimeObserver';
 
 export interface DriverDocumentModel {
   id: string;
@@ -614,22 +613,39 @@ export class DriverRepository {
     lat: number,
     lng: number
   ): Promise<void> {
+    if (
+      !Number.isFinite(lat) ||
+      !Number.isFinite(lng)
+    ) {
+      throw new Error(
+        'Invalid GPS coordinates.'
+      );
+    }
+
     const driverId =
       await this.getCurrentUserId();
 
-    realtimeHub
-      .getDriverGpsChannel(
+    const {
+      error,
+    } = await supabase
+      .from('drivers')
+      .update({
+        latitude: lat,
+        longitude: lng,
+      })
+      .eq(
+        'driver_id',
         driverId
-      )
-      .notify({
-        driverId,
-        coordinates: {
-          lat,
-          lng,
-        },
-        timestamp:
-          new Date().toISOString(),
-      });
+      );
+
+    if (error) {
+      console.error(
+        'DriverRepository: failed to update GPS coordinates:',
+        error
+      );
+
+      throw error;
+    }
   }
 
   public async acceptOrder(
