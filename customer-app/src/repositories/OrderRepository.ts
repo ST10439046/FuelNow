@@ -636,98 +636,84 @@ export class OrderRepository {
   // GET ORDER BY ID
   // ==========================================================================
 
-  public async getOrderById(
-    id: string
-  ): Promise<OrderModel | null> {
+// ==========================================================================
+// GET ORDER BY ID
+// ==========================================================================
 
-    if (!id) {
+public async getOrderById(
+  id: string
+): Promise<OrderModel | null> {
 
-      console.warn(
-        'OrderRepository: getOrderById called without an order ID.'
-      );
+  if (!id) {
 
-      return null;
-    }
-
-
-    const {
-      data,
-      error,
-    } = await supabase.rpc(
-      'get_customer_orders'
+    console.warn(
+      'OrderRepository: getOrderById called without an order ID.'
     );
 
-
-    if (error) {
-
-      console.error(
-        'OrderRepository: failed to fetch order:',
-        error
-      );
-
-      throw error;
-    }
-
-
-    const row =
-      (data ?? []).find(
-        (item: any) =>
-          item.order_id === id
-      );
-
-
-    if (!row) {
-
-      return null;
-    }
-
-
-    const pointsUsed =
-      await this.getPointsUsed(
-        id
-      );
-
-
-    const order =
-      this.mapJoinedOrder({
-        ...row,
-        points_used:
-          pointsUsed,
-      });
-
-
-    const existingIndex =
-      this.orders.findIndex(
-        existing =>
-          existing.id === id
-      );
-
-
-    if (existingIndex >= 0) {
-
-      this.orders[existingIndex] =
-        order;
-
-    } else {
-
-      this.orders.push(
-        order
-      );
-    }
-
-
-    if (
-      this.activeOrder?.id ===
-      id
-    ) {
-
-      this.activeOrder =
-        order;
-    }
-
-
-    return order;
+    return null;
   }
+
+  const {
+    data,
+    error,
+  } = await supabase.rpc(
+    'get_customer_order_by_id',
+    {
+      p_order_id: id,
+    }
+  );
+
+  if (error) {
+
+    console.error(
+      'OrderRepository: failed to fetch order:',
+      error
+    );
+
+    throw error;
+  }
+
+  const row =
+    Array.isArray(data)
+      ? data[0]
+      : data;
+
+  if (!row) {
+    return null;
+  }
+
+  const order =
+    this.mapJoinedOrder(row);
+
+  const existingIndex =
+    this.orders.findIndex(
+      existing =>
+        existing.id === id
+    );
+
+  if (existingIndex >= 0) {
+
+    this.orders[existingIndex] =
+      order;
+
+  } else {
+
+    this.orders.push(
+      order
+    );
+  }
+
+  if (
+    this.activeOrder?.id ===
+    id
+  ) {
+
+    this.activeOrder =
+      order;
+  }
+
+  return order;
+}
 
 
   // ==========================================================================
