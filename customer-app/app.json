@@ -19,6 +19,11 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0B3D42"
       },
+      "buildProperties": {
+        "android": {
+          "buildArchs": ["arm64-v8a"]
+        }
+      },
       "package": "com.thegoat786.fuelnowcustomer",
       "googleServicesFile": "./google-services.json"
     },

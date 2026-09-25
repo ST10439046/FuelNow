@@ -12,3 +12,4 @@ web-build/
 .env*.local
 customer-app/android/.kotlin/sessions/kotlin-compiler-375922111162582394.salive
 .gitignore
+customer-app/android/.kotlin/sessions/kotlin-compiler-9477611542891401421.salive

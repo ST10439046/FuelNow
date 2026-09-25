@@ -1,4 +1,8 @@
 import { Platform } from "react-native";
+import notifee, {
+  AndroidImportance,
+  AndroidVisibility,
+} from "@notifee/react-native";
 import {
   AuthorizationStatus,
   getMessaging,
@@ -14,6 +18,8 @@ import {
 
 import { supabase } from "./supabase";
 import { userRepository } from "../repositories/UserRepository";
+
+export const FUELNOW_NOTIFICATION_CHANNEL_ID = "fuelnow_default";
 
 export interface PushNotificationData {
   notificationId?: string;
@@ -38,16 +44,104 @@ class PushNotificationService {
   }
 
   /**
+   * Creates the Android notification channel used by FCM.
+   */
+  public async createNotificationChannel(): Promise<void> {
+    if (Platform.OS !== "android") {
+      return;
+    }
+
+    try {
+      await notifee.createChannel({
+        id: FUELNOW_NOTIFICATION_CHANNEL_ID,
+        name: "FuelNow Notifications",
+        description:
+          "Order updates, payment notifications and important FuelNow alerts.",
+        importance: AndroidImportance.HIGH,
+        visibility: AndroidVisibility.PRIVATE,
+        sound: "default",
+        vibration: true,
+        lights: true,
+      });
+
+      console.log(
+        "PushNotificationService: FuelNow notification channel ready."
+      );
+    } catch (error) {
+      console.error(
+        "PushNotificationService: failed to create notification channel:",
+        error
+      );
+    }
+  }
+
+  /**
+   * Displays a local Android notification when FCM
+   * delivers a message while the app is in the foreground.
+   */
+  private async displayForegroundNotification(
+    message: RemoteMessage
+  ): Promise<void> {
+    if (Platform.OS !== "android") {
+      return;
+    }
+
+    try {
+      await this.createNotificationChannel();
+
+      const title =
+        message.notification?.title ??
+        "FuelNow";
+
+      const body =
+        message.notification?.body ??
+        "You have a new FuelNow update.";
+
+      const data = message.data ?? {};
+
+      await notifee.displayNotification({
+        title,
+        body,
+        data,
+        android: {
+          channelId: FUELNOW_NOTIFICATION_CHANNEL_ID,
+          pressAction: {
+            id: "default",
+          },
+          smallIcon: "ic_launcher",
+          sound: "default",
+          importance: AndroidImportance.HIGH,
+          visibility: AndroidVisibility.PRIVATE,
+          autoCancel: true,
+        },
+      });
+
+      console.log(
+        "PushNotificationService: foreground notification displayed."
+      );
+    } catch (error) {
+      console.error(
+        "PushNotificationService: failed to display foreground notification:",
+        error
+      );
+    }
+  }
+
+  /**
    * Initialize Firebase Cloud Messaging for the current customer.
    *
    * This:
-   * 1. Requests notification permission.
-   * 2. Registers the device for remote messages.
-   * 3. Gets the FCM token.
-   * 4. Saves the token against the logged-in FuelNow customer.
+   * 1. Creates the Android notification channel.
+   * 2. Requests notification permission.
+   * 3. Registers the device for remote messages.
+   * 4. Gets the FCM token.
+   * 5. Saves the token against the logged-in FuelNow customer.
    */
   public async initialize(): Promise<string | null> {
-    if (Platform.OS !== "android" && Platform.OS !== "ios") {
+    if (
+      Platform.OS !== "android" &&
+      Platform.OS !== "ios"
+    ) {
       console.log(
         "PushNotificationService: FCM is disabled on this platform."
       );
@@ -56,15 +150,18 @@ class PushNotificationService {
     }
 
     try {
+      await this.createNotificationChannel();
+
       const messaging = getMessaging();
 
-      const permissionStatus = await requestPermission(
-        messaging
-      );
+      const permissionStatus =
+        await requestPermission(messaging);
 
       const enabled =
-        permissionStatus === AuthorizationStatus.AUTHORIZED ||
-        permissionStatus === AuthorizationStatus.PROVISIONAL;
+        permissionStatus ===
+          AuthorizationStatus.AUTHORIZED ||
+        permissionStatus ===
+          AuthorizationStatus.PROVISIONAL;
 
       if (!enabled) {
         console.log(
@@ -85,8 +182,7 @@ class PushNotificationService {
       }
 
       console.log(
-        "PushNotificationService: FCM token received:",
-        fcmToken
+        "PushNotificationService: FCM token received."
       );
 
       await this.saveToken(fcmToken);
@@ -155,12 +251,12 @@ class PushNotificationService {
 
   /**
    * Get the current FCM token and save it again.
-   *
-   * Useful when the application starts or when the token
-   * may have changed.
    */
   public async refreshToken(): Promise<string | null> {
-    if (Platform.OS !== "android" && Platform.OS !== "ios") {
+    if (
+      Platform.OS !== "android" &&
+      Platform.OS !== "ios"
+    ) {
       return null;
     }
 
@@ -191,10 +287,7 @@ class PushNotificationService {
   }
 
   /**
-   * Mark the current customer's push token(s) as inactive.
-   *
-   * We do not delete the token from the database because
-   * keeping the record is useful for device/token tracking.
+   * Mark the current customer's push tokens as inactive.
    */
   public async deactivateCurrentToken(): Promise<void> {
     try {
@@ -246,6 +339,10 @@ class PushNotificationService {
       messaging,
       async (message) => {
         listener(message);
+
+        await this.displayForegroundNotification(
+          message
+        );
       }
     );
   }
@@ -284,7 +381,7 @@ class PushNotificationService {
 
   /**
    * Check whether the application was opened from
-   * a notification while it was completely closed.
+   * a notification while completely closed.
    */
   public async getInitialNotification(): Promise<RemoteMessage | null> {
     if (
@@ -297,7 +394,9 @@ class PushNotificationService {
     try {
       const messaging = getMessaging();
 
-      return await getInitialNotification(messaging);
+      return await getInitialNotification(
+        messaging
+      );
     } catch (error) {
       console.error(
         "PushNotificationService: failed to get initial notification:",
@@ -309,8 +408,8 @@ class PushNotificationService {
   }
 
   /**
-   * Listen for a notification being opened while the
-   * application was in the background.
+   * Listen for a notification being opened while
+   * the application was in the background.
    */
   public onNotificationOpenedApp(
     listener: (message: RemoteMessage) => void

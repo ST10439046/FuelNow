@@ -318,24 +318,24 @@ export default function App() {
     }
 
     const unsubscribeMessage =
-      pushNotificationService.addMessageListener(
-        async (remoteMessage) => {
-          console.log(
-            "FuelNow FCM message received:",
-            remoteMessage
-          );
-
-          console.log(
-            "FuelNow notification:",
-            remoteMessage.notification
-          );
-
-          console.log(
-            "FuelNow notification data:",
-            remoteMessage.data
-          );
-        }
-      );
+    pushNotificationService.addMessageListener(
+      async (remoteMessage) => {
+        console.log(
+          "FuelNow FCM message received:",
+          remoteMessage
+        );
+  
+        console.log(
+          "FuelNow notification:",
+          remoteMessage.notification
+        );
+  
+        console.log(
+          "FuelNow notification data:",
+          remoteMessage.data
+        );
+      }
+    );
 
     const unsubscribeTokenRefresh =
       pushNotificationService.addTokenRefreshListener(
