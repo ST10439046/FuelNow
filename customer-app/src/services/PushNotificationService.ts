@@ -1,3 +1,4 @@
+
 import { Platform } from "react-native";
 import notifee, {
   AndroidImportance,
@@ -17,9 +18,9 @@ import {
 } from "@react-native-firebase/messaging";
 
 import { supabase } from "./supabase";
-import { userRepository } from "../repositories/UserRepository";
 
-export const FUELNOW_NOTIFICATION_CHANNEL_ID = "fuelnow_default";
+export const FUELNOW_NOTIFICATION_CHANNEL_ID =
+  "fuelnow_default";
 
 export interface PushNotificationData {
   notificationId?: string;
@@ -97,14 +98,25 @@ class PushNotificationService {
         message.notification?.body ??
         "You have a new FuelNow update.";
 
-      const data = message.data ?? {};
+      const data: Record<string, string> = {};
+
+      if (message.data) {
+        Object.entries(message.data).forEach(
+          ([key, value]) => {
+            if (value !== undefined && value !== null) {
+              data[key] = String(value);
+            }
+          }
+        );
+      }
 
       await notifee.displayNotification({
         title,
         body,
         data,
         android: {
-          channelId: FUELNOW_NOTIFICATION_CHANNEL_ID,
+          channelId:
+            FUELNOW_NOTIFICATION_CHANNEL_ID,
           pressAction: {
             id: "default",
           },
@@ -128,14 +140,51 @@ class PushNotificationService {
   }
 
   /**
-   * Initialize Firebase Cloud Messaging for the current customer.
+   * Gets the FuelNow public user ID associated with
+   * the currently authenticated Supabase Auth user.
    *
-   * This:
-   * 1. Creates the Android notification channel.
-   * 2. Requests notification permission.
-   * 3. Registers the device for remote messages.
-   * 4. Gets the FCM token.
-   * 5. Saves the token against the logged-in FuelNow customer.
+   * auth.users.id -> public.users.auth_id -> public.users.user_id
+   */
+  private async getAuthenticatedCustomerId(): Promise<string> {
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
+
+    if (sessionError) {
+      throw sessionError;
+    }
+
+    if (!session?.user) {
+      throw new Error(
+        "No authenticated Supabase session is available."
+      );
+    }
+
+    const authUserId = session.user.id;
+
+    const { data, error } = await supabase
+      .from("users")
+      .select("user_id")
+      .eq("auth_id", authUserId)
+      .maybeSingle();
+
+    if (error) {
+      throw error;
+    }
+
+    if (!data?.user_id) {
+      throw new Error(
+        "Authenticated Supabase user does not have a matching FuelNow user record."
+      );
+    }
+
+    return data.user_id;
+  }
+
+  /**
+   * Initializes Firebase Cloud Messaging for the
+   * currently authenticated FuelNow customer.
    */
   public async initialize(): Promise<string | null> {
     if (
@@ -151,6 +200,17 @@ class PushNotificationService {
 
     try {
       await this.createNotificationChannel();
+
+      if (Platform.OS === "android") {
+        try {
+          await notifee.requestPermission();
+        } catch (error) {
+          console.error(
+            "PushNotificationService: failed to request Android notification permission:",
+            error
+          );
+        }
+      }
 
       const messaging = getMessaging();
 
@@ -171,7 +231,9 @@ class PushNotificationService {
         return null;
       }
 
-      await registerDeviceForRemoteMessages(messaging);
+      await registerDeviceForRemoteMessages(
+        messaging
+      );
 
       const fcmToken = await getToken(messaging);
 
@@ -199,20 +261,20 @@ class PushNotificationService {
   }
 
   /**
-   * Save the FCM token for the currently authenticated
-   * FuelNow customer.
+   * Saves the FCM token against the currently
+   * authenticated FuelNow customer.
    */
   private async saveToken(
     fcmToken: string
   ): Promise<void> {
-    const customerId =
-      await userRepository.getCurrentUserId();
-
-    if (!customerId) {
+    if (!fcmToken) {
       throw new Error(
-        "Cannot save FCM token because no authenticated FuelNow user was found."
+        "Cannot save an empty FCM token."
       );
     }
+
+    const customerId =
+      await this.getAuthenticatedCustomerId();
 
     const platform =
       Platform.OS === "android"
@@ -228,7 +290,8 @@ class PushNotificationService {
           platform,
           device_name: null,
           is_active: true,
-          updated_at: new Date().toISOString(),
+          updated_at:
+            new Date().toISOString(),
         },
         {
           onConflict: "fcm_token",
@@ -245,12 +308,13 @@ class PushNotificationService {
     }
 
     console.log(
-      "PushNotificationService: FCM token saved successfully."
+      "PushNotificationService: FCM token saved successfully for customer:",
+      customerId
     );
   }
 
   /**
-   * Get the current FCM token and save it again.
+   * Gets the current FCM token and saves it again.
    */
   public async refreshToken(): Promise<string | null> {
     if (
@@ -261,6 +325,18 @@ class PushNotificationService {
     }
 
     try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.user) {
+        console.log(
+          "PushNotificationService: refresh skipped because there is no authenticated session."
+        );
+
+        return null;
+      }
+
       const messaging = getMessaging();
 
       const token = await getToken(messaging);
@@ -291,10 +367,22 @@ class PushNotificationService {
    */
   public async deactivateCurrentToken(): Promise<void> {
     try {
-      const customerId =
-        await userRepository.getCurrentUserId();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-      if (!customerId) {
+      if (!session?.user) {
+        return;
+      }
+
+      const customerId =
+        await this.getAuthenticatedCustomerId();
+
+      const messaging = getMessaging();
+      const currentToken =
+        await getToken(messaging);
+
+      if (!currentToken) {
         return;
       }
 
@@ -302,9 +390,11 @@ class PushNotificationService {
         .from("customer_push_tokens")
         .update({
           is_active: false,
-          updated_at: new Date().toISOString(),
+          updated_at:
+            new Date().toISOString(),
         })
-        .eq("customer_id", customerId);
+        .eq("customer_id", customerId)
+        .eq("fcm_token", currentToken);
 
       if (error) {
         console.error(
@@ -321,10 +411,13 @@ class PushNotificationService {
   }
 
   /**
-   * Listen for FCM messages while the app is in the foreground.
+   * Listen for FCM messages while the app is
+   * in the foreground.
    */
   public addMessageListener(
-    listener: (message: RemoteMessage) => void
+    listener: (
+      message: RemoteMessage
+    ) => void
   ): () => void {
     if (
       Platform.OS !== "android" &&
@@ -349,6 +442,9 @@ class PushNotificationService {
 
   /**
    * Listen for Firebase token refresh events.
+   *
+   * The actual database registration is handled by
+   * App.tsx after checking that authentication is ready.
    */
   public addTokenRefreshListener(
     listener: (token: string) => void
@@ -366,15 +462,6 @@ class PushNotificationService {
       messaging,
       async (token) => {
         listener(token);
-
-        try {
-          await this.saveToken(token);
-        } catch (error) {
-          console.error(
-            "PushNotificationService: failed to save refreshed FCM token:",
-            error
-          );
-        }
       }
     );
   }
@@ -412,7 +499,9 @@ class PushNotificationService {
    * the application was in the background.
    */
   public onNotificationOpenedApp(
-    listener: (message: RemoteMessage) => void
+    listener: (
+      message: RemoteMessage
+    ) => void
   ): () => void {
     if (
       Platform.OS !== "android" &&
@@ -434,3 +523,4 @@ class PushNotificationService {
 
 export const pushNotificationService =
   PushNotificationService.getInstance();
+

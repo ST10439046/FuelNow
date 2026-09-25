@@ -24,6 +24,7 @@ import {
 } from "./src/context/DesignModeContext";
 import { Fonts } from "./src/theme/tokens";
 import { pushNotificationService } from "./src/services/PushNotificationService";
+import { supabase } from "./src/services/supabase";
 
 // Screens
 import OnboardingScreen from "./src/screens/onboarding/OnboardingScreen";
@@ -88,10 +89,8 @@ function CustomerTabNavigator() {
           backgroundColor: isWireframe ? "#FFFFFF" : colors.white,
           borderTopColor: isWireframe ? "#CCCCCC" : colors.divider,
           borderTopWidth: 1,
-
           paddingTop: 8,
           paddingBottom: insets.bottom + 4,
-
           height: 60 + insets.bottom,
         },
         tabBarActiveTintColor: isWireframe
@@ -317,25 +316,69 @@ export default function App() {
       return;
     }
 
-    const unsubscribeMessage =
-    pushNotificationService.addMessageListener(
-      async (remoteMessage) => {
-        console.log(
-          "FuelNow FCM message received:",
-          remoteMessage
-        );
-  
-        console.log(
-          "FuelNow notification:",
-          remoteMessage.notification
-        );
-  
-        console.log(
-          "FuelNow notification data:",
-          remoteMessage.data
-        );
+    let mounted = true;
+    let initializationInProgress = false;
+
+    const initializePushNotifications = async (
+      reason: string
+    ) => {
+      if (!mounted || initializationInProgress) {
+        return;
       }
-    );
+
+      initializationInProgress = true;
+
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!mounted) {
+          return;
+        }
+
+        if (!session?.user) {
+          console.log(
+            `PushNotificationService: no authenticated session yet, skipping FCM initialization (${reason}).`
+          );
+
+          return;
+        }
+
+        console.log(
+          `PushNotificationService: authenticated session found, initializing FCM (${reason}).`
+        );
+
+        await pushNotificationService.initialize();
+      } catch (error) {
+        console.error(
+          "PushNotificationService: authenticated initialization failed:",
+          error
+        );
+      } finally {
+        initializationInProgress = false;
+      }
+    };
+
+    const unsubscribeMessage =
+      pushNotificationService.addMessageListener(
+        async (remoteMessage) => {
+          console.log(
+            "FuelNow FCM message received:",
+            remoteMessage
+          );
+
+          console.log(
+            "FuelNow notification:",
+            remoteMessage.notification
+          );
+
+          console.log(
+            "FuelNow notification data:",
+            remoteMessage.data
+          );
+        }
+      );
 
     const unsubscribeTokenRefresh =
       pushNotificationService.addTokenRefreshListener(
@@ -344,6 +387,18 @@ export default function App() {
             "FuelNow FCM token refreshed:",
             token
           );
+
+          const {
+            data: { session },
+          } = await supabase.auth.getSession();
+
+          if (!session?.user) {
+            console.log(
+              "PushNotificationService: token refreshed before authentication was ready. Token will be registered after login."
+            );
+
+            return;
+          }
 
           try {
             await pushNotificationService.refreshToken();
@@ -385,10 +440,44 @@ export default function App() {
         );
       });
 
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (!mounted) {
+          return;
+        }
+
+        if (
+          session?.user &&
+          (
+            event === "INITIAL_SESSION" ||
+            event === "SIGNED_IN" ||
+            event === "TOKEN_REFRESHED"
+          )
+        ) {
+          console.log(
+            `PushNotificationService: auth event ${event} received.`
+          );
+
+          setTimeout(() => {
+            initializePushNotifications(
+              `auth event: ${event}`
+            );
+          }, 0);
+        }
+      }
+    );
+
+    initializePushNotifications("app startup");
+
     return () => {
+      mounted = false;
+
       unsubscribeMessage();
       unsubscribeTokenRefresh();
       unsubscribeOpened();
+      subscription.unsubscribe();
     };
   }, []);
 
