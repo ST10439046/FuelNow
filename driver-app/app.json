@@ -1,5 +1,14 @@
 {
   "expo": {
+    "android": {
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION"
+      ]
+    },
     "name": "FuelNow Driver",
     "slug": "fuelnow-driver",
     "version": "1.0.0",
@@ -27,7 +36,13 @@
           ]
         }
       ],
-      "expo-sqlite"
+      "expo-sqlite",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow FuelNow Driver to access your location while using the app and in the background."
+        }
+      ]
     ]
   }
 }
