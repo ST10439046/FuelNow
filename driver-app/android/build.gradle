@@ -19,6 +19,7 @@ allprojects {
     maven { url 'https://www.jitpack.io' }
   }
 }
+
 // Force the Android C++ shared runtime for every native CMake module.
 subprojects { subproject ->
     subproject.plugins.withId("com.android.application") {
@@ -51,5 +52,6 @@ subprojects { subproject ->
         }
     }
 }
+
 apply plugin: "expo-root-project"
 apply plugin: "com.facebook.react.rootproject"

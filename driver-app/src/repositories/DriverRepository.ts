@@ -608,7 +608,6 @@ export class DriverRepository {
 
     return isOnDuty;
   }
-
   public async updateGpsCoordinates(
     lat: number,
     lng: number
@@ -621,11 +620,23 @@ export class DriverRepository {
         'Invalid GPS coordinates.'
       );
     }
-
+  
     const driverId =
       await this.getCurrentUserId();
-
+  
+    console.log(
+      'DriverRepository: updating GPS for driver:',
+      driverId
+    );
+  
+    console.log(
+      'DriverRepository: coordinates:',
+      lat,
+      lng
+    );
+  
     const {
+      data,
       error,
     } = await supabase
       .from('drivers')
@@ -633,18 +644,27 @@ export class DriverRepository {
         latitude: lat,
         longitude: lng,
       })
-      .eq(
-        'driver_id',
-        driverId
-      );
-
+      .eq('driver_id', driverId)
+      .select('driver_id, latitude, longitude');
+  
     if (error) {
       console.error(
-        'DriverRepository: failed to update GPS coordinates:',
+        'DriverRepository: GPS UPDATE failed:',
         error
       );
-
+  
       throw error;
+    }
+  
+    console.log(
+      'DriverRepository: GPS UPDATE response:',
+      data
+    );
+  
+    if (!data || data.length === 0) {
+      throw new Error(
+        `GPS UPDATE affected 0 driver rows. driver_id=${driverId}`
+      );
     }
   }
 

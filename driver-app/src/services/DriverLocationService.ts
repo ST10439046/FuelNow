@@ -3,75 +3,92 @@ import * as TaskManager from 'expo-task-manager';
 
 import { driverRepository } from '../repositories/DriverRepository';
 
-const LOCATION_TASK_NAME =
-  'fuelnow-driver-location-task';
+const LOCATION_TASK_NAME = 'fuelnow-driver-location-task';
 
 const LOCATION_UPDATE_INTERVAL = 5000;
 const LOCATION_DISTANCE_INTERVAL = 10;
 
-let trackingStartPromise:
-  | Promise<boolean>
-  | null = null;
+let trackingStartPromise: Promise<boolean> | null = null;
 
-  TaskManager.defineTask(
-    LOCATION_TASK_NAME,
-    async ({ data, error }: any) => {
-      if (error) {
-        console.error(
-          'DriverLocationService: background location task error:',
-          error
-        );
-        return;
-      }
-  
-      if (!data) {
-        return;
-      }
-  
-      const locations = data.locations;
-  
-      if (!locations || locations.length === 0) {
-        return;
-      }
-  
-      const location = locations[locations.length - 1];
-  
-      const latitude = location.coords.latitude;
-      const longitude = location.coords.longitude;
-  
-      if (
-        !Number.isFinite(latitude) ||
-        !Number.isFinite(longitude)
-      ) {
-        return;
-      }
-  
-      try {
-        await driverRepository.updateGpsCoordinates(
-          latitude,
-          longitude
-        );
-      } catch (updateError) {
-        console.error(
-          'DriverLocationService: failed to update driver GPS coordinates:',
-          updateError
-        );
-      }
+TaskManager.defineTask(
+  LOCATION_TASK_NAME,
+  async ({ data, error }: any) => {
+    console.log(
+      'DriverLocationService: background task fired.'
+    );
+
+    if (error) {
+      console.error(
+        'DriverLocationService: background task error:',
+        error
+      );
+      return;
     }
-  );
+
+    if (!data) {
+      console.log(
+        'DriverLocationService: background task received no data.'
+      );
+      return;
+    }
+
+    const locations = data.locations;
+
+    console.log(
+      'DriverLocationService: locations received:',
+      locations?.length ?? 0
+    );
+
+    if (!locations || locations.length === 0) {
+      return;
+    }
+
+    const location = locations[locations.length - 1];
+
+    const latitude = location.coords.latitude;
+    const longitude = location.coords.longitude;
+
+    console.log(
+      'DriverLocationService: GPS coordinates:',
+      latitude,
+      longitude
+    );
+
+    if (
+      !Number.isFinite(latitude) ||
+      !Number.isFinite(longitude)
+    ) {
+      console.error(
+        'DriverLocationService: invalid GPS coordinates.'
+      );
+      return;
+    }
+
+    try {
+      await driverRepository.updateGpsCoordinates(
+        latitude,
+        longitude
+      );
+
+      console.log(
+        'DriverLocationService: Supabase GPS update successful.'
+      );
+    } catch (updateError) {
+      console.error(
+        'DriverLocationService: Supabase GPS update failed:',
+        updateError
+      );
+    }
+  }
+);
 
 class DriverLocationService {
-  private static instance:
-    | DriverLocationService
-    | null = null;
+  private static instance: DriverLocationService | null = null;
 
   private constructor() {}
 
-  public static getInstance():
-    DriverLocationService {
-    if (
-      !DriverLocationService.instance
-    ) {
+  public static getInstance(): DriverLocationService {
+    if (!DriverLocationService.instance) {
       DriverLocationService.instance =
         new DriverLocationService();
     }
@@ -85,9 +102,17 @@ class DriverLocationService {
 
   public async isTracking(): Promise<boolean> {
     try {
-      return await Location.hasStartedLocationUpdatesAsync(
-        LOCATION_TASK_NAME
+      const tracking =
+        await Location.hasStartedLocationUpdatesAsync(
+          LOCATION_TASK_NAME
+        );
+
+      console.log(
+        'DriverLocationService: tracking status:',
+        tracking
       );
+
+      return tracking;
     } catch (error) {
       console.error(
         'DriverLocationService: failed to check tracking state:',
@@ -99,10 +124,19 @@ class DriverLocationService {
   }
 
   public async requestPermissions(): Promise<boolean> {
+    console.log(
+      'DriverLocationService: requesting foreground location permission.'
+    );
+
     const {
       status: foregroundStatus,
     } =
       await Location.requestForegroundPermissionsAsync();
+
+    console.log(
+      'DriverLocationService: foreground permission:',
+      foregroundStatus
+    );
 
     if (
       foregroundStatus !==
@@ -115,10 +149,19 @@ class DriverLocationService {
       return false;
     }
 
+    console.log(
+      'DriverLocationService: requesting background location permission.'
+    );
+
     const {
       status: backgroundStatus,
     } =
       await Location.requestBackgroundPermissionsAsync();
+
+    console.log(
+      'DriverLocationService: background permission:',
+      backgroundStatus
+    );
 
     if (
       backgroundStatus !==
@@ -162,20 +205,25 @@ class DriverLocationService {
         await this.isTracking();
 
       if (alreadyTracking) {
+        console.log(
+          'DriverLocationService: tracking already running.'
+        );
+
         return true;
       }
+
+      console.log(
+        'DriverLocationService: starting background location updates.'
+      );
 
       await Location.startLocationUpdatesAsync(
         LOCATION_TASK_NAME,
         {
-          accuracy:
-            Location.Accuracy.High,
+          accuracy: Location.Accuracy.High,
 
-          timeInterval:
-            LOCATION_UPDATE_INTERVAL,
+          timeInterval: LOCATION_UPDATE_INTERVAL,
 
-          distanceInterval:
-            LOCATION_DISTANCE_INTERVAL,
+          distanceInterval: LOCATION_DISTANCE_INTERVAL,
 
           deferredUpdatesInterval:
             LOCATION_UPDATE_INTERVAL,
@@ -183,27 +231,22 @@ class DriverLocationService {
           deferredUpdatesDistance:
             LOCATION_DISTANCE_INTERVAL,
 
-          pausesUpdatesAutomatically:
-            false,
+          pausesUpdatesAutomatically: false,
 
           activityType:
             Location.ActivityType.AutomotiveNavigation,
 
-          showsBackgroundLocationIndicator:
-            true,
+          showsBackgroundLocationIndicator: true,
 
           foregroundService: {
-            notificationTitle:
-              'FuelNow Driver',
+            notificationTitle: 'FuelNow Driver',
 
             notificationBody:
               'FuelNow is updating your location for active driver tracking.',
 
-            notificationColor:
-              '#1A2E35',
+            notificationColor: '#1A2E35',
 
-            killServiceOnDestroy:
-              true,
+            killServiceOnDestroy: true,
           },
         }
       );
@@ -249,22 +292,34 @@ class DriverLocationService {
 
   public async updateCurrentLocation(): Promise<boolean> {
     try {
+      console.log(
+        'DriverLocationService: getting current GPS location.'
+      );
+
       const {
         status,
       } =
         await Location.getForegroundPermissionsAsync();
 
+      console.log(
+        'DriverLocationService: foreground permission:',
+        status
+      );
+
       if (
         status !==
         Location.PermissionStatus.GRANTED
       ) {
+        console.error(
+          'DriverLocationService: foreground location permission not granted.'
+        );
+
         return false;
       }
 
       const location =
         await Location.getCurrentPositionAsync({
-          accuracy:
-            Location.Accuracy.High,
+          accuracy: Location.Accuracy.High,
         });
 
       const latitude =
@@ -273,16 +328,30 @@ class DriverLocationService {
       const longitude =
         location.coords.longitude;
 
+      console.log(
+        'DriverLocationService: current GPS coordinates:',
+        latitude,
+        longitude
+      );
+
       if (
         !Number.isFinite(latitude) ||
         !Number.isFinite(longitude)
       ) {
+        console.error(
+          'DriverLocationService: invalid current GPS coordinates.'
+        );
+
         return false;
       }
 
       await driverRepository.updateGpsCoordinates(
         latitude,
         longitude
+      );
+
+      console.log(
+        'DriverLocationService: current GPS location successfully written to Supabase.'
       );
 
       return true;

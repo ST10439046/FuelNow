@@ -438,31 +438,42 @@ function AppContent() {
 
     let mounted = true;
 
-    const syncLocationTracking =
-      async () => {
-        if (!authenticatedDriver) {
-          await driverLocationService.stopTracking();
-          return;
+    const syncLocationTracking = async () => {
+      if (!authenticatedDriver) {
+        await driverLocationService.stopTracking();
+        return;
+      }
+    
+      try {
+        console.log(
+          'App: authenticated driver detected. Updating GPS immediately.'
+        );
+    
+        const currentLocationUpdated =
+          await driverLocationService.updateCurrentLocation();
+    
+        console.log(
+          'App: initial GPS update result:',
+          currentLocationUpdated
+        );
+    
+        const started =
+          await driverLocationService.startTracking();
+    
+        if (!started && mounted) {
+          console.error(
+            'DriverLocationService: GPS tracking could not be started.'
+          );
         }
-
-        try {
-          const started =
-            await driverLocationService.startTracking();
-
-          if (!started && mounted) {
-            console.error(
-              'DriverLocationService: GPS tracking could not be started.'
-            );
-          }
-        } catch (error) {
-          if (mounted) {
-            console.error(
-              'DriverLocationService: failed to start GPS tracking:',
-              error
-            );
-          }
+      } catch (error) {
+        if (mounted) {
+          console.error(
+            'DriverLocationService: failed to start GPS tracking:',
+            error
+          );
         }
-      };
+      }
+    };
 
     syncLocationTracking();
 
