@@ -66,7 +66,7 @@ import DeliveryCompleteScreen from './src/screens/driver/DeliveryCompleteScreen'
 import EarningsScreen from './src/screens/driver/EarningsScreen';
 import SOSScreen from './src/screens/driver/SOSScreen';
 import DriverProfileScreen from './src/screens/driver/DriverProfileScreen';
-
+import ComplianceDocumentsScreen from './src/screens/driver/ComplianceDocumentsScreen';
 import {
   userRepository,
   DriverAuthProfile,
@@ -306,7 +306,12 @@ function DriverNavigator() {
           EarningsScreen
         }
       />
-
+    <RootStack.Screen
+  name="ComplianceDocuments"
+  component={
+    ComplianceDocumentsScreen
+  }
+/>
       <RootStack.Screen
         name="SOS"
         component={

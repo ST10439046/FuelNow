@@ -555,6 +555,42 @@ export default function DriverProfileScreen({
           </View>
 
           {/* Action Buttons */}
+          <TouchableOpacity
+  activeOpacity={0.85}
+  onPress={() =>
+    navigation.navigate(
+      'ComplianceDocuments'
+    )
+  }
+  style={[
+    styles.manageDocumentsButton,
+    {
+      backgroundColor:
+        isWireframe
+          ? colors.charcoalInk
+          : '#F97316',
+    },
+  ]}
+>
+  <Feather
+    name="file-plus"
+    size={17}
+    color="#FFFFFF"
+  />
+
+  <Text
+    style={[
+      styles.manageDocumentsButtonText,
+      {
+        fontFamily:
+          font('bodyBold'),
+      },
+    ]}
+  >
+    Manage Documents
+  </Text>
+</TouchableOpacity>
+          
           <View style={styles.actionsBlock}>
             <TouchableOpacity
               activeOpacity={0.85}
@@ -852,5 +888,19 @@ const styles = StyleSheet.create({
 
   signOutText: {
     fontSize: 15,
+  },
+  manageDocumentsButton: {
+    minHeight: 46,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 2,
+  },
+  
+  manageDocumentsButtonText: {
+    color: '#FFFFFF',
+    fontSize: 13,
   },
 });

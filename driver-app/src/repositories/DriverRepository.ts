@@ -1,15 +1,35 @@
 import { supabase } from '../services/supabase';
-
+import * as Crypto from 'expo-crypto';
 export interface DriverDocumentModel {
   id: string;
+
   type:
     | "Driver's Licence"
     | 'Professional Driver Permit'
+    | 'Professional Driving Permit'
     | 'Hazmat Certificate'
-    | 'Vehicle Permit';
+    | 'Vehicle Permit'
+    | 'Vehicle Licence'
+    | 'Roadworthy Certificate';
+
   number: string;
+
+  issueDate: string;
+
   expiryDate: string;
+
+  status: string;
+
+  filePath: string | null;
+
+  fileName: string | null;
+
+  fileMimeType: string | null;
+
+  fileSize: number | null;
+
   isExpired: boolean;
+
   isExpiringSoon: boolean;
 }
 
@@ -222,26 +242,296 @@ export class DriverRepository {
       !isExpired &&
       daysUntilExpiry <= 30;
 
-    return {
-      id:
-        doc.document_id ??
-        doc.id ??
-        '',
+      return {
+        id:
+          doc.document_id ??
+          doc.id ??
+          '',
+      
+        type:
+          doc.document_type as
+            DriverDocumentModel['type'],
+      
+        number:
+          doc.document_number ??
+          '',
+      
+        issueDate:
+          doc.issue_date ??
+          '',
+      
+        expiryDate,
+      
+        status:
+          doc.status ??
+          (isExpired
+            ? 'Expired'
+            : isExpiringSoon
+              ? 'Expiring Soon'
+              : 'Valid'),
+      
+        filePath:
+          doc.file_path ??
+          null,
+      
+        fileName:
+          doc.file_name ??
+          null,
+      
+        fileMimeType:
+          doc.file_mime_type ??
+          null,
+      
+        fileSize:
+          doc.file_size == null
+            ? null
+            : Number(doc.file_size),
+      
+        isExpired,
+      
+        isExpiringSoon,
+      };
+  }
 
-      type:
-        doc.document_type as
-          DriverDocumentModel['type'],
-
-      number:
-        doc.document_number ??
-        '',
-
-      expiryDate,
-
-      isExpired,
-
-      isExpiringSoon,
-    };
+  public async createComplianceDocument(
+    document: {
+      documentType: DriverDocumentModel['type'];
+      documentNumber: string;
+      issueDate: string;
+      expiryDate: string;
+      fileUri: string;
+      fileName: string;
+      mimeType: string;
+      fileSize?: number | null;
+    }
+  ): Promise<DriverDocumentModel> {
+    const driverId =
+      await this.getCurrentUserId();
+  
+    if (!document.fileUri) {
+      throw new Error(
+        'A document file is required.'
+      );
+    }
+  
+    const documentId =
+  Crypto.randomUUID();
+  
+    const extension =
+      document.fileName
+        .split('.')
+        .pop()
+        ?.toLowerCase() ||
+      'bin';
+  
+    const filePath =
+      `${driverId}/${documentId}.${extension}`;
+  
+    const fileResponse =
+      await fetch(document.fileUri);
+  
+    if (!fileResponse.ok) {
+      throw new Error(
+        'The selected document could not be read.'
+      );
+    }
+  
+    const fileBuffer =
+      await fileResponse.arrayBuffer();
+  
+    const {
+      error: uploadError,
+    } = await supabase.storage
+      .from('driver-compliance')
+      .upload(
+        filePath,
+        fileBuffer,
+        {
+          contentType:
+            document.mimeType ||
+            'application/octet-stream',
+  
+          upsert: false,
+        }
+      );
+  
+    if (uploadError) {
+      throw uploadError;
+    }
+  
+    const {
+      data,
+      error,
+    } = await supabase
+      .from('compliance_documents')
+      .insert({
+        document_id:
+          documentId,
+  
+        driver_id:
+          driverId,
+  
+        document_type:
+          document.documentType,
+  
+        document_number:
+          document.documentNumber,
+  
+        issue_date:
+          document.issueDate,
+  
+        expiry_date:
+          document.expiryDate,
+  
+        status:
+          'Valid',
+  
+        file_path:
+          filePath,
+  
+        file_name:
+          document.fileName,
+  
+        file_mime_type:
+          document.mimeType,
+  
+        file_size:
+          document.fileSize ??
+          null,
+      })
+      .select('*')
+      .single();
+  
+    if (error) {
+      await supabase.storage
+        .from('driver-compliance')
+        .remove([filePath]);
+  
+      throw error;
+    }
+  
+    return this.mapDocument(data);
+  }
+  
+  
+  public async deleteComplianceDocument(
+    documentId: string
+  ): Promise<void> {
+    const driverId =
+      await this.getCurrentUserId();
+  
+    const {
+      data,
+      error,
+    } = await supabase
+      .from('compliance_documents')
+      .select(
+        'document_id, driver_id, file_path'
+      )
+      .eq(
+        'document_id',
+        documentId
+      )
+      .eq(
+        'driver_id',
+        driverId
+      )
+      .single();
+  
+    if (error) {
+      throw error;
+    }
+  
+    if (!data) {
+      throw new Error(
+        'Compliance document not found.'
+      );
+    }
+  
+    if (data.file_path) {
+      const {
+        error: storageError,
+      } = await supabase.storage
+        .from('driver-compliance')
+        .remove([
+          data.file_path,
+        ]);
+  
+      if (storageError) {
+        console.error(
+          'DriverRepository: failed to remove compliance file',
+          storageError
+        );
+      }
+    }
+  
+    const {
+      error: deleteError,
+    } = await supabase
+      .from('compliance_documents')
+      .delete()
+      .eq(
+        'document_id',
+        documentId
+      )
+      .eq(
+        'driver_id',
+        driverId
+      );
+  
+    if (deleteError) {
+      throw deleteError;
+    }
+  }
+  
+  
+  public async getComplianceDocumentUrl(
+    documentId: string
+  ): Promise<string> {
+    const driverId =
+      await this.getCurrentUserId();
+  
+    const {
+      data,
+      error,
+    } = await supabase
+      .from('compliance_documents')
+      .select('file_path')
+      .eq(
+        'document_id',
+        documentId
+      )
+      .eq(
+        'driver_id',
+        driverId
+      )
+      .single();
+  
+    if (error) {
+      throw error;
+    }
+  
+    if (!data?.file_path) {
+      throw new Error(
+        'This document does not have an uploaded file.'
+      );
+    }
+  
+    const {
+      data: signedUrl,
+      error: signedUrlError,
+    } = await supabase.storage
+      .from('driver-compliance')
+      .createSignedUrl(
+        data.file_path,
+        60 * 10
+      );
+  
+    if (signedUrlError) {
+      throw signedUrlError;
+    }
+  
+    return signedUrl.signedUrl;
   }
 
   private async getCurrentUserId(): Promise<string> {
@@ -435,7 +725,7 @@ export class DriverRepository {
       )
       .eq(
         'status',
-        'DELIVERED'
+        'COMPLETED'
       );
 
     if (error) {
