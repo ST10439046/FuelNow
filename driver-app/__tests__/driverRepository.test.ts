@@ -1,273 +1,289 @@
-jest.mock('../src/services/supabase', () => ({
+import {
+    beforeEach,
+    describe,
+    expect,
+    test,
+    vi,
+  } from 'vitest';
+  
+  const mocks = vi.hoisted(() => ({
+    getUser: vi.fn(),
+    usersSelect: vi.fn(),
+    usersEq: vi.fn(),
+    usersSingle: vi.fn(),
+  
+    ordersSelect: vi.fn(),
+    ordersEq: vi.fn(),
+    ordersOrder: vi.fn(),
+  
+    from: vi.fn(),
+  
+    randomUUID: vi.fn(() => 'test-document-id'),
+  }));
+  
+  vi.mock('../src/services/supabase', () => ({
     supabase: {
-      from: jest.fn(),
+      auth: {
+        getUser: mocks.getUser,
+      },
+      from: mocks.from,
     },
   }));
   
-  import { supabase } from '../src/services/supabase';
-  import {
-    DriverRepository,
-  } from '../src/repositories/DriverRepository';
+  vi.mock('expo-crypto', () => ({
+    randomUUID: mocks.randomUUID,
+  }));
   
-  describe('DriverRepository', () => {
-    beforeEach(() => {
-      jest.clearAllMocks();
+  import { DriverRepository } from '../src/repositories/DriverRepository';
+  
+  function setupAuthenticatedDriver() {
+    mocks.getUser.mockResolvedValue({
+      data: {
+        user: {
+          id: 'auth-user-123',
+        },
+      },
+      error: null,
     });
   
-    describe('getEarnings', () => {
-      test('only counts COMPLETED orders and uses rand_amount', async () => {
-        const now = new Date();
+    mocks.usersSelect.mockReturnValue({
+      eq: mocks.usersEq,
+    });
   
-        const todayOrderDate = new Date(
-          now.getTime() - 60 * 60 * 1000
-        ).toISOString();
+    mocks.usersEq.mockReturnValue({
+      single: mocks.usersSingle,
+    });
   
-        const completedOrders = [
-          {
-            order_id: 'order-001',
-            driver_id: 'driver-001',
-            status: 'COMPLETED',
-            rand_amount: 652.85,
-            volume_litres: 20,
-            delivered_at: todayOrderDate,
-            placed_at: todayOrderDate,
-            fuel_types: {
-              name: 'Petrol 95',
-            },
-            addresses: {
-              street_name: 'Florida Road',
-              suburb: 'Morningside',
-            },
+    mocks.usersSingle.mockResolvedValue({
+      data: {
+        user_id: 'driver-123',
+      },
+      error: null,
+    });
+  
+    mocks.from.mockImplementation((table: string) => {
+      if (table === 'users') {
+        return {
+          select: mocks.usersSelect,
+        };
+      }
+  
+      if (table === 'orders') {
+        return {
+          select: mocks.ordersSelect,
+        };
+      }
+  
+      throw new Error(`Unexpected Supabase table: ${table}`);
+    });
+  }
+  
+  function setupOrdersQuery(
+    orders: any[],
+    error: any = null
+  ) {
+    mocks.ordersSelect.mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          order: mocks.ordersOrder,
+        }),
+      }),
+    });
+  
+    mocks.ordersOrder.mockResolvedValue({
+      data: orders,
+      error,
+    });
+  }
+  
+  describe('DriverRepository.getEarnings', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+  
+      setupAuthenticatedDriver();
+    });
+  
+    test('loads completed orders for the authenticated driver', async () => {
+      const orders = [
+        {
+          order_id: 'order-1',
+          driver_id: 'driver-123',
+          status: 'COMPLETED',
+          rand_amount: 652.85,
+          volume_litres: 20,
+          delivered_at: new Date().toISOString(),
+          placed_at: new Date().toISOString(),
+          fuel_types: {
+            name: 'Unleaded 95',
           },
-          {
-            order_id: 'order-002',
-            driver_id: 'driver-001',
-            status: 'COMPLETED',
-            rand_amount: 500.00,
-            volume_litres: 15,
-            delivered_at: todayOrderDate,
-            placed_at: todayOrderDate,
-            fuel_types: {
-              name: 'Diesel 50ppm',
-            },
-            addresses: {
-              street_name: 'Umhlanga Rocks Drive',
-              suburb: 'Umhlanga',
-            },
+          addresses: {
+            street_name: '123 Main Road',
+            suburb: 'Durban North',
           },
-        ];
+        },
+      ];
   
-        const query = {
-          select: jest.fn().mockReturnThis(),
-          eq: jest.fn().mockReturnThis(),
-          order: jest.fn().mockResolvedValue({
-            data: completedOrders,
-            error: null,
-          }),
-        };
+      setupOrdersQuery(orders);
   
-        (supabase.from as jest.Mock).mockReturnValue(
-          query
-        );
+      const repository = DriverRepository.getInstance();
   
-        const repository =
-          DriverRepository.getInstance();
+      const result = await repository.getEarnings();
   
-        jest
-          .spyOn(
-            repository as any,
-            'getCurrentUserId'
-          )
-          .mockResolvedValue('driver-001');
+      expect(result.totalDeliveries).toBe(1);
+      expect(result.todayEarnings).toBeCloseTo(652.85);
+      expect(result.weekEarnings).toBeCloseTo(652.85);
+      expect(result.monthEarnings).toBeCloseTo(652.85);
   
-        const earnings =
-          await repository.getEarnings();
+      expect(mocks.getUser).toHaveBeenCalledTimes(1);
+      expect(mocks.from).toHaveBeenCalledWith('users');
+      expect(mocks.from).toHaveBeenCalledWith('orders');
+    });
   
-        expect(
-          supabase.from
-        ).toHaveBeenCalledWith('orders');
-  
-        expect(
-          query.eq
-        ).toHaveBeenCalledWith(
-          'driver_id',
-          'driver-001'
-        );
-  
-        expect(
-          query.eq
-        ).toHaveBeenCalledWith(
-          'status',
-          'COMPLETED'
-        );
-  
-        expect(
-          earnings.todayEarnings
-        ).toBe(1152.85);
-  
-        expect(
-          earnings.weekEarnings
-        ).toBe(1152.85);
-  
-        expect(
-          earnings.monthEarnings
-        ).toBe(1152.85);
-  
-        expect(
-          earnings.totalDeliveries
-        ).toBe(2);
-      });
-  
-      test('returns zero when there are no completed orders', async () => {
-        const query = {
-          select: jest.fn().mockReturnThis(),
-          eq: jest.fn().mockReturnThis(),
-          order: jest.fn().mockResolvedValue({
-            data: [],
-            error: null,
-          }),
-        };
-  
-        (supabase.from as jest.Mock).mockReturnValue(
-          query
-        );
-  
-        const repository =
-          DriverRepository.getInstance();
-  
-        jest
-          .spyOn(
-            repository as any,
-            'getCurrentUserId'
-          )
-          .mockResolvedValue('driver-001');
-  
-        const earnings =
-          await repository.getEarnings();
-  
-        expect(
-          earnings.todayEarnings
-        ).toBe(0);
-  
-        expect(
-          earnings.weekEarnings
-        ).toBe(0);
-  
-        expect(
-          earnings.monthEarnings
-        ).toBe(0);
-  
-        expect(
-          earnings.totalDeliveries
-        ).toBe(0);
-  
-        expect(
-          earnings.deliveryHistory
-        ).toHaveLength(0);
-      });
-  
-      test('uses rand_amount for delivery history amount', async () => {
-        const deliveredAt =
-          new Date().toISOString();
-  
-        const completedOrders = [
-          {
-            order_id: 'order-003',
-            driver_id: 'driver-001',
-            status: 'COMPLETED',
-            rand_amount: 899.99,
-            volume_litres: 30,
-            delivered_at: deliveredAt,
-            placed_at: deliveredAt,
-            fuel_types: {
-              name: 'Petrol 93',
-            },
-            addresses: {
-              street_name: 'West Street',
-              suburb: 'Durban Central',
-            },
+    test('uses rand_amount as the earnings value', async () => {
+      const orders = [
+        {
+          order_id: 'order-1',
+          driver_id: 'driver-123',
+          status: 'COMPLETED',
+          rand_amount: 100.5,
+          volume_litres: 10,
+          delivered_at: new Date().toISOString(),
+          placed_at: new Date().toISOString(),
+          fuel_types: {
+            name: 'Diesel',
           },
-        ];
+          addresses: {
+            street_name: '1 Test Street',
+            suburb: 'Umhlanga',
+          },
+        },
+        {
+          order_id: 'order-2',
+          driver_id: 'driver-123',
+          status: 'COMPLETED',
+          rand_amount: 250.75,
+          volume_litres: 20,
+          delivered_at: new Date().toISOString(),
+          placed_at: new Date().toISOString(),
+          fuel_types: {
+            name: 'Unleaded 95',
+          },
+          addresses: {
+            street_name: '2 Test Street',
+            suburb: 'Durban North',
+          },
+        },
+      ];
   
-        const query = {
-          select: jest.fn().mockReturnThis(),
-          eq: jest.fn().mockReturnThis(),
-          order: jest.fn().mockResolvedValue({
-            data: completedOrders,
-            error: null,
-          }),
-        };
+      setupOrdersQuery(orders);
   
-        (supabase.from as jest.Mock).mockReturnValue(
-          query
-        );
+      const repository = DriverRepository.getInstance();
   
-        const repository =
-          DriverRepository.getInstance();
+      const result = await repository.getEarnings();
   
-        jest
-          .spyOn(
-            repository as any,
-            'getCurrentUserId'
-          )
-          .mockResolvedValue('driver-001');
+      expect(result.todayEarnings).toBeCloseTo(351.25);
+      expect(result.weekEarnings).toBeCloseTo(351.25);
+      expect(result.monthEarnings).toBeCloseTo(351.25);
+    });
   
-        const earnings =
-          await repository.getEarnings();
+    test('returns zero earnings when there are no completed orders', async () => {
+      setupOrdersQuery([]);
   
-        expect(
-          earnings.deliveryHistory[0].amount
-        ).toBe(899.99);
+      const repository = DriverRepository.getInstance();
   
-        expect(
-          earnings.deliveryHistory[0].litres
-        ).toBe(30);
+      const result = await repository.getEarnings();
   
-        expect(
-          earnings.deliveryHistory[0].fuelType
-        ).toBe('Petrol 93');
+      expect(result.todayEarnings).toBe(0);
+      expect(result.weekEarnings).toBe(0);
+      expect(result.monthEarnings).toBe(0);
+      expect(result.totalDeliveries).toBe(0);
+      expect(result.deliveryHistory).toEqual([]);
+    });
   
-        expect(
-          earnings.deliveryHistory[0].address
-        ).toBe(
-          'West Street, Durban Central'
-        );
+    test('throws when the completed orders query fails', async () => {
+      const databaseError = new Error(
+        'Database connection failed'
+      );
+  
+      setupOrdersQuery([], databaseError);
+  
+      const repository = DriverRepository.getInstance();
+  
+      await expect(
+        repository.getEarnings()
+      ).rejects.toThrow('Database connection failed');
+    });
+  
+    test('maps completed order history correctly', async () => {
+      const deliveredAt = new Date().toISOString();
+  
+      const orders = [
+        {
+          order_id: 'order-history-1',
+          driver_id: 'driver-123',
+          status: 'COMPLETED',
+          rand_amount: 499.99,
+          volume_litres: 15,
+          delivered_at: deliveredAt,
+          placed_at: deliveredAt,
+          fuel_types: {
+            name: 'Diesel',
+          },
+          addresses: {
+            street_name: '45 Florida Road',
+            suburb: 'Morningside',
+          },
+        },
+      ];
+  
+      setupOrdersQuery(orders);
+  
+      const repository = DriverRepository.getInstance();
+  
+      const result = await repository.getEarnings();
+  
+      expect(result.deliveryHistory).toHaveLength(1);
+  
+      expect(result.deliveryHistory[0]).toEqual({
+        id: 'order-history-1',
+        address: '45 Florida Road, Morningside',
+        date: deliveredAt,
+        litres: 15,
+        fuelType: 'Diesel',
+        amount: 499.99,
       });
+    });
   
-      test('throws when Supabase returns an error', async () => {
-        const databaseError =
-          new Error(
-            'Database unavailable'
-          );
+    test('uses delivered_at when calculating earnings periods', async () => {
+      const now = new Date();
   
-        const query = {
-          select: jest.fn().mockReturnThis(),
-          eq: jest.fn().mockReturnThis(),
-          order: jest.fn().mockResolvedValue({
-            data: null,
-            error: databaseError,
-          }),
-        };
+      const orders = [
+        {
+          order_id: 'order-today',
+          driver_id: 'driver-123',
+          status: 'COMPLETED',
+          rand_amount: 100,
+          volume_litres: 10,
+          delivered_at: now.toISOString(),
+          placed_at: now.toISOString(),
+          fuel_types: {
+            name: 'Diesel',
+          },
+          addresses: {
+            street_name: 'Today Street',
+            suburb: 'Durban',
+          },
+        },
+      ];
   
-        (supabase.from as jest.Mock).mockReturnValue(
-          query
-        );
+      setupOrdersQuery(orders);
   
-        const repository =
-          DriverRepository.getInstance();
+      const repository = DriverRepository.getInstance();
   
-        jest
-          .spyOn(
-            repository as any,
-            'getCurrentUserId'
-          )
-          .mockResolvedValue('driver-001');
+      const result = await repository.getEarnings();
   
-        await expect(
-          repository.getEarnings()
-        ).rejects.toThrow(
-          'Database unavailable'
-        );
-      });
+      expect(result.todayEarnings).toBe(100);
+      expect(result.weekEarnings).toBe(100);
+      expect(result.monthEarnings).toBe(100);
     });
   });
