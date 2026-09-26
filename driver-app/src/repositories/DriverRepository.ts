@@ -1,5 +1,6 @@
 import { supabase } from '../services/supabase';
 import * as Crypto from 'expo-crypto';
+
 export interface DriverDocumentModel {
   id: string;
 
@@ -674,16 +675,16 @@ export class DriverRepository {
   public async getEarnings(): Promise<DriverEarnings> {
     const driverId =
       await this.getCurrentUserId();
-
+  
     const now = new Date();
-
+  
     const startOfToday =
       new Date(
         now.getFullYear(),
         now.getMonth(),
         now.getDate()
       ).toISOString();
-
+  
     const startOfWeek =
       new Date(
         now.getFullYear(),
@@ -691,26 +692,41 @@ export class DriverRepository {
         now.getDate() -
           now.getDay()
       ).toISOString();
-
+  
     const startOfMonth =
       new Date(
         now.getFullYear(),
         now.getMonth(),
         1
       ).toISOString();
-
+  
+    console.log(
+      'DriverRepository: loading completed earnings for driver:',
+      driverId
+    );
+  
+    console.log(
+      'DriverRepository: earnings periods:',
+      {
+        startOfToday,
+        startOfWeek,
+        startOfMonth,
+      }
+    );
+  
     const {
       data: orders,
       error,
     } = await supabase
       .from('orders')
       .select(`
-        *,
-        payments (
-          delivery_fee,
-          fuel_subtotal,
-          total_amount
-        ),
+        order_id,
+        driver_id,
+        status,
+        rand_amount,
+        volume_litres,
+        delivered_at,
+        placed_at,
         fuel_types (
           name
         ),
@@ -726,27 +742,41 @@ export class DriverRepository {
       .eq(
         'status',
         'COMPLETED'
+      )
+      .order(
+        'delivered_at',
+        {
+          ascending: false,
+        }
       );
-
+  
     if (error) {
       console.error(
-        'DriverRepository: failed to fetch earnings',
+        'DriverRepository: failed to fetch completed earnings',
         error
       );
+  
+      throw error;
     }
-
-    const delivered =
+  
+    const completedOrders =
       orders ?? [];
-
+  
+    console.log(
+      'DriverRepository: completed orders:',
+      completedOrders
+    );
+  
     const calculateEarnings =
       (
         startDate: string
       ): number =>
-        delivered
+        completedOrders
           .filter(
             (order: any) =>
+              order.delivered_at &&
               order.delivered_at >=
-              startDate
+                startDate
           )
           .reduce(
             (
@@ -755,72 +785,81 @@ export class DriverRepository {
             ) =>
               total +
               Number(
-                order.payments?.[0]
-                  ?.delivery_fee ??
+                order.rand_amount ??
                   0
               ),
             0
           );
-
+  
     const todayEarnings =
       calculateEarnings(
         startOfToday
       );
-
+  
     const weekEarnings =
       calculateEarnings(
         startOfWeek
       );
-
+  
     const monthEarnings =
       calculateEarnings(
         startOfMonth
       );
-
+  
+    console.log(
+      'DriverRepository: calculated earnings:',
+      {
+        todayEarnings,
+        weekEarnings,
+        monthEarnings,
+        totalCompleted:
+          completedOrders.length,
+      }
+    );
+  
     const deliveryHistory:
       DriverEarningsEntry[] =
-      delivered
+      completedOrders
         .slice(0, 20)
         .map(
           (order: any) => ({
             id:
               order.order_id,
-
+  
             address:
               `${order.addresses?.street_name ?? ''}, ` +
               `${order.addresses?.suburb ?? ''}`,
-
+  
             date:
               order.delivered_at ??
               order.placed_at ??
               new Date().toISOString(),
-
+  
             litres:
               Number(
                 order.volume_litres ??
                   0
               ),
-
+  
             fuelType:
               order.fuel_types?.name ??
               'Fuel',
-
+  
             amount:
               Number(
-                order.payments?.[0]
-                  ?.delivery_fee ??
+                order.rand_amount ??
                   0
               ),
           })
         );
-
+  
     return {
       todayEarnings,
       weekEarnings,
       monthEarnings,
       dailyTarget: 1500,
       totalDeliveries:
-        delivered.length,
+        completedOrders.length,
       deliveryHistory,
     };
   }

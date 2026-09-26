@@ -3,6 +3,7 @@ import {
   driverRepository,
   type DriverModel as Driver,
   type DriverVehicleModel,
+  type DriverDocumentModel,
 } from "../repositories/DriverRepository";
 
 const PROVINCES = [
@@ -30,6 +31,7 @@ export default function DriversScreen() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [vehiclesLoading, setVehiclesLoading] = useState(false);
+  const [documentLoading, setDocumentLoading] = useState<string | null>(null);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDriver, setEditingDriver] = useState<Driver | null>(null);
@@ -175,6 +177,7 @@ export default function DriversScreen() {
     setEditingDriver(null);
     setVehicles([]);
     setGeneratedPassword("");
+    setDocumentLoading(null);
   };
 
   const selectedVehicle =
@@ -182,15 +185,10 @@ export default function DriversScreen() {
     (editingDriver?.vehicleId === formData.vehicleId && editingDriver.vehicleId
       ? {
           vehicleId: editingDriver.vehicleId,
-
           registrationNumber: editingDriver.vehicleReg,
-
           make: editingDriver.vehicleMake,
-
           model: editingDriver.vehicleModel,
-
           capacityLitres: editingDriver.vehicleCapacity,
-
           driverId: editingDriver.id,
         }
       : null);
@@ -202,15 +200,128 @@ export default function DriversScreen() {
     }));
   };
 
+  const refreshEditingDriver = async () => {
+    if (!editingDriver) {
+      return;
+    }
+
+    const freshDriver = await driverRepository.getDriver(editingDriver.id);
+
+    setEditingDriver(freshDriver);
+
+    await fetchDrivers();
+  };
+
+  const handleViewDocument = async (
+    document: DriverDocumentModel,
+  ) => {
+    if (!document.filePath) {
+      alert("This compliance document does not have a file attached.");
+      return;
+    }
+
+    setDocumentLoading(document.id);
+
+    try {
+      const url = await driverRepository.getDriverDocumentUrl(
+        document.id,
+      );
+
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      console.error(
+        "Failed to open compliance document:",
+        error,
+      );
+
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Failed to open compliance document.",
+      );
+    } finally {
+      setDocumentLoading(null);
+    }
+  };
+
+  const handleToggleDocumentFlag = async (
+    document: DriverDocumentModel,
+  ) => {
+    setDocumentLoading(document.id);
+
+    try {
+      if (document.status === "flagged") {
+        await driverRepository.unflagDriverDocument(
+          document.id,
+        );
+      } else {
+        await driverRepository.flagDriverDocument(
+          document.id,
+        );
+      }
+
+      await refreshEditingDriver();
+    } catch (error) {
+      console.error(
+        "Failed to update compliance document:",
+        error,
+      );
+
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Failed to update compliance document.",
+      );
+    } finally {
+      setDocumentLoading(null);
+    }
+  };
+
+  const handleDeleteDocument = async (
+    document: DriverDocumentModel,
+  ) => {
+    const confirmed = window.confirm(
+      `Delete "${document.type}"${
+        document.fileName
+          ? ` (${document.fileName})`
+          : ""
+      }?\n\nThis will permanently remove the document and its uploaded file.`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDocumentLoading(document.id);
+
+    try {
+      await driverRepository.deleteDriverDocument(
+        document.id,
+      );
+
+      await refreshEditingDriver();
+    } catch (error) {
+      console.error(
+        "Failed to delete compliance document:",
+        error,
+      );
+
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Failed to delete compliance document.",
+      );
+    } finally {
+      setDocumentLoading(null);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     const cleanName = formData.name.trim();
-
     const cleanEmail = formData.email.trim().toLowerCase();
-
     const cleanPhone = formData.phone.trim();
-
     const cleanZone = formData.zone.trim();
 
     if (!cleanName) {
@@ -286,58 +397,34 @@ export default function DriversScreen() {
        */
       await driverRepository.addDriver(authUser.userId, {
         name: cleanName,
-
         phone: cleanPhone,
-
         email: cleanEmail,
-
         zone: cleanZone,
-
         province: formData.province,
-
         rating: 0,
-
         vehicleReg: selectedVehicle?.registrationNumber ?? "",
-
         vehicleModel: selectedVehicle
           ? `${selectedVehicle.make} ${selectedVehicle.model}`
           : "",
-
         isOnDuty: false,
-
         isApproved: true,
-
         coordinates: {
           lat: 0,
           lng: 0,
         },
-
         dailyTarget: 0,
-
         status: "inactive",
-
         licence_number: "",
-
         truck: selectedVehicle?.registrationNumber ?? "No Vehicle Assigned",
-
         total_deliveries: 0,
-
         latitude: 0,
-
         longitude: 0,
-
         vehicleId: formData.vehicleId,
-
         vehicleMake: selectedVehicle?.make ?? "",
-
         vehicleColor: "",
-
         stationName: "",
-
         vehicleCapacity: selectedVehicle?.capacityLitres ?? 0,
-
         avatar: "",
-
         compliance: [],
       });
 
@@ -356,7 +443,11 @@ export default function DriversScreen() {
     } catch (err) {
       console.error("Failed to save driver:", err);
 
-      alert(err instanceof Error ? err.message : "Failed to save driver.");
+      alert(
+        err instanceof Error
+          ? err.message
+          : "Failed to save driver.",
+      );
     } finally {
       setLoading(false);
     }
@@ -382,7 +473,11 @@ export default function DriversScreen() {
     } catch (err) {
       console.error(err);
 
-      alert(err instanceof Error ? err.message : "Failed to delete driver");
+      alert(
+        err instanceof Error
+          ? err.message
+          : "Failed to delete driver",
+      );
     } finally {
       setLoading(false);
     }
@@ -504,7 +599,8 @@ export default function DriversScreen() {
               >
                 {row.vehicleReg}
 
-                {row.vehicleCapacity > 0 && ` · ${row.vehicleCapacity} L`}
+                {row.vehicleCapacity > 0 &&
+                  ` · ${row.vehicleCapacity} L`}
               </div>
             </>
           ) : (
@@ -544,20 +640,44 @@ export default function DriversScreen() {
 
       render: (docs) => {
         if (!docs || docs.length === 0) {
-          return <StatusBadge status="valid" customLabel="N/A" />;
+          return (
+            <StatusBadge
+              status="valid"
+              customLabel="N/A"
+            />
+          );
         }
 
         const expired = docs.filter(
-          (document: any) => document.status === "expired",
+          (document: DriverDocumentModel) =>
+            document.status === "expired",
+        ).length;
+
+        const flagged = docs.filter(
+          (document: DriverDocumentModel) =>
+            document.status === "flagged",
         ).length;
 
         const soon = docs.filter(
-          (document: any) => document.status === "expiring_soon",
+          (document: DriverDocumentModel) =>
+            document.status === "expiring_soon",
         ).length;
+
+        if (flagged > 0) {
+          return (
+            <StatusBadge
+              status="expired"
+              customLabel={`${flagged} Flagged`}
+            />
+          );
+        }
 
         if (expired > 0) {
           return (
-            <StatusBadge status="expired" customLabel={`${expired} Expired`} />
+            <StatusBadge
+              status="expired"
+              customLabel={`${expired} Expired`}
+            />
           );
         }
 
@@ -570,7 +690,12 @@ export default function DriversScreen() {
           );
         }
 
-        return <StatusBadge status="valid" customLabel="All Valid" />;
+        return (
+          <StatusBadge
+            status="valid"
+            customLabel="All Valid"
+          />
+        );
       },
     },
 
@@ -580,7 +705,11 @@ export default function DriversScreen() {
       width: 140,
 
       render: (_, row) => (
-        <Button variant="ghost" size="sm" onClick={() => openEditModal(row)}>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => openEditModal(row)}
+        >
           Manage Driver
         </Button>
       ),
@@ -615,12 +744,19 @@ export default function DriversScreen() {
             }}
           />
 
-          <Button icon="➕" onClick={openAddModal}>
+          <Button
+            icon="➕"
+            onClick={openAddModal}
+          >
             Add New Driver
           </Button>
         </div>
 
-        <DataTable columns={columns} data={filtered} rowKey="id" />
+        <DataTable
+          columns={columns}
+          data={filtered}
+          rowKey="id"
+        />
       </Card>
 
       {isModalOpen && (
@@ -642,7 +778,7 @@ export default function DriversScreen() {
           <div
             style={{
               background: "var(--white)",
-              width: 500,
+              width: 600,
               maxWidth: "100%",
               maxHeight: "90vh",
               overflowY: "auto",
@@ -658,7 +794,9 @@ export default function DriversScreen() {
                 marginBottom: 24,
               }}
             >
-              {editingDriver ? "Manage Driver" : "Add New Driver"}
+              {editingDriver
+                ? "Manage Driver"
+                : "Add New Driver"}
             </h2>
 
             <form
@@ -774,7 +912,10 @@ export default function DriversScreen() {
                   }}
                 >
                   {PROVINCES.map((province) => (
-                    <option key={province} value={province}>
+                    <option
+                      key={province}
+                      value={province}
+                    >
                       {province}
                     </option>
                   ))}
@@ -800,8 +941,15 @@ export default function DriversScreen() {
 
                 <select
                   value={formData.vehicleId}
-                  onChange={(e) => handleVehicleChange(e.target.value)}
-                  disabled={vehiclesLoading || loading}
+                  onChange={(e) =>
+                    handleVehicleChange(
+                      e.target.value,
+                    )
+                  }
+                  disabled={
+                    vehiclesLoading ||
+                    loading
+                  }
                   style={{
                     width: "100%",
                     padding: "10px 12px",
@@ -809,55 +957,77 @@ export default function DriversScreen() {
                     border: "1.5px solid var(--divider)",
                     background: "var(--white)",
                     fontSize: 14,
-                    fontFamily: "Inter, sans-serif",
+                    fontFamily:
+                      "Inter, sans-serif",
                   }}
                 >
-                  <option value="">No Vehicle Assigned</option>
+                  <option value="">
+                    No Vehicle Assigned
+                  </option>
 
-                  {vehicles.map((vehicle) => (
-                    <option key={vehicle.vehicleId} value={vehicle.vehicleId}>
-                      {vehicle.registrationNumber} · {vehicle.make}{" "}
-                      {vehicle.model}
-                    </option>
-                  ))}
+                  {vehicles.map(
+                    (vehicle) => (
+                      <option
+                        key={
+                          vehicle.vehicleId
+                        }
+                        value={
+                          vehicle.vehicleId
+                        }
+                      >
+                        {
+                          vehicle.registrationNumber
+                        }{" "}
+                        · {vehicle.make}{" "}
+                        {vehicle.model}
+                      </option>
+                    ),
+                  )}
                 </select>
 
                 {vehiclesLoading && (
                   <span
                     style={{
                       fontSize: 12,
-                      color: "var(--ink-faint)",
+                      color:
+                        "var(--ink-faint)",
                     }}
                   >
                     Loading vehicles...
                   </span>
                 )}
 
-                {!vehiclesLoading && vehicles.length === 0 && (
-                  <span
-                    style={{
-                      fontSize: 12,
-                      color: "var(--ink-faint)",
-                    }}
-                  >
-                    No available vehicles.
-                  </span>
-                )}
+                {!vehiclesLoading &&
+                  vehicles.length === 0 && (
+                    <span
+                      style={{
+                        fontSize: 12,
+                        color:
+                          "var(--ink-faint)",
+                      }}
+                    >
+                      No available vehicles.
+                    </span>
+                  )}
 
                 {selectedVehicle && (
                   <div
                     style={{
                       marginTop: 4,
                       padding: 14,
-                      border: "1px solid var(--divider)",
-                      borderRadius: "var(--radius-md)",
-                      background: "var(--ash)",
+                      border:
+                        "1px solid var(--divider)",
+                      borderRadius:
+                        "var(--radius-md)",
+                      background:
+                        "var(--ash)",
                     }}
                   >
                     <div
                       style={{
                         fontSize: 12,
-                        color: "var(--ink-faint)",
+                        color:
+                          "var(--ink-faint)",
                         marginBottom: 5,
                       }}
                     >
@@ -870,7 +1040,8 @@ export default function DriversScreen() {
                         fontSize: 15,
                       }}
                     >
-                      {selectedVehicle.make} {selectedVehicle.model}
+                      {selectedVehicle.make}{" "}
+                      {selectedVehicle.model}
                     </div>
 
                     <div
@@ -879,81 +1050,470 @@ export default function DriversScreen() {
                         gap: 16,
                         marginTop: 7,
                         fontSize: 12,
-                        color: "var(--ink-faint)",
+                        color:
+                          "var(--ink-faint)",
                       }}
                     >
                       <span>
                         <strong
                           style={{
-                            color: "var(--ink)",
+                            color:
+                              "var(--ink)",
                           }}
                         >
                           Registration:
                         </strong>{" "}
-                        {selectedVehicle.registrationNumber}
+                        {
+                          selectedVehicle.registrationNumber
+                        }
                       </span>
 
                       <span>
                         <strong
                           style={{
-                            color: "var(--ink)",
+                            color:
+                              "var(--ink)",
                           }}
                         >
                           Capacity:
                         </strong>{" "}
-                        {selectedVehicle.capacityLitres} L
+                        {
+                          selectedVehicle.capacityLitres
+                        }{" "}
+                        L
                       </span>
                     </div>
                   </div>
                 )}
               </div>
 
-              {!editingDriver && generatedPassword && (
+              {editingDriver && (
                 <div
                   style={{
-                    padding: 14,
-                    border: "1px solid var(--divider)",
-                    borderRadius: "var(--radius-md)",
-                    background: "var(--ash)",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 12,
+                    marginTop: 8,
                   }}
                 >
                   <div
                     style={{
-                      fontSize: 12,
-                      fontWeight: 700,
-                      marginBottom: 6,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent:
+                        "space-between",
+                      gap: 12,
                     }}
                   >
-                    GENERATED LOGIN PASSWORD
+                    <div>
+                      <div
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 700,
+                          color:
+                            "var(--ink-light)",
+                        }}
+                      >
+                        Compliance Documents
+                      </div>
+
+                      <div
+                        style={{
+                          fontSize: 11,
+                          color:
+                            "var(--ink-faint)",
+                          marginTop: 3,
+                        }}
+                      >
+                        Review, flag, or remove
+                        driver compliance
+                        documents.
+                      </div>
+                    </div>
+
+                    <StatusBadge
+                      status={
+                        editingDriver.documents.some(
+                          (document) =>
+                            document.status ===
+                            "flagged",
+                        )
+                          ? "expired"
+                          : editingDriver.documents.some(
+                                (document) =>
+                                  document.status ===
+                                  "expired",
+                              )
+                            ? "expired"
+                            : editingDriver.documents.some(
+                                  (document) =>
+                                    document.status ===
+                                    "expiring_soon",
+                                )
+                              ? "expiring_soon"
+                              : "valid"
+                      }
+                      customLabel={
+                        editingDriver
+                          .documents
+                          .length === 0
+                          ? "No Documents"
+                          : `${
+                              editingDriver
+                                .documents
+                                .length
+                            } Document${
+                              editingDriver
+                                .documents
+                                .length ===
+                              1
+                                ? ""
+                                : "s"
+                            }`
+                      }
+                    />
                   </div>
 
-                  <div
-                    style={{
-                      fontFamily: "monospace",
-                      fontSize: 15,
-                      fontWeight: 700,
-                      letterSpacing: 1,
-                    }}
-                  >
-                    {generatedPassword}
-                  </div>
+                  {editingDriver.documents.length ===
+                  0 ? (
+                    <div
+                      style={{
+                        padding: 16,
+                        border:
+                          "1px dashed var(--divider)",
+                        borderRadius:
+                          "var(--radius-md)",
+                        background:
+                          "var(--ash)",
+                        color:
+                          "var(--ink-faint)",
+                        fontSize: 12,
+                        textAlign: "center",
+                      }}
+                    >
+                      No compliance documents
+                      have been uploaded by
+                      this driver.
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection:
+                          "column",
+                        gap: 10,
+                      }}
+                    >
+                      {editingDriver.documents.map(
+                        (
+                          document: DriverDocumentModel,
+                        ) => {
+                          const isFlagged =
+                            document.status ===
+                            "flagged";
 
-                  <div
-                    style={{
-                      marginTop: 6,
-                      fontSize: 11,
-                      color: "var(--ink-faint)",
-                    }}
-                  >
-                    Give this temporary password to the driver.
-                  </div>
+                          const isExpired =
+                            document.status ===
+                            "expired";
+
+                          const isExpiringSoon =
+                            document.status ===
+                            "expiring_soon";
+
+                          const isLoading =
+                            documentLoading ===
+                            document.id;
+
+                          return (
+                            <div
+                              key={
+                                document.id
+                              }
+                              style={{
+                                border:
+                                  isFlagged
+                                    ? "1px solid var(--danger)"
+                                    : "1px solid var(--divider)",
+                                borderRadius:
+                                  "var(--radius-md)",
+                                padding: 14,
+                                background:
+                                  isFlagged
+                                    ? "rgba(220, 38, 38, 0.04)"
+                                    : "var(--white)",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  display:
+                                    "flex",
+                                  alignItems:
+                                    "flex-start",
+                                  justifyContent:
+                                    "space-between",
+                                  gap: 12,
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    minWidth: 0,
+                                    flex: 1,
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      display:
+                                        "flex",
+                                      alignItems:
+                                        "center",
+                                      gap: 8,
+                                      flexWrap:
+                                        "wrap",
+                                    }}
+                                  >
+                                    <strong
+                                      style={{
+                                        fontSize: 13,
+                                      }}
+                                    >
+                                      {
+                                        document.type
+                                      }
+                                    </strong>
+
+                                    <StatusBadge
+                                      status={
+                                        isFlagged
+                                          ? "expired"
+                                          : document.status
+                                      }
+                                      customLabel={
+                                        isFlagged
+                                          ? "Flagged"
+                                          : isExpired
+                                            ? "Expired"
+                                            : isExpiringSoon
+                                              ? "Expiring Soon"
+                                              : "Valid"
+                                      }
+                                    />
+                                  </div>
+
+                                  <div
+                                    style={{
+                                      marginTop: 8,
+                                      display:
+                                        "grid",
+                                      gridTemplateColumns:
+                                        "1fr 1fr",
+                                      gap: 6,
+                                      fontSize: 11,
+                                      color:
+                                        "var(--ink-faint)",
+                                    }}
+                                  >
+                                    <div>
+                                      <strong
+                                        style={{
+                                          color:
+                                            "var(--ink)",
+                                        }}
+                                      >
+                                        Number:
+                                      </strong>{" "}
+                                      {document.number ||
+                                        "Not provided"}
+                                    </div>
+
+                                    <div>
+                                      <strong
+                                        style={{
+                                          color:
+                                            "var(--ink)",
+                                        }}
+                                      >
+                                        File:
+                                      </strong>{" "}
+                                      {document.fileName ||
+                                        "No file"}
+                                    </div>
+
+                                    <div>
+                                      <strong
+                                        style={{
+                                          color:
+                                            "var(--ink)",
+                                        }}
+                                      >
+                                        Issue Date:
+                                      </strong>{" "}
+                                      {document.issueDate
+                                        ? new Date(
+                                            document.issueDate,
+                                          ).toLocaleDateString()
+                                        : "N/A"}
+                                    </div>
+
+                                    <div>
+                                      <strong
+                                        style={{
+                                          color:
+                                            "var(--ink)",
+                                        }}
+                                      >
+                                        Expiry Date:
+                                      </strong>{" "}
+                                      {document.expiryDate
+                                        ? new Date(
+                                            document.expiryDate,
+                                          ).toLocaleDateString()
+                                        : "N/A"}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div
+                                style={{
+                                  display:
+                                    "flex",
+                                  gap: 8,
+                                  flexWrap:
+                                    "wrap",
+                                  marginTop: 12,
+                                  paddingTop: 12,
+                                  borderTop:
+                                    "1px solid var(--divider)",
+                                }}
+                              >
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  disabled={
+                                    isLoading ||
+                                    !document.filePath
+                                  }
+                                  onClick={() =>
+                                    handleViewDocument(
+                                      document,
+                                    )
+                                  }
+                                >
+                                  {isLoading &&
+                                  documentLoading ===
+                                    document.id
+                                    ? "Opening..."
+                                    : "View Document"}
+                                </Button>
+
+                                <Button
+                                  type="button"
+                                  variant={
+                                    isFlagged
+                                      ? "ghost"
+                                      : "danger"
+                                  }
+                                  size="sm"
+                                  disabled={
+                                    isLoading
+                                  }
+                                  onClick={() =>
+                                    handleToggleDocumentFlag(
+                                      document,
+                                    )
+                                  }
+                                >
+                                  {isLoading &&
+                                  documentLoading ===
+                                    document.id
+                                    ? "Updating..."
+                                    : isFlagged
+                                      ? "Unflag"
+                                      : "Flag Document"}
+                                </Button>
+
+                                <Button
+                                  type="button"
+                                  variant="danger"
+                                  size="sm"
+                                  disabled={
+                                    isLoading
+                                  }
+                                  onClick={() =>
+                                    handleDeleteDocument(
+                                      document,
+                                    )
+                                  }
+                                >
+                                  {isLoading &&
+                                  documentLoading ===
+                                    document.id
+                                    ? "Deleting..."
+                                    : "Delete Document"}
+                                </Button>
+                              </div>
+                            </div>
+                          );
+                        },
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
+
+              {!editingDriver &&
+                generatedPassword && (
+                  <div
+                    style={{
+                      padding: 14,
+                      border:
+                        "1px solid var(--divider)",
+                      borderRadius:
+                        "var(--radius-md)",
+                      background: "var(--ash)",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 700,
+                        marginBottom: 6,
+                      }}
+                    >
+                      GENERATED LOGIN PASSWORD
+                    </div>
+
+                    <div
+                      style={{
+                        fontFamily: "monospace",
+                        fontSize: 15,
+                        fontWeight: 700,
+                        letterSpacing: 1,
+                      }}
+                    >
+                      {generatedPassword}
+                    </div>
+
+                    <div
+                      style={{
+                        marginTop: 6,
+                        fontSize: 11,
+                        color:
+                          "var(--ink-faint)",
+                      }}
+                    >
+                      Give this temporary password
+                      to the driver.
+                    </div>
+                  </div>
+                )}
 
               <div
                 style={{
                   display: "flex",
-                  justifyContent: "flex-end",
+                  justifyContent:
+                    "flex-end",
                   gap: 12,
                   marginTop: 16,
                 }}
@@ -981,8 +1541,14 @@ export default function DriversScreen() {
                   Cancel
                 </Button>
 
-                <Button type="submit" variant="primary" loading={loading}>
-                  {editingDriver ? "Save Changes" : "Add Driver"}
+                <Button
+                  type="submit"
+                  variant="primary"
+                  loading={loading}
+                >
+                  {editingDriver
+                    ? "Save Changes"
+                    : "Add Driver"}
                 </Button>
               </div>
             </form>

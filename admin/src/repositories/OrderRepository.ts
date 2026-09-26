@@ -1588,7 +1588,6 @@ truck:
     // ------------------------------------------------------------------------
 
     const {
-      data,
       error,
     } = await supabase.rpc(
       'update_order',
@@ -2081,17 +2080,7 @@ truck:
   // MAP ORDERS
   // ==========================================================================
 
-  private async mapOrders(
-    rows: any[]
-  ): Promise<OrderModel[]> {
 
-    return rows.map(
-      (row) =>
-        this.mapJoinedOrder(
-          row
-        )
-    );
-  }
 
 
   // ==========================================================================
@@ -2405,20 +2394,6 @@ truck:
             0
           );
 
-
-        const vehicleMake =
-          vehicleData?.make ??
-          '';
-
-
-        const vehicleModel =
-          vehicleData?.model ??
-          '';
-
-
-        const vehicleRegistration =
-          vehicleData?.registration_number ??
-          '';
 
 
         driver = {
